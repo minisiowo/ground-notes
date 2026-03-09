@@ -1,0 +1,173 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="using:QuickNotesTxt.Models"
+        xmlns:converters="using:QuickNotesTxt.Converters"
+        x:Name="RootWindow"
+        x:Class="QuickNotesTxt.Views.MainWindow"
+        Title="QuickNotesTxt"
+        Width="1180"
+        Height="760"
+        MinWidth="860"
+        MinHeight="540"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown">
+  <Grid RowDefinitions="Auto,*">
+    <Border Grid.Row="0"
+            Classes="titleBarSurface"
+            BorderThickness="0,0,0,1"
+            PointerPressed="OnTitleBarPointerPressed"
+            DoubleTapped="OnTitleBarDoubleTapped">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <Border Grid.Column="0"
+                Background="Transparent"
+                Padding="12,6">
+          <TextBlock Classes="titleBarText" Text="QuickNotesTxt" VerticalAlignment="Center" />
+        </Border>
+        <Button Grid.Column="1"
+                Classes="titleBarButton"
+                Click="OnMinimizeClick"
+                Content="-"
+                Width="42"
+                Height="30" />
+        <Button Grid.Column="2"
+                Classes="titleBarButton"
+                Click="OnMaximizeRestoreClick"
+                Content="□"
+                Width="42"
+                Height="30" />
+        <Button Grid.Column="3"
+                Classes="titleBarButton titleBarCloseButton"
+                Click="OnCloseClick"
+                Content="X"
+                Width="42"
+                Height="30" />
+      </Grid>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+      <Border Classes="sidebarSurface"
+              Width="300"
+              IsVisible="{Binding SidebarCollapsed, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+              Padding="12"
+              BorderThickness="0,0,1,0">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+          <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,10">
+            <Button Command="{Binding ChooseFolderCommand}" HorizontalAlignment="Left" Content="Change Folder" />
+            <Button Grid.Column="1" Margin="8,0,0,0" Classes="secondaryButton" Command="{Binding NewNoteCommand}" HorizontalAlignment="Left" Content="New note" />
+            <Button Grid.Column="3" Classes="secondaryButton" Command="{Binding ToggleSidebarCommand}" Content="[" Width="30" Padding="0" />
+          </Grid>
+
+          <TextBlock Grid.Row="1" Classes="metaText" Margin="0,0,0,10" Text="{Binding NotesFolder}" TextWrapping="Wrap" />
+
+          <TextBox Grid.Row="2" Watermark="Search notes" Text="{Binding SearchText}" />
+
+          <Grid Grid.Row="3" ColumnDefinitions="*,*" Margin="0,10,0,10">
+            <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSortOption}" />
+            <ComboBox Grid.Column="1" Margin="8,0,0,0" ItemsSource="{Binding AvailableTags}" SelectedItem="{Binding SelectedTag}" />
+          </Grid>
+
+          <ListBox Grid.Row="4" ItemsSource="{Binding VisibleNotes}" SelectedItem="{Binding SelectedNoteSummary}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="models:NoteSummary">
+                <Border Classes="fileRow" Padding="8,5" BorderThickness="1">
+                  <Border.ContextMenu>
+                    <ContextMenu>
+                      <MenuItem Header="Rename"
+                                Command="{Binding #RootWindow.DataContext.StartRenameNoteCommand}"
+                                CommandParameter="{Binding}" />
+                      <MenuItem Header="Delete"
+                                Command="{Binding #RootWindow.DataContext.DeleteNoteCommand}"
+                                CommandParameter="{Binding}" />
+                    </ContextMenu>
+                  </Border.ContextMenu>
+                  <Grid>
+                    <TextBlock Classes="fileRowText"
+                               IsVisible="{Binding IsRenaming, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+                               Text="{Binding DisplayName}"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBox Classes="fileRowEditor"
+                             IsVisible="{Binding IsRenaming}"
+                             Text="{Binding RenameText}"
+                             KeyDown="OnRenameTextBoxKeyDown"
+                             LostFocus="OnRenameTextBoxLostFocus" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <Grid Grid.Row="5" ColumnDefinitions="Auto,*,Auto" Margin="0,10,0,0">
+            <Button Classes="secondaryButton" Command="{Binding ReloadCommand}" Content="Reload" />
+            <TextBlock Grid.Column="1" Classes="footerStatusText" Margin="10,0,0,0" VerticalAlignment="Center" Text="{Binding LastSavedText}" />
+            <Button Grid.Column="2"
+                    Classes="secondaryButton"
+                    Margin="10,0,0,0"
+                    IsVisible="{Binding SelectedTag, Converter={x:Static converters:StringNotEmptyConverter.Instance}}"
+                    Command="{Binding ClearTagFilterCommand}"
+                    HorizontalAlignment="Left"
+                    Content="Clear Tag Filter" />
+          </Grid>
+        </Grid>
+      </Border>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+        <Grid ColumnDefinitions="*" Margin="14,6,14,8" IsVisible="{Binding HasVisibleStatus}">
+          <TextBlock Classes="metaText" VerticalAlignment="Center" Text="{Binding StatusMessage}" />
+        </Grid>
+
+        <Grid Grid.Row="1"
+              ColumnDefinitions="3*,*"
+              Margin="14,12,14,10"
+              IsVisible="{Binding SidebarCollapsed, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+              IsEnabled="{Binding HasSelectedFolder}">
+          <TextBox Watermark="Title"
+                   Text="{Binding EditorTitle}" />
+          <TextBox Grid.Column="1"
+                   Margin="8,0,0,0"
+                   Watermark="Tags (comma separated)"
+                   Text="{Binding EditorTags}" />
+        </Grid>
+
+        <Grid Grid.Row="1"
+              ColumnDefinitions="Auto,3*,*"
+              Margin="14,12,14,10"
+              IsVisible="{Binding SidebarCollapsed}"
+              IsEnabled="{Binding HasSelectedFolder}">
+          <Button Classes="secondaryButton"
+                  Command="{Binding ToggleSidebarCommand}"
+                  Content="]"
+                  Width="30"
+                  Padding="0" />
+          <TextBox Grid.Column="1"
+                   Margin="8,0,0,0"
+                   Watermark="Title"
+                   Text="{Binding EditorTitle}" />
+          <TextBox Grid.Column="2"
+                   Margin="8,0,0,0"
+                   Watermark="Tags (comma separated)"
+                   Text="{Binding EditorTags}" />
+        </Grid>
+
+        <Border Grid.Row="2" Classes="editorSurface" Margin="14,0,14,14" BorderThickness="1">
+          <Grid>
+            <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="14" Text="Choose a folder to start writing plain-text notes." TextWrapping="Wrap" />
+            <TextBox AcceptsReturn="True"
+                     Classes="editorTextBox"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     FontSize="{Binding EditorFontSize}"
+                     Padding="12"
+                     IsEnabled="{Binding HasSelectedFolder}"
+                     Text="{Binding EditorBody}"
+                     TextWrapping="Wrap"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     Watermark="Start typing. A note will be created automatically on the first keystroke." />
+          </Grid>
+        </Border>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>
