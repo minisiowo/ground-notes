@@ -129,6 +129,14 @@
     <Setter Property="FontSize" Value="11" />
   </Style>
 
+  <Style Selector="TextBox.compactPlaceholder /template/ TextBlock.watermark">
+    <Setter Property="FontSize" Value="9" />
+  </Style>
+
+  <Style Selector="TextBox.editorTextBox /template/ TextBlock.watermark">
+    <Setter Property="FontSize" Value="10" />
+  </Style>
+
   <Style Selector="TextBox:disabled">
     <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
     <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
@@ -150,7 +158,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="1" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontSize" Value="9" />
   </Style>
 
   <Style Selector="ComboBox:pointerover, ComboBox:focus">
@@ -162,7 +170,7 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontSize" Value="9" />
   </Style>
 
   <Style Selector="ComboBoxItem:pointerover">

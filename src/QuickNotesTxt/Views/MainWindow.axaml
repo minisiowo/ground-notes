@@ -61,7 +61,7 @@
 
           <TextBlock Grid.Row="1" Classes="metaText" Margin="0,0,0,10" Text="{Binding NotesFolder}" TextWrapping="Wrap" />
 
-          <TextBox Grid.Row="2" Watermark="Search notes" Text="{Binding SearchText}" />
+          <TextBox Grid.Row="2" Classes="compactPlaceholder" Watermark="Search notes" Text="{Binding SearchText}" />
 
           <Grid Grid.Row="3" ColumnDefinitions="*,*" Margin="0,10,0,10">
             <ComboBox ItemsSource="{Binding SortOptions}" SelectedItem="{Binding SelectedSortOption}" />
@@ -122,9 +122,9 @@
               Margin="14,12,14,10"
               IsVisible="{Binding SidebarCollapsed, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
               IsEnabled="{Binding HasSelectedFolder}">
-          <TextBox Watermark="Title"
-                   Text="{Binding EditorTitle}" />
+          <TextBox Classes="compactPlaceholder" Watermark="Title" Text="{Binding EditorTitle}" />
           <TextBox Grid.Column="1"
+                   Classes="compactPlaceholder"
                    Margin="8,0,0,0"
                    Watermark="Tags (comma separated)"
                    Text="{Binding EditorTags}" />
@@ -141,10 +141,12 @@
                   Width="30"
                   Padding="0" />
           <TextBox Grid.Column="1"
+                   Classes="compactPlaceholder"
                    Margin="8,0,0,0"
                    Watermark="Title"
                    Text="{Binding EditorTitle}" />
           <TextBox Grid.Column="2"
+                   Classes="compactPlaceholder"
                    Margin="8,0,0,0"
                    Watermark="Tags (comma separated)"
                    Text="{Binding EditorTags}" />
