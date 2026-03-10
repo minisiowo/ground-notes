@@ -93,7 +93,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public bool ShowFolderPrompt => !HasSelectedFolder;
 
-    public bool HasVisibleStatus => !string.IsNullOrWhiteSpace(StatusMessage) && !string.Equals(StatusMessage, "Ready.", StringComparison.Ordinal);
+    public bool ShowTitleWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorTitle);
+
+    public bool ShowTagsWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorTags);
+
+    public bool ShowEditorWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorBody);
+
+    public bool HasFooterStatusOverride => !string.IsNullOrWhiteSpace(StatusMessage) && !string.Equals(StatusMessage, "Ready.", StringComparison.Ordinal);
+
+    public string FooterStatusText => HasFooterStatusOverride ? StatusMessage : LastSavedText;
 
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
@@ -106,11 +114,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(HasSelectedFolder));
         OnPropertyChanged(nameof(ShowFolderPrompt));
+        OnPropertyChanged(nameof(ShowTitleWatermark));
+        OnPropertyChanged(nameof(ShowTagsWatermark));
+        OnPropertyChanged(nameof(ShowEditorWatermark));
     }
 
     partial void OnVisibleNotesChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotes));
 
-    partial void OnStatusMessageChanged(string value) => OnPropertyChanged(nameof(HasVisibleStatus));
+    partial void OnStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasFooterStatusOverride));
+        OnPropertyChanged(nameof(FooterStatusText));
+    }
+
+    partial void OnLastSavedTextChanged(string value) => OnPropertyChanged(nameof(FooterStatusText));
 
     partial void OnSelectedNoteSummaryChanged(NoteSummary? value)
     {
@@ -124,6 +141,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnEditorTitleChanged(string value)
     {
+        OnPropertyChanged(nameof(ShowTitleWatermark));
+        ClearTransientStatusOnEdit();
+
         if (_isApplyingSelection || !HasSelectedFolder || CurrentNote is null)
         {
             return;
@@ -135,6 +155,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnEditorTagsChanged(string value)
     {
+        OnPropertyChanged(nameof(ShowTagsWatermark));
+        ClearTransientStatusOnEdit();
+
         if (_isApplyingSelection || !HasSelectedFolder || CurrentNote is null)
         {
             return;
@@ -146,6 +169,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnEditorBodyChanged(string value)
     {
+        OnPropertyChanged(nameof(ShowEditorWatermark));
+        ClearTransientStatusOnEdit();
+
         if (_isApplyingSelection || !HasSelectedFolder)
         {
             return;
@@ -576,6 +602,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void ClearTransientStatusOnEdit()
+    {
+        if (IsTransientFooterStatus(StatusMessage))
+        {
+            StatusMessage = "Ready.";
+        }
+    }
+
+    private static bool IsTransientFooterStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return false;
+        }
+
+        return status == "New note ready."
+            || status == "Delete canceled."
+            || status.StartsWith("Deleted ", StringComparison.Ordinal)
+            || status.StartsWith("Renamed to ", StringComparison.Ordinal)
+            || status.StartsWith("Editor font size: ", StringComparison.Ordinal);
+    }
     private async Task SaveCurrentNoteAsync(CancellationToken cancellationToken)
     {
         if (CurrentNote is null || !HasSelectedFolder)
@@ -749,3 +796,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         CancelScheduledSave();
     }
 }
+
+
+
+

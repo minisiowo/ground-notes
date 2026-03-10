@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 
 namespace QuickNotesTxt.Views;
@@ -17,6 +18,12 @@ public partial class ConfirmDeleteWindow : Window
         {
             Message = $"Delete '{noteName}' permanently?"
         };
+    }
+
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            BeginMoveDrag(e);
     }
 
     private void OnDeleteClick(object? sender, RoutedEventArgs e)
