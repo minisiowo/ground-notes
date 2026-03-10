@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using QuickNotesTxt.Services;
+using QuickNotesTxt.Styles;
 using QuickNotesTxt.ViewModels;
 using QuickNotesTxt.Views;
 
@@ -12,6 +13,7 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        ThemeService.Apply(AppTheme.Dark);
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -23,10 +25,13 @@ public partial class App : Application
             var fileWatcher = new FileWatcherService();
             var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher);
 
-            desktop.MainWindow = new MainWindow
+            var mainWindow = new MainWindow
             {
                 DataContext = mainViewModel
             };
+            mainWindow.SetSettingsService(settingsService);
+
+            desktop.MainWindow = mainWindow;
         }
 
         base.OnFrameworkInitializationCompleted();

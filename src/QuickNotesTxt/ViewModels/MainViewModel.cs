@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QuickNotesTxt.Models;
 using QuickNotesTxt.Services;
+using QuickNotesTxt.Styles;
 
 namespace QuickNotesTxt.ViewModels;
 
@@ -40,10 +41,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _searchText = string.Empty;
 
     [ObservableProperty]
-    private string? _selectedTag;
+    private string? _selectedTag = "All";
 
     [ObservableProperty]
-    private ObservableCollection<string> _availableTags = [];
+    private ObservableCollection<string> _availableTags = ["All"];
 
     [ObservableProperty]
     private string _notesFolder = string.Empty;
@@ -65,6 +66,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private double _editorFontSize = DefaultEditorFontSize;
+
+    [ObservableProperty]
+    private string _selectedThemeName = AppTheme.Dark.Name;
+
+    public IReadOnlyList<string> ThemeNames { get; } = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
 
     public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService)
     {
@@ -106,9 +112,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
 
-    partial void OnSelectedTagChanged(string? value) => RefreshVisibleNotes();
+    partial void OnSelectedTagChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasActiveTagFilter));
+        RefreshVisibleNotes();
+    }
+
+    public bool HasActiveTagFilter => !string.IsNullOrWhiteSpace(SelectedTag) && !string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal);
 
     partial void OnSelectedSortOptionChanged(SortOption value) => RefreshVisibleNotes();
+
+    partial void OnSelectedThemeNameChanged(string value)
+    {
+        var theme = AppTheme.BuiltInThemes.FirstOrDefault(t => t.Name == value);
+        if (theme is not null)
+        {
+            ThemeService.Apply(theme);
+            if (!_isApplyingSelection)
+            {
+                _ = _settingsService.SetThemeNameAsync(value);
+            }
+        }
+    }
 
     partial void OnNotesFolderChanged(string value)
     {
@@ -244,7 +269,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void ClearTagFilter()
     {
-        SelectedTag = null;
+        SelectedTag = AllTagsFilter;
     }
 
     [RelayCommand]
@@ -401,6 +426,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var settings = await _settingsService.GetSettingsAsync();
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
 
+        if (!string.IsNullOrWhiteSpace(settings.ThemeName))
+        {
+            var theme = AppTheme.BuiltInThemes.FirstOrDefault(t => t.Name == settings.ThemeName);
+            if (theme is not null)
+            {
+                _isApplyingSelection = true;
+                try
+                {
+                    SelectedThemeName = theme.Name;
+                }
+                finally
+                {
+                    _isApplyingSelection = false;
+                }
+                ThemeService.Apply(theme);
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(settings.NotesFolder))
         {
             await SetFolderAsync(settings.NotesFolder);
@@ -556,8 +599,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _isApplyingSelection = true;
         try
         {
-            EditorTitle = draft.Title;
-            EditorTags = string.Empty;
+            if (!string.IsNullOrWhiteSpace(EditorTitle))
+            {
+                draft.Title = EditorTitle.Trim();
+            }
+            else
+            {
+                EditorTitle = draft.Title;
+            }
+
+            if (!string.IsNullOrWhiteSpace(EditorTags))
+            {
+                draft.Tags = ParseTags(EditorTags);
+            }
+            else
+            {
+                EditorTags = string.Empty;
+            }
         }
         finally
         {
@@ -694,15 +752,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshVisibleNotes()
     {
-        VisibleNotes = new ObservableCollection<NoteSummary>(_notesRepository.QueryNotes(_allNotes, SearchText, SelectedTag, SelectedSortOption));
+        var effectiveTag = string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal) ? null : SelectedTag;
+        VisibleNotes = new ObservableCollection<NoteSummary>(_notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedSortOption));
     }
+
+    private const string AllTagsFilter = "All";
 
     private void RefreshAvailableTags()
     {
-        AvailableTags = new ObservableCollection<string>(_allNotes
+        var tags = _allNotes
             .SelectMany(note => note.Tags)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase));
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        tags.Insert(0, AllTagsFilter);
+        AvailableTags = new ObservableCollection<string>(tags);
     }
 
     private void ReplaceSummary(string previousPath, NoteSummary summary)

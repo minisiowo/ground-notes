@@ -2,34 +2,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
     <FontFamily x:Key="TerminalFont">Cascadia Mono, Cascadia Code, Consolas, Menlo, Monaco, Monospace</FontFamily>
-
-    <SolidColorBrush x:Key="AppBackgroundBrush">#111417</SolidColorBrush>
-    <SolidColorBrush x:Key="PaneBackgroundBrush">#171C21</SolidColorBrush>
-    <SolidColorBrush x:Key="SurfaceBackgroundBrush">#111417</SolidColorBrush>
-    <SolidColorBrush x:Key="SurfaceHoverBrush">#111417</SolidColorBrush>
-    <SolidColorBrush x:Key="SurfacePressedBrush">#111417</SolidColorBrush>
-    <SolidColorBrush x:Key="SurfaceRaisedBrush">#14191E</SolidColorBrush>
-    <SolidColorBrush x:Key="SelectionBackgroundBrush">#162737</SolidColorBrush>
-    <SolidColorBrush x:Key="SelectionBorderBrush">#4AA3FF</SolidColorBrush>
-    <SolidColorBrush x:Key="BorderBrushBase">#36414B</SolidColorBrush>
-    <SolidColorBrush x:Key="FocusBorderBrush">#71B7FF</SolidColorBrush>
-    <SolidColorBrush x:Key="PrimaryTextBrush">#E8EEF2</SolidColorBrush>
-    <SolidColorBrush x:Key="SecondaryTextBrush">#A8B4BE</SolidColorBrush>
-    <SolidColorBrush x:Key="MutedTextBrush">#7B8791</SolidColorBrush>
-    <SolidColorBrush x:Key="PlaceholderTextBrush">#6E7982</SolidColorBrush>
-    <SolidColorBrush x:Key="TitleBarButtonHoverBrush">#1A232C</SolidColorBrush>
-    <SolidColorBrush x:Key="TitleBarCloseHoverBrush">#7A1F28</SolidColorBrush>
   </Styles.Resources>
 
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
   </Style>
 
   <Style Selector="TextBlock">
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
   </Style>
@@ -66,7 +49,7 @@
 
   <Style Selector="Button">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="1" />
@@ -107,14 +90,14 @@
 
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="1" />
     <Setter Property="Padding" Value="8,5" />
     <Setter Property="MinHeight" Value="30" />
-    <Setter Property="CaretBrush" Value="{DynamicResource PrimaryTextBrush}" />
-    <Setter Property="SelectionBrush" Value="#2A4055" />
+    <Setter Property="CaretBrush" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource TextSelectionBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
   </Style>
@@ -149,12 +132,14 @@
   </Style>
 
   <Style Selector="TextBox.editorTextBox">
-    <Setter Property="SelectionBrush" Value="#3E5368" />
+    <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
+    <Setter Property="CaretBrush" Value="{DynamicResource EditorTextBrush}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource EditorTextSelectionBrush}" />
   </Style>
 
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="1" />
@@ -167,38 +152,109 @@
     <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
   </Style>
 
+  <Style Selector="ComboBox /template/ Popup Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
   <Style Selector="ComboBoxItem">
-    <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
   </Style>
 
   <Style Selector="ComboBoxItem:pointerover">
     <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
   <Style Selector="ComboBoxItem:selected">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem:selected:pointerover">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem:selected:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
   </Style>
 
   <Style Selector="ContextMenu">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="ContextMenu /template/ Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="MenuItem">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
+    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Margin" Value="0" />
   </Style>
 
-  <Style Selector="MenuItem:pointerover">
-    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+  <!-- SimpleTheme uses #PART_LayoutRoot as the main border inside MenuItem template -->
+  <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
   <Style Selector="ListBox">
@@ -224,7 +280,7 @@
 
   <Style Selector="TextBlock.fileRowText">
     <Setter Property="FontSize" Value="12" />
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
   <Style Selector="ListBoxItem:pointerover Border.fileRow">
@@ -238,7 +294,7 @@
   </Style>
 
   <Style Selector="ListBoxItem:selected TextBlock.fileRowText">
-    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 </Styles>
 
