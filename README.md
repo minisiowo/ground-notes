@@ -78,6 +78,91 @@ dotnet run --project src/QuickNotesTxt
 
 On first launch, choose a folder where your notes should live. The app works directly with plain-text files in that folder.
 
+## Install on Arch Linux
+
+The simplest option on Arch is to build and run the app from source with the system .NET SDK.
+
+Install prerequisites:
+
+```bash
+sudo pacman -S --needed git dotnet-sdk
+```
+
+Clone and run:
+
+```bash
+git clone <your-repository-url>
+cd quick-notes-txt
+dotnet restore QuickNotesTxt.sln
+dotnet run --project src/QuickNotesTxt
+```
+
+If you want a standalone local install instead of running from the source tree:
+
+```bash
+dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r linux-x64 --self-contained true
+mkdir -p ~/.local/opt/QuickNotesTxt
+cp -r src/QuickNotesTxt/bin/Release/net10.0/linux-x64/publish/* ~/.local/opt/QuickNotesTxt/
+~/.local/opt/QuickNotesTxt/QuickNotesTxt
+```
+
+On ARM64 Linux, replace `linux-x64` with `linux-arm64`.
+
+Optional desktop launcher:
+
+```bash
+mkdir -p ~/.local/share/applications
+cat > ~/.local/share/applications/quick-notes-txt.desktop <<EOF
+[Desktop Entry]
+Type=Application
+Name=QuickNotesTxt
+Exec=/home/$USER/.local/opt/QuickNotesTxt/QuickNotesTxt
+Terminal=false
+Categories=Utility;Office;
+EOF
+```
+
+QuickNotesTxt requires a graphical desktop session.
+
+## Install on Windows
+
+You can run the app from source with the .NET SDK or publish a self-contained build.
+
+Install prerequisites:
+
+1. Install Git.
+2. Install the .NET 10 SDK.
+
+Clone the repository:
+
+```powershell
+git clone <your-repository-url>
+cd quick-notes-txt
+```
+
+Run from source:
+
+```powershell
+dotnet restore QuickNotesTxt.sln
+dotnet run --project src/QuickNotesTxt
+```
+
+Create a standalone build:
+
+```powershell
+dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r win-x64 --self-contained true
+```
+
+The published app will be in:
+
+```text
+src\QuickNotesTxt\bin\Release\net10.0\win-x64\publish\
+```
+
+You can move that folder anywhere you want and launch `QuickNotesTxt.exe`.
+
+On ARM64 Windows, replace `win-x64` with `win-arm64`.
+
 ## Run the tests
 
 ```bash
