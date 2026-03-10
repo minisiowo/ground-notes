@@ -1,0 +1,135 @@
+# QuickNotesTxt
+
+QuickNotesTxt is a small desktop app for writing plain-text notes in a folder you choose. It is built with Avalonia and .NET 10.
+
+## What you need
+
+Before you build the project, make sure you have:
+
+1. Git
+2. .NET SDK 10.0.103 or newer in the same feature band
+3. A graphical desktop session if you want to run the app locally
+
+The repository pins the SDK in `global.json`:
+
+```json
+{
+  "sdk": {
+    "version": "10.0.103",
+    "rollForward": "latestFeature"
+  }
+}
+```
+
+If you use `mise`, the repo already contains a matching tool definition in `mise.toml`.
+
+## Get the source
+
+```bash
+git clone <your-repository-url>
+cd quick-notes-txt
+```
+
+## Install the .NET SDK
+
+### Option 1: use mise
+
+If you already use `mise`, run:
+
+```bash
+mise install
+```
+
+### Option 2: install .NET manually
+
+Install the .NET 10 SDK and confirm it is available:
+
+```bash
+dotnet --version
+```
+
+You should see a version compatible with `10.0.103`.
+
+## Restore dependencies
+
+```bash
+dotnet restore QuickNotesTxt.sln
+```
+
+## Build the project
+
+To build everything in Debug:
+
+```bash
+dotnet build QuickNotesTxt.sln
+```
+
+To build only the desktop app:
+
+```bash
+dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
+```
+
+## Run the app
+
+```bash
+dotnet run --project src/QuickNotesTxt
+```
+
+On first launch, choose a folder where your notes should live. The app works directly with plain-text files in that folder.
+
+## Run the tests
+
+```bash
+dotnet test QuickNotesTxt.sln
+```
+
+At the time this README was written, the solution test suite contains 6 passing tests.
+
+## Create a Release build
+
+```bash
+dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release
+```
+
+The published output will be written to:
+
+```text
+src/QuickNotesTxt/bin/Release/net10.0/publish/
+```
+
+## Project layout
+
+```text
+src/QuickNotesTxt/               Avalonia desktop application
+tests/QuickNotesTxt.Tests/       xUnit test project
+global.json                      pinned .NET SDK version
+mise.toml                        optional mise tool configuration
+QuickNotesTxt.sln                solution file
+```
+
+## Common workflow
+
+If you just want the shortest possible path from clone to running app:
+
+```bash
+git clone <your-repository-url>
+cd quick-notes-txt
+mise install   # optional, if you use mise
+dotnet restore QuickNotesTxt.sln
+dotnet run --project src/QuickNotesTxt
+```
+
+## Troubleshooting
+
+### `dotnet` command not found
+
+Install the .NET 10 SDK and make sure it is on your `PATH`.
+
+### The app builds but does not open a window
+
+Make sure you are starting it from a graphical desktop session, not a headless shell.
+
+### SDK version mismatch
+
+Check `global.json` and install the SDK version requested by the repo, or a compatible newer feature-band version allowed by `rollForward`.
