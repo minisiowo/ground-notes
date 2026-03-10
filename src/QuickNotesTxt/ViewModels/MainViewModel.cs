@@ -20,7 +20,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly INotesRepository _notesRepository;
     private readonly ISettingsService _settingsService;
     private readonly IFileWatcherService _fileWatcherService;
+    private readonly IThemeLoaderService _themeLoaderService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
+    private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private CancellationTokenSource? _saveCts;
     private bool _isApplyingSelection;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
@@ -79,18 +81,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _selectedThemeName = AppTheme.Dark.Name;
 
-    public IReadOnlyList<string> ThemeNames { get; } = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
+    [ObservableProperty]
+    private IReadOnlyList<string> _themeNames = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
 
-    public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService)
+    public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService, IThemeLoaderService themeLoaderService)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
         _fileWatcherService = fileWatcherService;
+        _themeLoaderService = themeLoaderService;
         _fileWatcherService.NotesChanged += OnNotesChanged;
 
         SortOptions = Enum.GetValues<SortOption>();
         _ = InitializeAsync();
     }
+
+    public event EventHandler? FocusEditorRequested;
 
     public Func<Task<string?>>? PickFolderAsync { get; set; }
 
@@ -135,7 +141,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedThemeNameChanged(string value)
     {
-        var theme = AppTheme.BuiltInThemes.FirstOrDefault(t => t.Name == value);
+        var theme = _allThemes.FirstOrDefault(t => t.Name == value);
         if (theme is not null)
         {
             ThemeService.Apply(theme);
@@ -275,6 +281,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         StatusMessage = "New note ready.";
+        FocusEditorRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -456,9 +463,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
         UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
 
+        _allThemes = await _themeLoaderService.LoadAllThemesAsync();
+        ThemeNames = _allThemes.Select(t => t.Name).ToList();
+
         if (!string.IsNullOrWhiteSpace(settings.ThemeName))
         {
-            var theme = AppTheme.BuiltInThemes.FirstOrDefault(t => t.Name == settings.ThemeName);
+            var theme = _allThemes.FirstOrDefault(t => t.Name == settings.ThemeName);
             if (theme is not null)
             {
                 _isApplyingSelection = true;

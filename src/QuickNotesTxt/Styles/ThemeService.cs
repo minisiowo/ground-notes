@@ -20,9 +20,9 @@ public static class ThemeService
             return;
         }
 
-        app.Resources["AppFontSize"] = fontSize;
-        app.Resources["AppFontSizeSmall"] = Math.Max(9d, fontSize - 1d);
-        app.Resources["AppFontSizeLarge"] = fontSize + 2d;
+        app.Resources[ThemeKeys.AppFontSize] = fontSize;
+        app.Resources[ThemeKeys.AppFontSizeSmall] = Math.Max(9d, fontSize - 1d);
+        app.Resources[ThemeKeys.AppFontSizeLarge] = fontSize + 2d;
     }
 
     public static void Apply(AppTheme theme)
@@ -31,110 +31,110 @@ public static class ThemeService
         if (app is null) return;
 
         // Match FluentTheme base variant to our theme
-        app.RequestedThemeVariant = theme == AppTheme.Light
+        app.RequestedThemeVariant = theme.IsLight
             ? ThemeVariant.Light
             : ThemeVariant.Dark;
 
         // ── App-level brush resources ────────────────────────
-        Set(app, "AppBackgroundBrush", theme.AppBackground);
-        Set(app, "PaneBackgroundBrush", theme.PaneBackground);
-        Set(app, "SurfaceBackgroundBrush", theme.SurfaceBackground);
-        Set(app, "SurfaceHoverBrush", theme.SurfaceHover);
-        Set(app, "SurfacePressedBrush", theme.SurfacePressed);
-        Set(app, "SurfaceRaisedBrush", theme.SurfaceRaised);
-        Set(app, "SelectionBackgroundBrush", theme.SelectionBackground);
-        Set(app, "SelectionBorderBrush", theme.SelectionBorder);
-        Set(app, "TextSelectionBrush", theme.TextSelectionBrush);
-        Set(app, "EditorTextSelectionBrush", theme.EditorTextSelectionBrush);
-        Set(app, "BorderBrushBase", theme.BorderBase);
-        Set(app, "FocusBorderBrush", theme.FocusBorder);
-        Set(app, "PrimaryTextBrush", theme.PrimaryText);
-        Set(app, "SecondaryTextBrush", theme.SecondaryText);
-        Set(app, "MutedTextBrush", theme.MutedText);
-        Set(app, "PlaceholderTextBrush", theme.PlaceholderText);
-        Set(app, "EditorTextBrush", theme.EditorText);
-        Set(app, "AppTextBrush", theme.AppText);
-        Set(app, "TitleBarButtonHoverBrush", theme.TitleBarButtonHover);
-        Set(app, "TitleBarCloseHoverBrush", theme.TitleBarCloseHover);
+        Set(app, ThemeKeys.AppBackgroundBrush, theme.AppBackground);
+        Set(app, ThemeKeys.PaneBackgroundBrush, theme.PaneBackground);
+        Set(app, ThemeKeys.SurfaceBackgroundBrush, theme.SurfaceBackground);
+        Set(app, ThemeKeys.SurfaceHoverBrush, theme.SurfaceHover);
+        Set(app, ThemeKeys.SurfacePressedBrush, theme.SurfacePressed);
+        Set(app, ThemeKeys.SurfaceRaisedBrush, theme.SurfaceRaised);
+        Set(app, ThemeKeys.SelectionBackgroundBrush, theme.SelectionBackground);
+        Set(app, ThemeKeys.SelectionBorderBrush, theme.SelectionBorder);
+        Set(app, ThemeKeys.TextSelectionBrush, theme.TextSelectionBrush);
+        Set(app, ThemeKeys.EditorTextSelectionBrush, theme.EditorTextSelectionBrush);
+        Set(app, ThemeKeys.BorderBrushBase, theme.BorderBase);
+        Set(app, ThemeKeys.FocusBorderBrush, theme.FocusBorder);
+        Set(app, ThemeKeys.PrimaryTextBrush, theme.PrimaryText);
+        Set(app, ThemeKeys.SecondaryTextBrush, theme.SecondaryText);
+        Set(app, ThemeKeys.MutedTextBrush, theme.MutedText);
+        Set(app, ThemeKeys.PlaceholderTextBrush, theme.PlaceholderText);
+        Set(app, ThemeKeys.EditorTextBrush, theme.EditorText);
+        Set(app, ThemeKeys.AppTextBrush, theme.AppText);
+        Set(app, ThemeKeys.TitleBarButtonHoverBrush, theme.TitleBarButtonHover);
+        Set(app, ThemeKeys.TitleBarCloseHoverBrush, theme.TitleBarCloseHover);
 
         // ── Override FluentTheme internal Color resources ────
         // These are Color values (not brushes) used by FluentTheme control templates
-        SetColor(app, "SystemAccentColor", theme.SelectionBorder);
-        SetColor(app, "SystemAccentColorDark1", theme.SelectionBorder);
-        SetColor(app, "SystemAccentColorDark2", theme.SelectionBackground);
-        SetColor(app, "SystemAccentColorLight1", theme.FocusBorder);
-        SetColor(app, "SystemAccentColorLight2", theme.FocusBorder);
-        SetColor(app, "SystemAccentColorLight3", theme.FocusBorder);
+        SetColor(app, ThemeKeys.SystemAccentColor, theme.SelectionBorder);
+        SetColor(app, ThemeKeys.SystemAccentColorDark1, theme.SelectionBorder);
+        SetColor(app, ThemeKeys.SystemAccentColorDark2, theme.SelectionBackground);
+        SetColor(app, ThemeKeys.SystemAccentColorLight1, theme.FocusBorder);
+        SetColor(app, ThemeKeys.SystemAccentColorLight2, theme.FocusBorder);
+        SetColor(app, ThemeKeys.SystemAccentColorLight3, theme.FocusBorder);
 
         // ── Override FluentTheme internal Brush resources ────
         // Button
-        Set(app, "ButtonBackground", theme.SurfaceBackground);
-        Set(app, "ButtonBackgroundPointerOver", theme.SurfaceHover);
-        Set(app, "ButtonBackgroundPressed", theme.SurfacePressed);
-        Set(app, "ButtonForeground", theme.AppText);
-        Set(app, "ButtonForegroundPointerOver", theme.AppText);
-        Set(app, "ButtonForegroundPressed", theme.AppText);
-        Set(app, "ButtonBorderBrush", theme.BorderBase);
-        Set(app, "ButtonBorderBrushPointerOver", theme.FocusBorder);
-        Set(app, "ButtonBorderBrushPressed", theme.FocusBorder);
+        Set(app, ThemeKeys.ButtonBackground, theme.SurfaceBackground);
+        Set(app, ThemeKeys.ButtonBackgroundPointerOver, theme.SurfaceHover);
+        Set(app, ThemeKeys.ButtonBackgroundPressed, theme.SurfacePressed);
+        Set(app, ThemeKeys.ButtonForeground, theme.AppText);
+        Set(app, ThemeKeys.ButtonForegroundPointerOver, theme.AppText);
+        Set(app, ThemeKeys.ButtonForegroundPressed, theme.AppText);
+        Set(app, ThemeKeys.ButtonBorderBrush, theme.BorderBase);
+        Set(app, ThemeKeys.ButtonBorderBrushPointerOver, theme.FocusBorder);
+        Set(app, ThemeKeys.ButtonBorderBrushPressed, theme.FocusBorder);
 
         // TextBox
-        Set(app, "TextControlBackground", theme.SurfaceBackground);
-        Set(app, "TextControlBackgroundPointerOver", theme.SurfaceBackground);
-        Set(app, "TextControlBackgroundFocused", theme.SurfaceBackground);
-        Set(app, "TextControlForeground", theme.AppText);
-        Set(app, "TextControlForegroundPointerOver", theme.AppText);
-        Set(app, "TextControlForegroundFocused", theme.AppText);
-        Set(app, "TextControlBorderBrush", theme.BorderBase);
-        Set(app, "TextControlBorderBrushPointerOver", theme.FocusBorder);
-        Set(app, "TextControlBorderBrushFocused", theme.FocusBorder);
-        Set(app, "TextControlPlaceholderForeground", theme.PlaceholderText);
-        Set(app, "TextControlPlaceholderForegroundPointerOver", theme.PlaceholderText);
-        Set(app, "TextControlPlaceholderForegroundFocused", theme.PlaceholderText);
-        Set(app, "TextControlSelectionHighlightColor", theme.TextSelectionBrush);
+        Set(app, ThemeKeys.TextControlBackground, theme.SurfaceBackground);
+        Set(app, ThemeKeys.TextControlBackgroundPointerOver, theme.SurfaceBackground);
+        Set(app, ThemeKeys.TextControlBackgroundFocused, theme.SurfaceBackground);
+        Set(app, ThemeKeys.TextControlForeground, theme.AppText);
+        Set(app, ThemeKeys.TextControlForegroundPointerOver, theme.AppText);
+        Set(app, ThemeKeys.TextControlForegroundFocused, theme.AppText);
+        Set(app, ThemeKeys.TextControlBorderBrush, theme.BorderBase);
+        Set(app, ThemeKeys.TextControlBorderBrushPointerOver, theme.FocusBorder);
+        Set(app, ThemeKeys.TextControlBorderBrushFocused, theme.FocusBorder);
+        Set(app, ThemeKeys.TextControlPlaceholderForeground, theme.PlaceholderText);
+        Set(app, ThemeKeys.TextControlPlaceholderForegroundPointerOver, theme.PlaceholderText);
+        Set(app, ThemeKeys.TextControlPlaceholderForegroundFocused, theme.PlaceholderText);
+        Set(app, ThemeKeys.TextControlSelectionHighlightColor, theme.TextSelectionBrush);
 
         // ComboBox
-        Set(app, "ComboBoxBackground", theme.SurfaceBackground);
-        Set(app, "ComboBoxBackgroundPointerOver", theme.SurfaceBackground);
-        Set(app, "ComboBoxBackgroundPressed", theme.SurfacePressed);
-        Set(app, "ComboBoxForeground", theme.AppText);
-        Set(app, "ComboBoxForegroundPointerOver", theme.AppText);
-        Set(app, "ComboBoxBorderBrush", theme.BorderBase);
-        Set(app, "ComboBoxBorderBrushPointerOver", theme.FocusBorder);
-        Set(app, "ComboBoxBorderBrushPressed", theme.FocusBorder);
-        Set(app, "ComboBoxDropDownBackground", theme.PaneBackground);
-        Set(app, "ComboBoxDropDownBorderBrush", theme.BorderBase);
-        Set(app, "ComboBoxDropDownForeground", theme.AppText);
-        app.Resources["ComboBoxDropdownBorderPadding"] = new Avalonia.Thickness(0);
-        app.Resources["ComboBoxDropdownContentMargin"] = new Avalonia.Thickness(0);
-        Set(app, "ComboBoxItemForeground", theme.AppText);
-        Set(app, "ComboBoxItemForegroundSelected", theme.AppText);
-        Set(app, "ComboBoxItemForegroundPointerOver", theme.AppText);
-        Set(app, "ComboBoxItemBackgroundPointerOver", theme.SurfaceRaised);
-        Set(app, "ComboBoxItemBackgroundSelected", theme.SelectionBackground);
-        Set(app, "ComboBoxItemBackgroundSelectedPointerOver", theme.SelectionBackground);
+        Set(app, ThemeKeys.ComboBoxBackground, theme.SurfaceBackground);
+        Set(app, ThemeKeys.ComboBoxBackgroundPointerOver, theme.SurfaceBackground);
+        Set(app, ThemeKeys.ComboBoxBackgroundPressed, theme.SurfacePressed);
+        Set(app, ThemeKeys.ComboBoxForeground, theme.AppText);
+        Set(app, ThemeKeys.ComboBoxForegroundPointerOver, theme.AppText);
+        Set(app, ThemeKeys.ComboBoxBorderBrush, theme.BorderBase);
+        Set(app, ThemeKeys.ComboBoxBorderBrushPointerOver, theme.FocusBorder);
+        Set(app, ThemeKeys.ComboBoxBorderBrushPressed, theme.FocusBorder);
+        Set(app, ThemeKeys.ComboBoxDropDownBackground, theme.PaneBackground);
+        Set(app, ThemeKeys.ComboBoxDropDownBorderBrush, theme.BorderBase);
+        Set(app, ThemeKeys.ComboBoxDropDownForeground, theme.AppText);
+        app.Resources[ThemeKeys.ComboBoxDropdownBorderPadding] = new Avalonia.Thickness(0);
+        app.Resources[ThemeKeys.ComboBoxDropdownContentMargin] = new Avalonia.Thickness(0);
+        Set(app, ThemeKeys.ComboBoxItemForeground, theme.AppText);
+        Set(app, ThemeKeys.ComboBoxItemForegroundSelected, theme.AppText);
+        Set(app, ThemeKeys.ComboBoxItemForegroundPointerOver, theme.AppText);
+        Set(app, ThemeKeys.ComboBoxItemBackgroundPointerOver, theme.SurfaceRaised);
+        Set(app, ThemeKeys.ComboBoxItemBackgroundSelected, theme.SelectionBackground);
+        Set(app, ThemeKeys.ComboBoxItemBackgroundSelectedPointerOver, theme.SelectionBackground);
 
         // ListBoxItem (FluentTheme uses ListViewItem resources)
-        Set(app, "ListViewItemBackgroundPointerOver", theme.SurfaceRaised);
-        Set(app, "ListViewItemBackgroundSelected", theme.SelectionBackground);
-        Set(app, "ListViewItemBackgroundSelectedPointerOver", theme.SelectionBackground);
-        Set(app, "ListViewItemForeground", theme.AppText);
-        Set(app, "ListViewItemForegroundPointerOver", theme.AppText);
-        Set(app, "ListViewItemForegroundSelected", theme.AppText);
+        Set(app, ThemeKeys.ListViewItemBackgroundPointerOver, theme.SurfaceRaised);
+        Set(app, ThemeKeys.ListViewItemBackgroundSelected, theme.SelectionBackground);
+        Set(app, ThemeKeys.ListViewItemBackgroundSelectedPointerOver, theme.SelectionBackground);
+        Set(app, ThemeKeys.ListViewItemForeground, theme.AppText);
+        Set(app, ThemeKeys.ListViewItemForegroundPointerOver, theme.AppText);
+        Set(app, ThemeKeys.ListViewItemForegroundSelected, theme.AppText);
 
         // MenuItem / ContextMenu
-        Set(app, "MenuFlyoutPresenterBackground", theme.PaneBackground);
-        Set(app, "MenuFlyoutPresenterBorderBrush", theme.BorderBase);
-        Set(app, "MenuFlyoutItemBackground", theme.PaneBackground);
-        Set(app, "MenuFlyoutItemBackgroundPointerOver", theme.SurfaceHover);
-        Set(app, "MenuFlyoutItemBackgroundPressed", theme.SurfacePressed);
-        Set(app, "MenuFlyoutItemForeground", theme.AppText);
-        Set(app, "MenuFlyoutItemForegroundPointerOver", theme.AppText);
-        Set(app, "MenuFlyoutItemForegroundPressed", theme.AppText);
+        Set(app, ThemeKeys.MenuFlyoutPresenterBackground, theme.PaneBackground);
+        Set(app, ThemeKeys.MenuFlyoutPresenterBorderBrush, theme.BorderBase);
+        Set(app, ThemeKeys.MenuFlyoutItemBackground, theme.PaneBackground);
+        Set(app, ThemeKeys.MenuFlyoutItemBackgroundPointerOver, theme.SurfaceHover);
+        Set(app, ThemeKeys.MenuFlyoutItemBackgroundPressed, theme.SurfacePressed);
+        Set(app, ThemeKeys.MenuFlyoutItemForeground, theme.AppText);
+        Set(app, ThemeKeys.MenuFlyoutItemForegroundPointerOver, theme.AppText);
+        Set(app, ThemeKeys.MenuFlyoutItemForegroundPressed, theme.AppText);
 
         // Focus visual
-        Set(app, "FocusStrokeColorOuter", theme.FocusBorder);
-        Set(app, "FocusStrokeColorInner", theme.SurfaceBackground);
+        Set(app, ThemeKeys.FocusStrokeColorOuter, theme.FocusBorder);
+        Set(app, ThemeKeys.FocusStrokeColorInner, theme.SurfaceBackground);
     }
 
     private static void Set(Application app, string key, string hex)

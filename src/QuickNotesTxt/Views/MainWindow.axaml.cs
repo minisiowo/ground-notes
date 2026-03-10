@@ -26,6 +26,7 @@ public partial class MainWindow : Window
                 vm.PickFolderAsync = PickFolderAsync;
                 vm.ConfirmDeleteAsync = ConfirmDeleteAsync;
                 vm.PropertyChanged += OnViewModelPropertyChanged;
+                vm.FocusEditorRequested += OnFocusEditorRequested;
             }
 
             await RestoreWindowLayoutAsync();
@@ -210,6 +211,11 @@ public partial class MainWindow : Window
         _isResizingSidebar = false;
         if (sender is Control control)
             control.PointerCaptureLost -= OnResizeHandleCaptureLost;
+    }
+
+    private void OnFocusEditorRequested(object? sender, EventArgs e)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => EditorTextBox.Focus(), Avalonia.Threading.DispatcherPriority.Input);
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

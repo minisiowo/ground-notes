@@ -23,7 +23,8 @@ public partial class App : Application
             var settingsService = new FolderSettingsService();
             var repository = new NotesRepository();
             var fileWatcher = new FileWatcherService();
-            var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher);
+            var themeLoader = new ThemeLoaderService();
+            var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader);
 
             var mainWindow = new MainWindow
             {

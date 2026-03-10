@@ -7,6 +7,7 @@ namespace QuickNotesTxt.Styles;
 public sealed class AppTheme
 {
     public required string Name { get; init; }
+    public required bool IsLight { get; init; }
 
     // ── Backgrounds ──────────────────────────────────────────
     public required string AppBackground { get; init; }
@@ -43,6 +44,7 @@ public sealed class AppTheme
     public static AppTheme Dark { get; } = new()
     {
         Name = "Dark",
+        IsLight = false,
         AppBackground = "#1E1E1E",
         PaneBackground = "#252526",
         SurfaceBackground = "#1E1E1E",
@@ -68,6 +70,7 @@ public sealed class AppTheme
     public static AppTheme Light { get; } = new()
     {
         Name = "Light",
+        IsLight = true,
         AppBackground = "#F5F5F5",
         PaneBackground = "#FFFFFF",
         SurfaceBackground = "#F5F5F5",
@@ -90,34 +93,10 @@ public sealed class AppTheme
         TitleBarCloseHover = "#C42B1C",
     };
 
-    public static AppTheme Nord { get; } = new()
-    {
-        Name = "Nord",
-        AppBackground = "#2E3440",
-        PaneBackground = "#3B4252",
-        SurfaceBackground = "#2E3440",
-        SurfaceHover = "#434C5E",
-        SurfacePressed = "#272C36",
-        SurfaceRaised = "#3B4252",
-        SelectionBackground = "#3B4F6E",
-        SelectionBorder = "#88C0D0",
-        TextSelectionBrush = "#3B4F6E",
-        EditorTextSelectionBrush = "#4C6076",
-        BorderBase = "#4C566A",
-        FocusBorder = "#81A1C1",
-        PrimaryText = "#ECEFF4",
-        SecondaryText = "#D8DEE9",
-        MutedText = "#8791A5",
-        PlaceholderText = "#7B8394",
-        EditorText = "#ECEFF4",
-        AppText = "#ECEFF4",
-        TitleBarButtonHover = "#434C5E",
-        TitleBarCloseHover = "#BF616A",
-    };
-
     public static AppTheme AmoledBlack { get; } = new()
     {
         Name = "Amoled Black",
+        IsLight = false,
         AppBackground = "#000000",
         PaneBackground = "#050505",
         SurfaceBackground = "#000000",
@@ -143,6 +122,7 @@ public sealed class AppTheme
     public static AppTheme Claude { get; } = new()
     {
         Name = "Claude",
+        IsLight = false,
         AppBackground = "#262624",
         PaneBackground = "#30302E",
         SurfaceBackground = "#262624",
@@ -165,8 +145,34 @@ public sealed class AppTheme
         TitleBarCloseHover = "#8B2E1A",
     };
 
+    public static AppTheme FlexokiLight { get; } = new()
+    {
+        Name = "Flexoki Light",
+        IsLight = true,
+        AppBackground = "#FFFCF0",
+        PaneBackground = "#F2F0E5",
+        SurfaceBackground = "#FFFCF0",
+        SurfaceHover = "#E6E4D9",
+        SurfacePressed = "#DAD8CE",
+        SurfaceRaised = "#F2F0E5",
+        SelectionBackground = "#E0DDD3",
+        SelectionBorder = "#205EA6",
+        TextSelectionBrush = "#DAD8CE",
+        EditorTextSelectionBrush = "#DAD8CE",
+        BorderBase = "#E6E4D9",
+        FocusBorder = "#205EA6",
+        PrimaryText = "#100F0F",
+        SecondaryText = "#6F6E69",
+        MutedText = "#878580",
+        PlaceholderText = "#B7B5AC",
+        EditorText = "#100F0F",
+        AppText = "#100F0F",
+        TitleBarButtonHover = "#E6E4D9",
+        TitleBarCloseHover = "#AF3029",
+    };
+
     /// <summary>
     /// Returns all built-in themes.
     /// </summary>
-    public static IReadOnlyList<AppTheme> BuiltInThemes { get; } = [Dark, Light, Nord, AmoledBlack, Claude];
+    public static IReadOnlyList<AppTheme> BuiltInThemes { get; } = [Dark, Claude, AmoledBlack, Light, FlexokiLight];
 }
