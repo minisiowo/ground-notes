@@ -47,6 +47,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
   </Style>
 
+  <!-- ══ Button ══════════════════════════════════════════════ -->
   <Style Selector="Button">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
@@ -57,14 +58,31 @@
     <Setter Property="MinHeight" Value="30" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
-  <Style Selector="Button:pointerover, Button:pressed">
+  <!-- FluentTheme renders Button background via ContentPresenter#PART_ContentPresenter -->
+  <Style Selector="Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="Button.secondaryButton">
+  <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.secondaryButton /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
   </Style>
 
@@ -78,16 +96,35 @@
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
-  <Style Selector="Button.titleBarButton:pointerover, Button.titleBarButton:pressed">
+  <Style Selector="Button.titleBarButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style Selector="Button.titleBarButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource TitleBarButtonHoverBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="Button.titleBarCloseButton:pointerover, Button.titleBarCloseButton:pressed">
+  <Style Selector="Button.titleBarButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource TitleBarButtonHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.titleBarCloseButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Button.titleBarCloseButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource TitleBarCloseHoverBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
 
+  <Style Selector="Button.titleBarCloseButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource TitleBarCloseHoverBrush}" />
+  </Style>
+
+  <!-- ══ TextBox ═════════════════════════════════════════════ -->
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
@@ -102,24 +139,40 @@
     <Setter Property="FontSize" Value="12" />
   </Style>
 
+  <!-- Remove FluentTheme bottom accent line on TextBox -->
+  <Style Selector="TextBox /template/ Border#PART_BorderElement">
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement,
+                    TextBox:focus-within /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
   <Style Selector="TextBox:pointerover, TextBox:focus, TextBox:focus-within">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="TextBox /template/ .watermark" x:SetterTargetType="TextBlock">
+  <Style Selector="TextBox /template/ TextBlock#PART_Watermark">
     <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="{TemplateBinding FontSize}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
   </Style>
 
-  <Style Selector="TextBox /template/ .floatingWatermark" x:SetterTargetType="TextBlock">
-    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
-    <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="{TemplateBinding FontSize}" />
+  <Style Selector="TextBox /template/ TextBlock#PART_FloatingWatermark">
+    <Setter Property="IsVisible" Value="False" />
   </Style>
-
-
 
   <Style Selector="TextBox:disabled">
     <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
@@ -135,8 +188,42 @@
     <Setter Property="Foreground" Value="{DynamicResource EditorTextBrush}" />
     <Setter Property="CaretBrush" Value="{DynamicResource EditorTextBrush}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource EditorTextSelectionBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
   </Style>
 
+  <Style Selector="TextBox.editorTextBox /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="TextBox.editorTextBox:pointerover">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style Selector="TextBox.editorTextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style Selector="TextBox.editorTextBox:focus /template/ Border#PART_BorderElement,
+                    TextBox.editorTextBox:focus-within /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style Selector="TextBox.editorTextBox:focus, TextBox.editorTextBox:focus-within">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!-- ══ ComboBox ════════════════════════════════════════════ -->
   <Style Selector="ComboBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
@@ -152,10 +239,32 @@
     <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
   </Style>
 
+  <Style Selector="ComboBox /template/ Border#Background">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="ComboBox:pointerover /template/ Border#Background">
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+  </Style>
+
   <Style Selector="ComboBox /template/ Popup Border">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="ComboBox /template/ Popup ScrollViewer">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="ComboBox /template/ Popup ItemsPresenter">
+    <Setter Property="Margin" Value="0" />
   </Style>
 
   <Style Selector="ComboBoxItem">
@@ -163,6 +272,9 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="12" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="Padding" Value="4,2" />
   </Style>
 
   <Style Selector="ComboBoxItem:pointerover">
@@ -181,7 +293,8 @@
   </Style>
 
   <Style Selector="ComboBoxItem /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
@@ -196,6 +309,7 @@
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
   </Style>
 
+  <!-- ══ ContextMenu / MenuItem ══════════════════════════════ -->
   <Style Selector="ContextMenu">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
@@ -220,43 +334,41 @@
     <Setter Property="Padding" Value="6,4" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Margin" Value="0" />
-  </Style>
-
-  <!-- SimpleTheme uses #PART_LayoutRoot as the main border inside MenuItem template -->
-  <Style Selector="MenuItem /template/ Border#PART_LayoutRoot">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Padding" Value="6,4" />
-    <Setter Property="MinHeight" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
-  <Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
+  <Style Selector="MenuItem /template/ Border">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="MinHeight" Value="0" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Border">
     <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
     <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
 
-  <Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+  <Style Selector="MenuItem:pointerover /template/ Border">
     <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
     <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
 
-  <Style Selector="MenuItem /template/ ContentPresenter#PART_HeaderPresenter">
-    <Setter Property="Background" Value="Transparent" />
+  <Style Selector="MenuItem /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="MenuItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
-    <Setter Property="Background" Value="Transparent" />
+  <Style Selector="MenuItem:selected /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="MenuItem:pointerover /template/ ContentPresenter#PART_HeaderPresenter">
-    <Setter Property="Background" Value="Transparent" />
+  <Style Selector="MenuItem:pointerover /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
+  <!-- ══ ListBox / ListBoxItem ═══════════════════════════════ -->
   <Style Selector="ListBox">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
@@ -268,6 +380,26 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <!-- Neutralize FluentTheme ListBoxItem highlight -->
+  <Style Selector="ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Margin" Value="0" />
+  </Style>
+
+  <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
   </Style>
 
   <Style Selector="Border.fileRow">
@@ -276,7 +408,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="1" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
-      </Style>
+  </Style>
 
   <Style Selector="TextBlock.fileRowText">
     <Setter Property="FontSize" Value="12" />
@@ -295,6 +427,11 @@
 
   <Style Selector="ListBoxItem:selected TextBlock.fileRowText">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <!-- ══ ScrollBar ═══════════════════════════════════════════ -->
+  <Style Selector="ScrollViewer /template/ ScrollBar">
+    <Setter Property="Background" Value="Transparent" />
   </Style>
 </Styles>
 

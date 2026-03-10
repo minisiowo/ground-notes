@@ -86,6 +86,19 @@ public sealed class FolderSettingsService : ISettingsService
         }, cancellationToken);
     }
 
+    public void SetWindowLayoutSync(WindowLayout layout)
+    {
+        var record = LoadRecordSync();
+        SaveSync(record with
+        {
+            WindowWidth = layout.Width,
+            WindowHeight = layout.Height,
+            WindowX = layout.X,
+            WindowY = layout.Y,
+            IsMaximized = layout.IsMaximized
+        });
+    }
+
     private async Task<SettingsRecord> LoadRecordAsync(CancellationToken cancellationToken)
     {
         if (!File.Exists(_settingsFilePath))
@@ -98,10 +111,28 @@ public sealed class FolderSettingsService : ISettingsService
                ?? new SettingsRecord(null, null, null, null, null, null, null, null);
     }
 
+    private SettingsRecord LoadRecordSync()
+    {
+        if (!File.Exists(_settingsFilePath))
+        {
+            return new SettingsRecord(null, null, null, null, null, null, null, null);
+        }
+
+        var json = File.ReadAllText(_settingsFilePath);
+        return JsonSerializer.Deserialize<SettingsRecord>(json)
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null);
+    }
+
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
     {
         await using var stream = File.Create(_settingsFilePath);
         await JsonSerializer.SerializeAsync(stream, settings, cancellationToken: cancellationToken);
+    }
+
+    private void SaveSync(SettingsRecord settings)
+    {
+        var json = JsonSerializer.Serialize(settings);
+        File.WriteAllText(_settingsFilePath, json);
     }
 
     private sealed record SettingsRecord(

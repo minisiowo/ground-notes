@@ -19,6 +19,8 @@ public interface ISettingsService
     Task<WindowLayout?> GetWindowLayoutAsync(CancellationToken cancellationToken = default);
 
     Task SetWindowLayoutAsync(WindowLayout layout, CancellationToken cancellationToken = default);
+
+    void SetWindowLayoutSync(WindowLayout layout);
 }
 
 public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, string? ThemeName, WindowLayout? WindowLayout);

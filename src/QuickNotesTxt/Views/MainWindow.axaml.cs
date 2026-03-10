@@ -30,9 +30,9 @@ public partial class MainWindow : Window
             await RestoreWindowLayoutAsync();
         };
 
-        Closing += async (_, _) =>
+        Closing += (_, e) =>
         {
-            await SaveWindowLayoutAsync();
+            SaveWindowLayout();
         };
 
         PositionChanged += (_, e) =>
@@ -91,17 +91,26 @@ public partial class MainWindow : Window
     {
         if (_settingsService is null) return;
 
+        var layout = BuildWindowLayout();
+        await _settingsService.SetWindowLayoutAsync(layout);
+    }
+
+    private void SaveWindowLayout()
+    {
+        if (_settingsService is null) return;
+
+        var layout = BuildWindowLayout();
+        _settingsService.SetWindowLayoutSync(layout);
+    }
+
+    private WindowLayout BuildWindowLayout()
+    {
         var isMaximized = WindowState == WindowState.Maximized;
 
-        // When maximized, save the restore bounds (normal size before maximizing)
         double width, height, x, y;
 
         if (isMaximized)
         {
-            // Use the bounds the window had before being maximized
-            // Avalonia doesn't expose RestoreBounds directly, so we save the current
-            // size — but we track normal bounds via the last known normal state.
-            // Fallback: save reasonable defaults from the XAML.
             width = _lastNormalWidth ?? 1180;
             height = _lastNormalHeight ?? 760;
             x = _lastNormalX ?? Position.X;
@@ -115,8 +124,7 @@ public partial class MainWindow : Window
             y = Position.Y;
         }
 
-        var layout = new WindowLayout(width, height, x, y, isMaximized);
-        await _settingsService.SetWindowLayoutAsync(layout);
+        return new WindowLayout(width, height, x, y, isMaximized);
     }
 
     private double? _lastNormalWidth;
@@ -189,6 +197,11 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
             await vm.DecreaseEditorFontSizeCommand.ExecuteAsync(null);
+        }
+        else if (e.Key is Key.N)
+        {
+            e.Handled = true;
+            await vm.NewNoteCommand.ExecuteAsync(null);
         }
     }
 

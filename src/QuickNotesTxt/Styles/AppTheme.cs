@@ -43,26 +43,26 @@ public sealed class AppTheme
     public static AppTheme Dark { get; } = new()
     {
         Name = "Dark",
-        AppBackground = "#111417",
-        PaneBackground = "#171C21",
-        SurfaceBackground = "#111417",
-        SurfaceHover = "#1A1F25",
-        SurfacePressed = "#0E1114",
-        SurfaceRaised = "#14191E",
-        SelectionBackground = "#162737",
-        SelectionBorder = "#4AA3FF",
-        TextSelectionBrush = "#2A4055",
-        EditorTextSelectionBrush = "#3E5368",
-        BorderBase = "#36414B",
-        FocusBorder = "#71B7FF",
-        PrimaryText = "#E8EEF2",
-        SecondaryText = "#A8B4BE",
-        MutedText = "#7B8791",
-        PlaceholderText = "#6E7982",
-        EditorText = "#E8EEF2",
-        AppText = "#E8EEF2",
-        TitleBarButtonHover = "#1A232C",
-        TitleBarCloseHover = "#7A1F28",
+        AppBackground = "#1E1E1E",
+        PaneBackground = "#252526",
+        SurfaceBackground = "#1E1E1E",
+        SurfaceHover = "#2A2D2E",
+        SurfacePressed = "#1A1A1A",
+        SurfaceRaised = "#2D2D2D",
+        SelectionBackground = "#264F78",
+        SelectionBorder = "#007ACC",
+        TextSelectionBrush = "#264F78",
+        EditorTextSelectionBrush = "#264F78",
+        BorderBase = "#3C3C3C",
+        FocusBorder = "#007ACC",
+        PrimaryText = "#D4D4D4",
+        SecondaryText = "#9D9D9D",
+        MutedText = "#6A6A6A",
+        PlaceholderText = "#5A5A5A",
+        EditorText = "#D4D4D4",
+        AppText = "#CCCCCC",
+        TitleBarButtonHover = "#333333",
+        TitleBarCloseHover = "#E81123",
     };
 
     public static AppTheme Light { get; } = new()
@@ -140,8 +140,33 @@ public sealed class AppTheme
         TitleBarCloseHover = "#8B1A1A",
     };
 
+    public static AppTheme Claude { get; } = new()
+    {
+        Name = "Claude",
+        AppBackground = "#262624",
+        PaneBackground = "#30302E",
+        SurfaceBackground = "#262624",
+        SurfaceHover = "#3A3A38",
+        SurfacePressed = "#1F1F1D",
+        SurfaceRaised = "#333333",
+        SelectionBackground = "#3D2A22",
+        SelectionBorder = "#DA7756",
+        TextSelectionBrush = "#4A3028",
+        EditorTextSelectionBrush = "#553A30",
+        BorderBase = "#3D3D3D",
+        FocusBorder = "#DA7756",
+        PrimaryText = "#F0F0F0",
+        SecondaryText = "#CCCCCC",
+        MutedText = "#999999",
+        PlaceholderText = "#808080",
+        EditorText = "#F0F0F0",
+        AppText = "#F0F0F0",
+        TitleBarButtonHover = "#3A3A38",
+        TitleBarCloseHover = "#8B2E1A",
+    };
+
     /// <summary>
     /// Returns all built-in themes.
     /// </summary>
-    public static IReadOnlyList<AppTheme> BuiltInThemes { get; } = [Dark, Light, Nord, AmoledBlack];
+    public static IReadOnlyList<AppTheme> BuiltInThemes { get; } = [Dark, Light, Nord, AmoledBlack, Claude];
 }
