@@ -5,7 +5,7 @@ This file gives coding agents the repository-specific context needed to work saf
 ## Project Summary
 
 - Stack: .NET 10, Avalonia UI 11, xUnit, CommunityToolkit.Mvvm.
-- App type: desktop notes app that stores plain-text `.txt` files in a user-selected folder.
+- App type: desktop notes app that stores plain-text `.txt` files with frontmatter metadata in a user-selected folder.
 - Solution file: `QuickNotesTxt.sln`.
 - Test project: `tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj`.
 
@@ -17,6 +17,9 @@ This file gives coding agents the repository-specific context needed to work saf
 - `src/QuickNotesTxt/ViewModels/` - MVVM view models.
 - `src/QuickNotesTxt/Views/` - Avalonia XAML views and code-behind.
 - `src/QuickNotesTxt/Styles/` - themes and shared styles.
+- `src/QuickNotesTxt/Converters/` - Avalonia value converters.
+- `src/QuickNotesTxt/Assets/` - bundled fonts and other app assets.
+- `artifacts/verify/` - local build output used for verification; treat as generated artifacts.
 - `global.json` - pinned .NET SDK version.
 - `mise.toml` - optional tool setup for `mise` users.
 
@@ -26,6 +29,7 @@ This file gives coding agents the repository-specific context needed to work saf
 - No files were found under `.cursor/rules/`.
 - No `.github/copilot-instructions.md` file was found.
 - Do not assume hidden editor-specific rules exist elsewhere in the repo.
+- `CLAUDE.md` exists in the repository root; keep AGENTS and CLAUDE guidance aligned when repository behavior changes.
 
 ## Required Tooling
 
@@ -147,12 +151,23 @@ dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --fi
 - Keep Avalonia code-behind focused on windowing, input wiring, and UI-specific event handling.
 - Follow the existing CommunityToolkit.Mvvm pattern: `[ObservableProperty]`, `[RelayCommand]`, partial hooks, and `ObservableObject` base types.
 - Preserve the current theme/resource architecture when editing UI styling.
+- `MainViewModel` owns debounced auto-save, watcher suppression, filtering/sorting, and theme/font selection state; avoid moving that logic into views.
+- `ThemeService` and `ThemeKeys` define the active resource contract for runtime theming; prefer updating those centrally instead of scattering string resource keys.
 - Keep the terminal-style typography and compact desktop layout consistent with existing styles.
+
+## Theme Customization Guidance
+
+- Built-in themes live in `src/QuickNotesTxt/Styles/AppTheme.cs`.
+- Custom themes are loaded from JSON files by `ThemeLoaderService`.
+- Default custom theme directory is `%LocalAppData%/QuickNotesTxt/themes` on Windows or the platform-equivalent `LocalApplicationData` path.
+- Custom theme names must not collide with built-in theme names, case-insensitively.
+- Theme JSON should map cleanly to `AppTheme` and every color value must parse as a valid Avalonia color.
+- When changing theme schema or loading/export behavior, update tests in `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`.
 
 ## Testing Guidance
 
-- Add or update tests when changing repository parsing, serialization, filtering, rename behavior, or deletion behavior.
-- Prefer focused unit tests in `tests/QuickNotesTxt.Tests/NotesRepositoryTests.cs` style.
+- Add or update tests when changing repository parsing, serialization, filtering, rename behavior, deletion behavior, or theme loading/export rules.
+- Prefer focused unit tests in `tests/QuickNotesTxt.Tests/NotesRepositoryTests.cs` and `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`.
 - Use temp directories for filesystem tests and clean them up in `Dispose()`.
 
 ## Change Checklist For Agents
@@ -168,6 +183,7 @@ dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --fi
 - `dotnet build QuickNotesTxt.sln` succeeds in this repository.
 - `dotnet test QuickNotesTxt.sln --no-build` passes.
 - `dotnet test ... --filter` works for single-test execution.
+- If test/build outputs are already available under `artifacts/verify/`, avoid treating them as source files during edits.
 
 ## Notes For Future Agents
 
