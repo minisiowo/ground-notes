@@ -24,28 +24,37 @@
             BorderThickness="0,0,0,1"
             PointerPressed="OnTitleBarPointerPressed"
             DoubleTapped="OnTitleBarDoubleTapped">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-        <Border Grid.Column="0"
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" Height="30">
+        <Button Grid.Column="0"
+                Classes="titleBarButton"
+                Command="{Binding ToggleSidebarCommand}"
+                Content="{Binding SidebarToggleIcon}"
+                Width="36"
+                Height="30" />
+        <Border Grid.Column="1"
                 Background="Transparent"
-                Padding="12,6">
+                Padding="8,0"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Stretch">
           <TextBlock Classes="titleBarText"
                      Text="{Binding FooterStatusText}"
                      FontSize="11"
-                     VerticalAlignment="Center" />
+                     VerticalAlignment="Center"
+                     HorizontalAlignment="Left" />
         </Border>
-        <Button Grid.Column="1"
+        <Button Grid.Column="2"
                 Classes="titleBarButton"
                 Click="OnMinimizeClick"
                 Content="-"
                 Width="42"
                 Height="30" />
-        <Button Grid.Column="2"
+        <Button Grid.Column="3"
                 Classes="titleBarButton"
                 Click="OnMaximizeRestoreClick"
                 Content="□"
                 Width="42"
                 Height="30" />
-        <Button Grid.Column="3"
+        <Button Grid.Column="4"
                 Classes="titleBarButton titleBarCloseButton"
                 Click="OnCloseClick"
                 Content="X"
@@ -54,17 +63,23 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
-      <Border Classes="sidebarSurface"
-              Width="300"
-              IsVisible="{Binding SidebarCollapsed, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+    <Grid Grid.Row="1" x:Name="ContentGrid">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="300" MinWidth="200" />
+        <ColumnDefinition Width="6" MinWidth="0" />
+        <ColumnDefinition Width="*" MinWidth="200" />
+      </Grid.ColumnDefinitions>
+
+      <Border Grid.Column="0"
+              Classes="sidebarSurface"
+              x:Name="SidebarBorder"
+              ClipToBounds="True"
               Padding="12"
               BorderThickness="0,0,1,0">
         <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
-          <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,10">
-            <Button Command="{Binding ChooseFolderCommand}" HorizontalAlignment="Left" Content="Change Folder" />
-            <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding NewNoteCommand}" HorizontalAlignment="Left" Content="New note" />
-            <Button Grid.Column="3" Command="{Binding ToggleSidebarCommand}" Content="&lt;" Width="30" Padding="0" />
+          <Grid ColumnDefinitions="*,*" Margin="0,0,0,10">
+            <Button Command="{Binding ChooseFolderCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Folder" />
+            <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding NewNoteCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="New note" />
           </Grid>
 
           <TextBlock Grid.Row="1" Classes="metaText" Margin="0,0,0,10" Text="{Binding NotesFolder}" TextWrapping="Wrap" />
@@ -146,12 +161,24 @@
         </Grid>
       </Border>
 
-      <Grid Grid.Column="1" RowDefinitions="Auto,*">
+      <Border Grid.Column="1"
+              Classes="sidebarResizeHandle"
+              Cursor="SizeWestEast"
+              Background="Transparent"
+              PointerPressed="OnResizeHandlePointerPressed"
+              PointerMoved="OnResizeHandlePointerMoved"
+              PointerReleased="OnResizeHandlePointerReleased">
+        <Border Classes="sidebarResizeStripe"
+                Width="1"
+                HorizontalAlignment="Center" />
+      </Border>
 
-                <Grid Grid.Row="0"
+      <Grid Grid.Column="2" RowDefinitions="Auto,*" x:Name="EditorPanel">
+
+        <Grid Grid.Row="0"
+              x:Name="TitleTagsGrid"
               ColumnDefinitions="3*,*"
-              Margin="14,12,14,10"
-              IsVisible="{Binding SidebarCollapsed, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+              Margin="8,12,14,10"
               IsEnabled="{Binding HasSelectedFolder}">
           <Grid>
             <TextBox Text="{Binding EditorTitle}" VerticalContentAlignment="Center" />
@@ -180,45 +207,7 @@
           </Grid>
         </Grid>
 
-                <Grid Grid.Row="0"
-              ColumnDefinitions="Auto,3*,*"
-              Margin="14,12,14,10"
-              IsVisible="{Binding SidebarCollapsed}"
-              IsEnabled="{Binding HasSelectedFolder}">
-          <Button Classes="secondaryButton"
-                  Command="{Binding ToggleSidebarCommand}"
-                  Content="&gt;"
-                  Width="30"
-                  Padding="0" />
-          <Grid Grid.Column="1"
-                Margin="8,0,0,0">
-            <TextBox Text="{Binding EditorTitle}" VerticalContentAlignment="Center" />
-            <TextBlock Margin="8,0"
-                       IsHitTestVisible="False"
-                       IsVisible="{Binding ShowTitleWatermark}"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource TerminalFont}"
-                       FontSize="12"
-                       Foreground="{DynamicResource PlaceholderTextBrush}"
-                       Text="Title"
-                       TextWrapping="NoWrap" />
-          </Grid>
-          <Grid Grid.Column="2"
-                Margin="8,0,0,0">
-            <TextBox Text="{Binding EditorTags}" VerticalContentAlignment="Center" />
-            <TextBlock Margin="8,0"
-                       IsHitTestVisible="False"
-                       IsVisible="{Binding ShowTagsWatermark}"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource TerminalFont}"
-                       FontSize="12"
-                       Foreground="{DynamicResource PlaceholderTextBrush}"
-                       Text="Tags (comma separated)"
-                       TextWrapping="NoWrap" />
-          </Grid>
-        </Grid>
-
-        <Border Grid.Row="1" Classes="editorSurface" Margin="14,0,14,14" BorderThickness="1">
+        <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="8,0,14,14" BorderThickness="1">
           <Grid>
             <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="14" Text="Choose a folder to start writing plain-text notes." TextWrapping="Wrap" />
             <TextBox AcceptsReturn="True"

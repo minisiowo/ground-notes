@@ -433,6 +433,17 @@
   <Style Selector="ScrollViewer /template/ ScrollBar">
     <Setter Property="Background" Value="Transparent" />
   </Style>
+
+  <!-- ══ Sidebar Resize Handle ═══════════════════════════════ -->
+  <Style Selector="Border.sidebarResizeHandle">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.sidebarResizeStripe">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.sidebarResizeHandle:pointerover Border.sidebarResizeStripe">
+    <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />
+  </Style>
 </Styles>
 
 

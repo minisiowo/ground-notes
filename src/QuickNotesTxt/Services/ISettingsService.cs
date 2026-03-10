@@ -25,4 +25,4 @@ public interface ISettingsService
 
 public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, string? ThemeName, WindowLayout? WindowLayout);
 
-public sealed record WindowLayout(double Width, double Height, double X, double Y, bool IsMaximized);
+public sealed record WindowLayout(double Width, double Height, double X, double Y, bool IsMaximized, double? SidebarWidth = null, bool? SidebarCollapsed = null);

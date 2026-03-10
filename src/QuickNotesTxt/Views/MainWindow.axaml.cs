@@ -25,6 +25,7 @@ public partial class MainWindow : Window
             {
                 vm.PickFolderAsync = PickFolderAsync;
                 vm.ConfirmDeleteAsync = ConfirmDeleteAsync;
+                vm.PropertyChanged += OnViewModelPropertyChanged;
             }
 
             await RestoreWindowLayoutAsync();
@@ -85,6 +86,21 @@ public partial class MainWindow : Window
         {
             WindowState = WindowState.Maximized;
         }
+
+        // Restore sidebar state
+        if (layout.SidebarWidth is > 0)
+        {
+            _sidebarWidthBeforeCollapse = layout.SidebarWidth.Value;
+            if (layout.SidebarCollapsed != true)
+            {
+                SidebarCol.Width = new GridLength(layout.SidebarWidth.Value, GridUnitType.Pixel);
+            }
+        }
+
+        if (layout.SidebarCollapsed == true && DataContext is MainViewModel vm)
+        {
+            vm.SidebarCollapsed = true;
+        }
     }
 
     private async Task SaveWindowLayoutAsync()
@@ -124,13 +140,111 @@ public partial class MainWindow : Window
             y = Position.Y;
         }
 
-        return new WindowLayout(width, height, x, y, isMaximized);
+        var vm = DataContext as MainViewModel;
+        var sidebarCollapsed = vm?.SidebarCollapsed ?? false;
+        var sidebarWidth = sidebarCollapsed
+            ? _sidebarWidthBeforeCollapse
+            : SidebarCol.Width.Value;
+
+        return new WindowLayout(width, height, x, y, isMaximized, sidebarWidth, sidebarCollapsed);
     }
 
     private double? _lastNormalWidth;
     private double? _lastNormalHeight;
     private double? _lastNormalX;
     private double? _lastNormalY;
+
+    // ── Sidebar resize ──────────────────────────────────────
+    private bool _isResizingSidebar;
+    private Point _resizeStartPoint;
+    private double _resizeStartWidth;
+    private const double SidebarMinWidth = 200;
+    private const double SidebarMaxWidth = 600;
+    private double _sidebarWidthBeforeCollapse = 300;
+
+    private ColumnDefinition SidebarCol => ContentGrid.ColumnDefinitions[0];
+    private ColumnDefinition SplitterCol => ContentGrid.ColumnDefinitions[1];
+
+    private void OnResizeHandlePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            return;
+
+        _isResizingSidebar = true;
+        _resizeStartPoint = e.GetPosition(this);
+        _resizeStartWidth = SidebarCol.Width.Value;
+        e.Handled = true;
+        ((Control)sender!).PointerCaptureLost += OnResizeHandleCaptureLost;
+        e.Pointer.Capture((Control)sender!);
+    }
+
+    private void OnResizeHandlePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_isResizingSidebar)
+            return;
+
+        var currentPos = e.GetPosition(this);
+        var delta = currentPos.X - _resizeStartPoint.X;
+        var newWidth = _resizeStartWidth + delta;
+
+        var maxWidth = Math.Min(SidebarMaxWidth, Bounds.Width * 0.5);
+        newWidth = Math.Max(SidebarMinWidth, newWidth);
+        newWidth = Math.Min(maxWidth, newWidth);
+
+        SidebarCol.Width = new GridLength(newWidth, GridUnitType.Pixel);
+        e.Handled = true;
+    }
+
+    private void OnResizeHandlePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isResizingSidebar)
+            return;
+
+        _isResizingSidebar = false;
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void OnResizeHandleCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _isResizingSidebar = false;
+        if (sender is Control control)
+            control.PointerCaptureLost -= OnResizeHandleCaptureLost;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
+            return;
+
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        if (vm.SidebarCollapsed)
+        {
+            _sidebarWidthBeforeCollapse = SidebarCol.Width.Value;
+            SidebarCol.MinWidth = 0;
+            SidebarCol.Width = new GridLength(0, GridUnitType.Pixel);
+            SplitterCol.Width = new GridLength(0, GridUnitType.Pixel);
+            SidebarBorder.IsVisible = false;
+            UpdateEditorMargins(collapsed: true);
+        }
+        else
+        {
+            SidebarCol.MinWidth = SidebarMinWidth;
+            SidebarCol.Width = new GridLength(_sidebarWidthBeforeCollapse, GridUnitType.Pixel);
+            SplitterCol.Width = new GridLength(6, GridUnitType.Pixel);
+            SidebarBorder.IsVisible = true;
+            UpdateEditorMargins(collapsed: false);
+        }
+    }
+
+    private void UpdateEditorMargins(bool collapsed)
+    {
+        var left = collapsed ? 14.0 : 8.0;
+        TitleTagsGrid.Margin = new Thickness(left, 12, 14, 10);
+        EditorBorder.Margin = new Thickness(left, 0, 14, 14);
+    }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {

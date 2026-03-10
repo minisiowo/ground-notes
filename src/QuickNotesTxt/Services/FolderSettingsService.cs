@@ -25,7 +25,8 @@ public sealed class FolderSettingsService : ISettingsService
 
         WindowLayout? layout = settings?.WindowWidth is not null && settings.WindowHeight is not null
             ? new WindowLayout(settings.WindowWidth.Value, settings.WindowHeight.Value,
-                settings.WindowX ?? 0, settings.WindowY ?? 0, settings.IsMaximized ?? false)
+                settings.WindowX ?? 0, settings.WindowY ?? 0, settings.IsMaximized ?? false,
+                settings.SidebarWidth, settings.SidebarCollapsed)
             : null;
 
         return new AppSettings(settings?.NotesFolder, settings?.EditorFontSize, settings?.ThemeName, layout);
@@ -82,7 +83,9 @@ public sealed class FolderSettingsService : ISettingsService
             WindowHeight = layout.Height,
             WindowX = layout.X,
             WindowY = layout.Y,
-            IsMaximized = layout.IsMaximized
+            IsMaximized = layout.IsMaximized,
+            SidebarWidth = layout.SidebarWidth,
+            SidebarCollapsed = layout.SidebarCollapsed
         }, cancellationToken);
     }
 
@@ -95,7 +98,9 @@ public sealed class FolderSettingsService : ISettingsService
             WindowHeight = layout.Height,
             WindowX = layout.X,
             WindowY = layout.Y,
-            IsMaximized = layout.IsMaximized
+            IsMaximized = layout.IsMaximized,
+            SidebarWidth = layout.SidebarWidth,
+            SidebarCollapsed = layout.SidebarCollapsed
         });
     }
 
@@ -103,24 +108,24 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
         return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, cancellationToken: cancellationToken)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
     }
 
     private SettingsRecord LoadRecordSync()
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
         }
 
         var json = File.ReadAllText(_settingsFilePath);
         return JsonSerializer.Deserialize<SettingsRecord>(json)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
@@ -143,5 +148,7 @@ public sealed class FolderSettingsService : ISettingsService
         double? WindowHeight,
         double? WindowX,
         double? WindowY,
-        bool? IsMaximized);
+        bool? IsMaximized,
+        double? SidebarWidth,
+        bool? SidebarCollapsed);
 }

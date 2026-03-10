@@ -53,10 +53,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _statusMessage = "Choose a folder to start.";
 
     [ObservableProperty]
-    private string _lastSavedText = "Last saved: --";
+    private string _lastSavedText = "QuickNotes";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SidebarToggleIcon))]
     private bool _sidebarCollapsed;
+
+    public string SidebarToggleIcon => SidebarCollapsed ? "›" : "‹";
 
     [ObservableProperty]
     private SortOption _selectedSortOption = SortOption.LastModified;
@@ -107,7 +110,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public bool HasFooterStatusOverride => !string.IsNullOrWhiteSpace(StatusMessage) && !string.Equals(StatusMessage, "Ready.", StringComparison.Ordinal);
 
-    public string FooterStatusText => HasFooterStatusOverride ? StatusMessage : LastSavedText;
+    public string FooterStatusText => HasFooterStatusOverride
+        ? StatusMessage
+        : LastSavedText;
 
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
@@ -142,6 +147,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ShowTitleWatermark));
         OnPropertyChanged(nameof(ShowTagsWatermark));
         OnPropertyChanged(nameof(ShowEditorWatermark));
+        OnPropertyChanged(nameof(FooterStatusText));
     }
 
     partial void OnVisibleNotesChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotes));
@@ -457,7 +463,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await _settingsService.SetNotesFolderAsync(folderPath);
         _fileWatcherService.Watch(folderPath);
         ClearEditor();
-        LastSavedText = "Last saved: --";
+        LastSavedText = "QuickNotes";
         await RefreshFromDiskAsync();
         StatusMessage = "Ready.";
     }
@@ -573,7 +579,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EditorBody = string.Empty;
             HasUnsavedChanges = false;
             HasConflict = false;
-            LastSavedText = "Last saved: --";
+            LastSavedText = "QuickNotes";
         }
         finally
         {
