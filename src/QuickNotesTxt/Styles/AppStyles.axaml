@@ -1,25 +1,28 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
-    <FontFamily x:Key="TerminalFont">Cascadia Mono, Cascadia Code, Consolas, Menlo, Monaco, Monospace</FontFamily>
+    <FontFamily x:Key="TerminalFont">avares://QuickNotesTxt/Assets/Fonts#Iosevka Slab</FontFamily>
+    <x:Double x:Key="AppFontSize">12</x:Double>
+    <x:Double x:Key="AppFontSizeSmall">11</x:Double>
+    <x:Double x:Key="AppFontSizeLarge">14</x:Double>
   </Styles.Resources>
 
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
   <Style Selector="TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
   <Style Selector="TextBlock.metaText">
     <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
   <Style Selector="TextBlock.mutedText">
@@ -27,13 +30,18 @@
   </Style>
 
   <Style Selector="TextBlock.titleBarText">
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style Selector="TextBlock.footerStatusText">
     <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
-    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+  </Style>
+
+  <Style Selector="TextBlock.sidebarFooterStatus">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
   </Style>
 
   <Style Selector="Border.sidebarSurface, Border.editorSurface, Border.sectionSurface">
@@ -57,7 +65,7 @@
     <Setter Property="Padding" Value="10,4" />
     <Setter Property="MinHeight" Value="30" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
@@ -91,7 +99,7 @@
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="MinHeight" Value="30" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
@@ -136,7 +144,7 @@
     <Setter Property="CaretBrush" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="SelectionBrush" Value="{DynamicResource TextSelectionBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
   <!-- Remove FluentTheme bottom accent line on TextBox -->
@@ -181,7 +189,7 @@
 
   <Style Selector="TextBox.fileRowEditor">
     <Setter Property="Padding" Value="4,1" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
   <Style Selector="TextBox.editorTextBox">
@@ -231,7 +239,7 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="1" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
   <Style Selector="ComboBox:pointerover, ComboBox:focus">
@@ -271,7 +279,7 @@
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="CornerRadius" Value="0" />
     <Setter Property="Margin" Value="0" />
     <Setter Property="Padding" Value="4,2" />
@@ -330,7 +338,7 @@
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="Padding" Value="6,4" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Margin" Value="0" />
@@ -411,7 +419,7 @@
   </Style>
 
   <Style Selector="TextBlock.fileRowText">
-    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
@@ -445,7 +453,4 @@
     <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />
   </Style>
 </Styles>
-
-
-
 

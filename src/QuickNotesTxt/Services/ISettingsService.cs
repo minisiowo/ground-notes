@@ -12,6 +12,10 @@ public interface ISettingsService
 
     Task SetEditorFontSizeAsync(double fontSize, CancellationToken cancellationToken = default);
 
+    Task<double?> GetUiFontSizeAsync(CancellationToken cancellationToken = default);
+
+    Task SetUiFontSizeAsync(double fontSize, CancellationToken cancellationToken = default);
+
     Task<string?> GetThemeNameAsync(CancellationToken cancellationToken = default);
 
     Task SetThemeNameAsync(string themeName, CancellationToken cancellationToken = default);
@@ -23,6 +27,6 @@ public interface ISettingsService
     void SetWindowLayoutSync(WindowLayout layout);
 }
 
-public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, string? ThemeName, WindowLayout? WindowLayout);
+public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, double? UiFontSize, string? ThemeName, WindowLayout? WindowLayout);
 
 public sealed record WindowLayout(double Width, double Height, double X, double Y, bool IsMaximized, double? SidebarWidth = null, bool? SidebarCollapsed = null);

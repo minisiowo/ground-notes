@@ -13,6 +13,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private const double DefaultEditorFontSize = 12;
     private const double MinEditorFontSize = 10;
     private const double MaxEditorFontSize = 24;
+    private const double DefaultUiFontSize = 12;
+    private const double MinUiFontSize = 10;
+    private const double MaxUiFontSize = 20;
 
     private readonly INotesRepository _notesRepository;
     private readonly ISettingsService _settingsService;
@@ -69,6 +72,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private double _editorFontSize = DefaultEditorFontSize;
+
+    [ObservableProperty]
+    private double _uiFontSize = DefaultUiFontSize;
 
     [ObservableProperty]
     private string _selectedThemeName = AppTheme.Dark.Name;
@@ -138,6 +144,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 _ = _settingsService.SetThemeNameAsync(value);
             }
         }
+    }
+
+    partial void OnUiFontSizeChanged(double value)
+    {
+        ThemeService.ApplyUiFontSize(value);
     }
 
     partial void OnNotesFolderChanged(string value)
@@ -297,6 +308,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private async Task IncreaseUiFontSizeAsync()
+    {
+        await SetUiFontSizeAsync(UiFontSize + 1);
+    }
+
+    [RelayCommand]
+    private async Task DecreaseUiFontSizeAsync()
+    {
+        await SetUiFontSizeAsync(UiFontSize - 1);
+    }
+
+    [RelayCommand]
     private void StartRenameNote(NoteSummary? noteSummary)
     {
         if (noteSummary is null)
@@ -431,6 +454,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         var settings = await _settingsService.GetSettingsAsync();
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
+        UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
 
         if (!string.IsNullOrWhiteSpace(settings.ThemeName))
         {
@@ -481,9 +505,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StatusMessage = $"Editor font size: {clamped:0}";
     }
 
+    private async Task SetUiFontSizeAsync(double fontSize)
+    {
+        var clamped = ClampUiFontSize(fontSize);
+        if (Math.Abs(UiFontSize - clamped) < 0.01)
+        {
+            return;
+        }
+
+        UiFontSize = clamped;
+        await _settingsService.SetUiFontSizeAsync(clamped);
+        StatusMessage = $"UI font size: {clamped:0}";
+    }
+
     private static double ClampEditorFontSize(double fontSize)
     {
         return Math.Clamp(fontSize, MinEditorFontSize, MaxEditorFontSize);
+    }
+
+    private static double ClampUiFontSize(double fontSize)
+    {
+        return Math.Clamp(fontSize, MinUiFontSize, MaxUiFontSize);
     }
 
     private async Task RefreshFromDiskAsync()
@@ -685,7 +727,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             || status == "Delete canceled."
             || status.StartsWith("Deleted ", StringComparison.Ordinal)
             || status.StartsWith("Renamed to ", StringComparison.Ordinal)
-            || status.StartsWith("Editor font size: ", StringComparison.Ordinal);
+            || status.StartsWith("Editor font size: ", StringComparison.Ordinal)
+            || status.StartsWith("UI font size: ", StringComparison.Ordinal);
     }
     private async Task SaveCurrentNoteAsync(CancellationToken cancellationToken)
     {
@@ -867,7 +910,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         CancelScheduledSave();
     }
 }
-
 
 
 

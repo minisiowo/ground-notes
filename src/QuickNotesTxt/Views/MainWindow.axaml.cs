@@ -302,21 +302,84 @@ public partial class MainWindow : Window
             return;
         }
 
+        var hasShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+
         if (e.Key is Key.Add or Key.OemPlus)
         {
             e.Handled = true;
-            await vm.IncreaseEditorFontSizeCommand.ExecuteAsync(null);
+            if (hasShift)
+            {
+                await vm.IncreaseUiFontSizeCommand.ExecuteAsync(null);
+            }
+            else
+            {
+                await vm.IncreaseEditorFontSizeCommand.ExecuteAsync(null);
+            }
         }
         else if (e.Key is Key.Subtract or Key.OemMinus)
         {
             e.Handled = true;
-            await vm.DecreaseEditorFontSizeCommand.ExecuteAsync(null);
+            if (hasShift)
+            {
+                await vm.DecreaseUiFontSizeCommand.ExecuteAsync(null);
+            }
+            else
+            {
+                await vm.DecreaseEditorFontSizeCommand.ExecuteAsync(null);
+            }
         }
-        else if (e.Key is Key.N)
+        else if (!hasShift && e.Key is Key.N)
         {
             e.Handled = true;
             await vm.NewNoteCommand.ExecuteAsync(null);
         }
+    }
+
+    private async void OnEditorCopyingToClipboard(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        var selectedText = textBox.SelectedText;
+        if (string.IsNullOrEmpty(selectedText))
+        {
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            return;
+        }
+
+        await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
+        e.Handled = true;
+    }
+
+    private async void OnEditorCuttingToClipboard(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        var selectedText = textBox.SelectedText;
+        if (string.IsNullOrEmpty(selectedText))
+        {
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            return;
+        }
+
+        await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
+        textBox.SelectedText = string.Empty;
+        e.Handled = true;
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)

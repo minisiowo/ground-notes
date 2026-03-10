@@ -42,6 +42,24 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoadNoteAsync_PreservesPolishCharacters()
+    {
+        var draft = _repository.CreateDraftNote(_tempRoot, DateTimeOffset.Now);
+        draft.Title = "zażółć gęślą jaźń";
+        draft.OriginalTitle = draft.Title;
+        draft.Body = "Pchnąć w tę łódź jeża lub ośm skrzyń fig.";
+        draft.Tags = ["język", "źródło"];
+
+        var saved = await _repository.SaveNoteAsync(_tempRoot, draft);
+        var loaded = await _repository.LoadNoteAsync(saved.FilePath);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(draft.Title, loaded.Title);
+        Assert.Equal(draft.Body, loaded.Body);
+        Assert.Equal(draft.Tags, loaded.Tags);
+    }
+
+    [Fact]
     public async Task SaveNoteAsync_RenamesWhenTitleChanges()
     {
         var draft = _repository.CreateDraftNote(_tempRoot, DateTimeOffset.Now);
@@ -122,5 +140,4 @@ public sealed class NotesRepositoryTests : IDisposable
         }
     }
 }
-
 

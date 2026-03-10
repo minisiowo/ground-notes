@@ -17,7 +17,7 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new AppSettings(null, null, null, null);
+            return new AppSettings(null, null, null, null, null);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
@@ -29,7 +29,7 @@ public sealed class FolderSettingsService : ISettingsService
                 settings.SidebarWidth, settings.SidebarCollapsed)
             : null;
 
-        return new AppSettings(settings?.NotesFolder, settings?.EditorFontSize, settings?.ThemeName, layout);
+        return new AppSettings(settings?.NotesFolder, settings?.EditorFontSize, settings?.UiFontSize, settings?.ThemeName, layout);
     }
 
     public async Task<string?> GetNotesFolderAsync(CancellationToken cancellationToken = default)
@@ -54,6 +54,18 @@ public sealed class FolderSettingsService : ISettingsService
     {
         var record = await LoadRecordAsync(cancellationToken);
         await SaveAsync(record with { EditorFontSize = fontSize }, cancellationToken);
+    }
+
+    public async Task<double?> GetUiFontSizeAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.UiFontSize;
+    }
+
+    public async Task SetUiFontSizeAsync(double fontSize, CancellationToken cancellationToken = default)
+    {
+        var record = await LoadRecordAsync(cancellationToken);
+        await SaveAsync(record with { UiFontSize = fontSize }, cancellationToken);
     }
 
     public async Task<string?> GetThemeNameAsync(CancellationToken cancellationToken = default)
@@ -108,24 +120,24 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
         return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, cancellationToken: cancellationToken)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private SettingsRecord LoadRecordSync()
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null);
         }
 
         var json = File.ReadAllText(_settingsFilePath);
         return JsonSerializer.Deserialize<SettingsRecord>(json)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
@@ -143,6 +155,7 @@ public sealed class FolderSettingsService : ISettingsService
     private sealed record SettingsRecord(
         string? NotesFolder,
         double? EditorFontSize,
+        double? UiFontSize,
         string? ThemeName,
         double? WindowWidth,
         double? WindowHeight,

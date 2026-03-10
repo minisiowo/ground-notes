@@ -12,6 +12,19 @@ namespace QuickNotesTxt.Styles;
 /// </summary>
 public static class ThemeService
 {
+    public static void ApplyUiFontSize(double fontSize)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        app.Resources["AppFontSize"] = fontSize;
+        app.Resources["AppFontSizeSmall"] = Math.Max(9d, fontSize - 1d);
+        app.Resources["AppFontSizeLarge"] = fontSize + 2d;
+    }
+
     public static void Apply(AppTheme theme)
     {
         var app = Application.Current;
