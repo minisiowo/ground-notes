@@ -14,7 +14,7 @@ namespace QuickNotesTxt.Views;
 public partial class MainWindow : Window
 {
     private const double WindowResizeBorderThickness = 6;
-    private const double WindowCornerResizeThickness = 14;
+    private const double WindowCornerResizeThickness = 10;
     private ISettingsService? _settingsService;
     private WindowEdge? _activeResizeEdge;
 
