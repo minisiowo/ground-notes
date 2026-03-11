@@ -17,6 +17,7 @@
   <Window.Resources>
     <DataTemplate x:Key="CompactComboBoxItemTemplate">
       <TextBlock FontSize="{DynamicResource AppFontSize}"
+                 Foreground="{Binding $parent[ComboBoxItem].Foreground}"
                  Text="{Binding}"
                  TextWrapping="NoWrap"
                  TextTrimming="CharacterEllipsis" />
@@ -171,7 +172,7 @@
                   Margin="0,8,0,0"
                   IsVisible="{Binding HasActiveTagFilter}"
                   Command="{Binding ClearTagFilterCommand}"
-                  HorizontalAlignment="Right"
+                  HorizontalAlignment="Stretch"
                   Content="Clear Tag Filter" />
         </Grid>
       </Border>
@@ -254,8 +255,6 @@
     </Grid>
   </Grid>
 </Window>
-
-
 
 
 

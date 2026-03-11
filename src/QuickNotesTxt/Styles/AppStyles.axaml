@@ -5,6 +5,52 @@
     <x:Double x:Key="AppFontSize">12</x:Double>
     <x:Double x:Key="AppFontSizeSmall">11</x:Double>
     <x:Double x:Key="AppFontSizeLarge">14</x:Double>
+
+    <ControlTheme x:Key="EditorTextBoxContextFlyoutPresenterTheme"
+                  TargetType="MenuFlyoutPresenter">
+      <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="LayoutRoot"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Padding="0"
+                  CornerRadius="{TemplateBinding CornerRadius}">
+            <ScrollViewer Theme="{StaticResource FluentMenuScrollViewer}"
+                          Background="{TemplateBinding Background}"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
+              <ItemsPresenter Name="PART_ItemsPresenter"
+                              ItemsPanel="{TemplateBinding ItemsPanel}"
+                              Margin="0"
+                              KeyboardNavigation.TabNavigation="Continue"
+                              Grid.IsSharedSizeScope="True" />
+            </ScrollViewer>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+
+    <MenuFlyout x:Key="EditorTextBoxContextFlyout"
+                ShowMode="Standard"
+                FlyoutPresenterTheme="{StaticResource EditorTextBoxContextFlyoutPresenterTheme}">
+      <MenuItem Header="{DynamicResource StringTextFlyoutCutText}"
+                Command="{Binding $parent[TextBox].Cut}"
+                IsEnabled="{Binding $parent[TextBox].CanCut}"
+                InputGesture="{x:Static TextBox.CutGesture}" />
+      <MenuItem Header="{DynamicResource StringTextFlyoutCopyText}"
+                Command="{Binding $parent[TextBox].Copy}"
+                IsEnabled="{Binding $parent[TextBox].CanCopy}"
+                InputGesture="{x:Static TextBox.CopyGesture}" />
+      <MenuItem Header="{DynamicResource StringTextFlyoutPasteText}"
+                Command="{Binding $parent[TextBox].Paste}"
+                IsEnabled="{Binding $parent[TextBox].CanPaste}"
+                InputGesture="{x:Static TextBox.PasteGesture}" />
+    </MenuFlyout>
   </Styles.Resources>
 
   <Style Selector="Window">
@@ -198,6 +244,7 @@
     <Setter Property="SelectionBrush" Value="{DynamicResource EditorTextSelectionBrush}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="ContextFlyout" Value="{StaticResource EditorTextBoxContextFlyout}" />
   </Style>
 
   <Style Selector="TextBox.editorTextBox /template/ Border#PART_BorderElement">
@@ -282,7 +329,10 @@
 
   <Style Selector="ComboBoxItem">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FocusAdorner" Value="{x:Null}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
     <Setter Property="CornerRadius" Value="0" />
@@ -296,30 +346,54 @@
   </Style>
 
   <Style Selector="ComboBoxItem:selected">
-    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
   <Style Selector="ComboBoxItem:selected:pointerover">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="ComboBoxItem /template/ ContentPresenter">
+  <Style Selector="ComboBoxItem /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
-  <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter">
+  <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="ComboBoxItem:selected /template/ ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+  <Style Selector="ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
-  <Style Selector="ComboBoxItem:selected:pointerover /template/ ContentPresenter">
+  <Style Selector="ComboBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="ComboBoxItem:selected:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
   <!-- ══ ContextMenu / MenuItem ══════════════════════════════ -->
@@ -327,7 +401,7 @@
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="0" />
+    <Setter Property="Padding" Value="2" />
     <Setter Property="CornerRadius" Value="1" />
   </Style>
 
@@ -335,8 +409,13 @@
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="0" />
+    <Setter Property="Padding" Value="2" />
     <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+
+  <Style Selector="ContextMenu /template/ ScrollViewer">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
   </Style>
 
   <Style Selector="MenuItem">
@@ -354,7 +433,7 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
     <Setter Property="Padding" Value="6,4" />
     <Setter Property="MinHeight" Value="0" />
   </Style>
@@ -458,4 +537,3 @@
     <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />
   </Style>
 </Styles>
-
