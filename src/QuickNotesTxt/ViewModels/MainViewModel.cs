@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using Avalonia.Threading;
+using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using QuickNotesTxt.Models;
@@ -21,8 +22,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly ISettingsService _settingsService;
     private readonly IFileWatcherService _fileWatcherService;
     private readonly IThemeLoaderService _themeLoaderService;
+    private readonly IFontCatalogService _fontCatalogService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
+    private IReadOnlyList<BundledFontOption> _allFonts = [new(FontCatalogService.DefaultFontKey, "Iosevka Slab", $"avares://QuickNotesTxt/Assets/Fonts/{FontCatalogService.DefaultFontKey}#Iosevka Slab")];
     private CancellationTokenSource? _saveCts;
     private bool _isApplyingSelection;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
@@ -84,12 +87,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private IReadOnlyList<string> _themeNames = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
 
-    public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService, IThemeLoaderService themeLoaderService)
+    [ObservableProperty]
+    private string _selectedFontName = "Iosevka Slab";
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _fontNames = ["Iosevka Slab"];
+
+    public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService, IThemeLoaderService themeLoaderService, IFontCatalogService fontCatalogService)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
         _fileWatcherService = fileWatcherService;
         _themeLoaderService = themeLoaderService;
+        _fontCatalogService = fontCatalogService;
         _fileWatcherService.NotesChanged += OnNotesChanged;
 
         SortOptions = Enum.GetValues<SortOption>();
@@ -149,6 +159,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 _ = _settingsService.SetThemeNameAsync(value);
             }
+        }
+    }
+
+    partial void OnSelectedFontNameChanged(string value)
+    {
+        var font = _allFonts.FirstOrDefault(f => string.Equals(f.DisplayName, value, StringComparison.Ordinal));
+        if (font is null)
+        {
+            return;
+        }
+
+        ThemeService.ApplyTerminalFont(new FontFamily(font.ResourceUri));
+        if (!_isApplyingSelection)
+        {
+            _ = _settingsService.SetFontNameAsync(font.Key);
         }
     }
 
@@ -463,8 +488,27 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
         UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
 
+        _allFonts = _fontCatalogService.LoadBundledFonts();
+        FontNames = _allFonts.Select(f => f.DisplayName).ToList();
+
         _allThemes = await _themeLoaderService.LoadAllThemesAsync();
         ThemeNames = _allThemes.Select(t => t.Name).ToList();
+
+        var initialFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.FontName, StringComparison.Ordinal))
+            ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? _allFonts[0];
+
+        _isApplyingSelection = true;
+        try
+        {
+            SelectedFontName = initialFont.DisplayName;
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        ThemeService.ApplyTerminalFont(new FontFamily(initialFont.ResourceUri));
 
         if (!string.IsNullOrWhiteSpace(settings.ThemeName))
         {

@@ -340,6 +340,11 @@ public partial class MainWindow : Window
                 await vm.DecreaseEditorFontSizeCommand.ExecuteAsync(null);
             }
         }
+        else if (!hasShift && e.Key is Key.R)
+        {
+            e.Handled = true;
+            await vm.ReloadCommand.ExecuteAsync(null);
+        }
         else if (!hasShift && e.Key is Key.N)
         {
             e.Handled = true;

@@ -7,6 +7,10 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets/**" />
+    <Content Include="Assets/Fonts/**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

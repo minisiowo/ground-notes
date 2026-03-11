@@ -29,6 +29,7 @@ public static class ThemeKeys
     public const string TitleBarCloseHoverBrush = "TitleBarCloseHoverBrush";
 
     // ── Font size resources ────────────────────────────────────
+    public const string TerminalFont = "TerminalFont";
     public const string AppFontSize = "AppFontSize";
     public const string AppFontSizeSmall = "AppFontSizeSmall";
     public const string AppFontSizeLarge = "AppFontSizeLarge";

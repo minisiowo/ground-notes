@@ -12,6 +12,17 @@ namespace QuickNotesTxt.Styles;
 /// </summary>
 public static class ThemeService
 {
+    public static void ApplyTerminalFont(FontFamily fontFamily)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        app.Resources[ThemeKeys.TerminalFont] = fontFamily;
+    }
+
     public static void ApplyUiFontSize(double fontSize)
     {
         var app = Application.Current;

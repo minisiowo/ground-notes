@@ -24,7 +24,8 @@ public partial class App : Application
             var repository = new NotesRepository();
             var fileWatcher = new FileWatcherService();
             var themeLoader = new ThemeLoaderService();
-            var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader);
+            var fontCatalog = new FontCatalogService();
+            var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog);
 
             var mainWindow = new MainWindow
             {
