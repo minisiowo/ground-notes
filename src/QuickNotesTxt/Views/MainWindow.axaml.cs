@@ -14,6 +14,7 @@ namespace QuickNotesTxt.Views;
 public partial class MainWindow : Window
 {
     private const double WindowResizeBorderThickness = 6;
+    private const double WindowCornerResizeThickness = 14;
     private ISettingsService? _settingsService;
     private WindowEdge? _activeResizeEdge;
 
@@ -23,7 +24,9 @@ public partial class MainWindow : Window
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
-        PointerPressed += OnWindowPointerPressed;
+
+        // Use Tunnel routing so corner resize takes priority over title-bar buttons.
+        AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         Opened += async (_, _) =>
         {
@@ -421,13 +424,19 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Source is Visual visual && !ReferenceEquals(visual, this) && visual.FindAncestorOfType<Button>() is not null)
+        var edge = TryGetResizeEdge(e.GetPosition(this));
+        var isCorner = edge is WindowEdge.NorthWest or WindowEdge.NorthEast
+                            or WindowEdge.SouthWest or WindowEdge.SouthEast;
+
+        // Allow buttons to work normally unless we are in a corner resize zone.
+        if (!isCorner && e.Source is Visual visual && !ReferenceEquals(visual, this)
+            && visual.FindAncestorOfType<Button>() is not null)
         {
             ClearWindowResizeCursor();
             return;
         }
 
-        _activeResizeEdge = TryGetResizeEdge(e.GetPosition(this));
+        _activeResizeEdge = edge;
         Cursor = _activeResizeEdge switch
         {
             WindowEdge.West or WindowEdge.East => new Cursor(StandardCursorType.SizeWestEast),
@@ -460,21 +469,26 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Source is Visual visual && !ReferenceEquals(visual, this) && visual.FindAncestorOfType<Button>() is not null)
-        {
-            return;
-        }
-
         var edge = _activeResizeEdge ?? TryGetResizeEdge(e.GetPosition(this));
         if (edge is null)
         {
             return;
         }
 
+        var isCorner = edge is WindowEdge.NorthWest or WindowEdge.NorthEast
+                            or WindowEdge.SouthWest or WindowEdge.SouthEast;
+
+        // Let buttons handle the click unless we are in a corner resize zone.
+        if (!isCorner && e.Source is Visual visual && !ReferenceEquals(visual, this)
+            && visual.FindAncestorOfType<Button>() is not null)
+        {
+            return;
+        }
+
         try
         {
-            BeginResizeDrag(edge.Value, e);
             e.Handled = true;
+            BeginResizeDrag(edge.Value, e);
         }
         catch (InvalidOperationException)
         {
@@ -494,30 +508,36 @@ public partial class MainWindow : Window
             return null;
         }
 
-        var onLeft = point.X >= 0 && point.X <= WindowResizeBorderThickness;
-        var onRight = point.X <= Bounds.Width && point.X >= Bounds.Width - WindowResizeBorderThickness;
-        var onTop = point.Y >= 0 && point.Y <= WindowResizeBorderThickness;
-        var onBottom = point.Y <= Bounds.Height && point.Y >= Bounds.Height - WindowResizeBorderThickness;
+        // Use a larger hit area for corners so they are easier to grab.
+        var cornerLeft = point.X >= 0 && point.X <= WindowCornerResizeThickness;
+        var cornerRight = point.X <= Bounds.Width && point.X >= Bounds.Width - WindowCornerResizeThickness;
+        var cornerTop = point.Y >= 0 && point.Y <= WindowCornerResizeThickness;
+        var cornerBottom = point.Y <= Bounds.Height && point.Y >= Bounds.Height - WindowCornerResizeThickness;
 
-        if (onTop && onLeft)
+        if (cornerTop && cornerLeft)
         {
             return WindowEdge.NorthWest;
         }
 
-        if (onTop && onRight)
+        if (cornerTop && cornerRight)
         {
             return WindowEdge.NorthEast;
         }
 
-        if (onBottom && onLeft)
+        if (cornerBottom && cornerLeft)
         {
             return WindowEdge.SouthWest;
         }
 
-        if (onBottom && onRight)
+        if (cornerBottom && cornerRight)
         {
             return WindowEdge.SouthEast;
         }
+
+        var onLeft = point.X >= 0 && point.X <= WindowResizeBorderThickness;
+        var onRight = point.X <= Bounds.Width && point.X >= Bounds.Width - WindowResizeBorderThickness;
+        var onTop = point.Y >= 0 && point.Y <= WindowResizeBorderThickness;
+        var onBottom = point.Y <= Bounds.Height && point.Y >= Bounds.Height - WindowResizeBorderThickness;
 
         if (onLeft)
         {
