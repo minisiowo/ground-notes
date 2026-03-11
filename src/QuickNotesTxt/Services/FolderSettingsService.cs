@@ -107,6 +107,21 @@ public sealed class FolderSettingsService : ISettingsService
         return settings.WindowLayout;
     }
 
+    public WindowLayout? GetWindowLayoutSync()
+    {
+        var record = LoadRecordSync();
+        if (record.WindowWidth is not null && record.WindowHeight is not null)
+        {
+            return new WindowLayout(
+                record.WindowWidth.Value, record.WindowHeight.Value,
+                record.WindowX ?? 0, record.WindowY ?? 0,
+                record.IsMaximized ?? false,
+                record.SidebarWidth, record.SidebarCollapsed);
+        }
+
+        return null;
+    }
+
     public async Task SetWindowLayoutAsync(WindowLayout layout, CancellationToken cancellationToken = default)
     {
         var record = await LoadRecordAsync(cancellationToken);

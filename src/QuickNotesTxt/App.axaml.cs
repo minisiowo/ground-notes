@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using QuickNotesTxt.Services;
@@ -29,9 +30,20 @@ public partial class App : Application
 
             var mainWindow = new MainWindow
             {
-                DataContext = mainViewModel
+                DataContext = mainViewModel,
+                Opacity = 0
             };
             mainWindow.SetSettingsService(settingsService);
+
+            // Apply saved layout synchronously before the window is shown,
+            // so it appears at the correct position and size immediately.
+            var savedLayout = settingsService.GetWindowLayoutSync();
+            if (savedLayout is not null)
+            {
+                mainWindow.Position = new PixelPoint((int)savedLayout.X, (int)savedLayout.Y);
+                mainWindow.Width = savedLayout.Width;
+                mainWindow.Height = savedLayout.Height;
+            }
 
             desktop.MainWindow = mainWindow;
         }

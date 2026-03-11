@@ -5,6 +5,7 @@
         x:Name="RootWindow"
         x:Class="QuickNotesTxt.Views.MainWindow"
         Title="QuickNotesTxt"
+        WindowStartupLocation="Manual"
         Width="1180"
         Height="760"
         MinWidth="500"

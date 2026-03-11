@@ -26,6 +26,8 @@ public interface ISettingsService
 
     Task<WindowLayout?> GetWindowLayoutAsync(CancellationToken cancellationToken = default);
 
+    WindowLayout? GetWindowLayoutSync();
+
     Task SetWindowLayoutAsync(WindowLayout layout, CancellationToken cancellationToken = default);
 
     void SetWindowLayoutSync(WindowLayout layout);

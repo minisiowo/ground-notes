@@ -36,6 +36,9 @@ public partial class MainWindow : Window
             }
 
             await RestoreWindowLayoutAsync();
+
+            // Reveal the window after layout has been fully applied.
+            Opacity = 1;
         };
 
         Closing += (_, e) =>
@@ -58,29 +61,8 @@ public partial class MainWindow : Window
         _settingsService = settingsService;
     }
 
-    private async Task RestoreWindowLayoutAsync()
+    public void ApplyInitialWindowLayout(WindowLayout layout, bool isOnScreen)
     {
-        if (_settingsService is null) return;
-
-        var layout = await _settingsService.GetWindowLayoutAsync();
-        if (layout is null) return;
-
-        // Validate that the saved position is on a visible screen area
-        var screens = Screens;
-        var savedBounds = new PixelRect(
-            (int)layout.X, (int)layout.Y,
-            (int)layout.Width, (int)layout.Height);
-
-        bool isOnScreen = false;
-        foreach (var screen in screens.All)
-        {
-            if (screen.WorkingArea.Intersects(savedBounds))
-            {
-                isOnScreen = true;
-                break;
-            }
-        }
-
         if (isOnScreen)
         {
             Position = new PixelPoint((int)layout.X, (int)layout.Y);
@@ -89,12 +71,11 @@ public partial class MainWindow : Window
         Width = layout.Width;
         Height = layout.Height;
 
-        if (layout.IsMaximized)
-        {
-            WindowState = WindowState.Maximized;
-        }
+        _lastNormalWidth = layout.Width;
+        _lastNormalHeight = layout.Height;
+        _lastNormalX = layout.X;
+        _lastNormalY = layout.Y;
 
-        // Restore sidebar state
         if (layout.SidebarWidth is > 0)
         {
             _sidebarWidthBeforeCollapse = layout.SidebarWidth.Value;
@@ -108,6 +89,39 @@ public partial class MainWindow : Window
         {
             vm.SidebarCollapsed = true;
         }
+
+        if (layout.IsMaximized)
+        {
+            WindowState = WindowState.Maximized;
+        }
+    }
+
+    private async Task RestoreWindowLayoutAsync()
+    {
+        if (_settingsService is null) return;
+
+        var layout = await _settingsService.GetWindowLayoutAsync();
+        if (layout is null) return;
+
+        var isOnScreen = IsLayoutOnAnyScreen(layout, Screens);
+        ApplyInitialWindowLayout(layout, isOnScreen);
+    }
+
+    public static bool IsLayoutOnAnyScreen(WindowLayout layout, Screens screens)
+    {
+        var savedBounds = new PixelRect(
+            (int)layout.X, (int)layout.Y,
+            (int)layout.Width, (int)layout.Height);
+
+        foreach (var screen in screens.All)
+        {
+            if (screen.WorkingArea.Intersects(savedBounds))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private async Task SaveWindowLayoutAsync()
