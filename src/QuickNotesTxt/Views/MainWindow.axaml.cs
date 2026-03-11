@@ -13,11 +13,17 @@ namespace QuickNotesTxt.Views;
 
 public partial class MainWindow : Window
 {
+    private const double WindowResizeBorderThickness = 6;
     private ISettingsService? _settingsService;
+    private WindowEdge? _activeResizeEdge;
 
     public MainWindow()
     {
         InitializeComponent();
+
+        PointerMoved += OnWindowPointerMoved;
+        PointerExited += OnWindowPointerExited;
+        PointerPressed += OnWindowPointerPressed;
 
         Opened += async (_, _) =>
         {
@@ -386,6 +392,135 @@ public partial class MainWindow : Window
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
         textBox.SelectedText = string.Empty;
         e.Handled = true;
+    }
+
+    private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!CanResize || WindowState != WindowState.Normal)
+        {
+            ClearWindowResizeCursor();
+            return;
+        }
+
+        if (e.Source is Visual visual && !ReferenceEquals(visual, this) && visual.FindAncestorOfType<Button>() is not null)
+        {
+            ClearWindowResizeCursor();
+            return;
+        }
+
+        _activeResizeEdge = TryGetResizeEdge(e.GetPosition(this));
+        Cursor = _activeResizeEdge switch
+        {
+            WindowEdge.West or WindowEdge.East => new Cursor(StandardCursorType.SizeWestEast),
+            WindowEdge.North or WindowEdge.South => new Cursor(StandardCursorType.SizeNorthSouth),
+            WindowEdge.NorthWest or WindowEdge.SouthEast => new Cursor(StandardCursorType.TopLeftCorner),
+            WindowEdge.NorthEast or WindowEdge.SouthWest => new Cursor(StandardCursorType.TopRightCorner),
+            _ => null
+        };
+    }
+
+    private void OnWindowPointerExited(object? sender, PointerEventArgs e)
+    {
+        ClearWindowResizeCursor();
+    }
+
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!CanResize)
+        {
+            return;
+        }
+
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (WindowState != WindowState.Normal)
+        {
+            return;
+        }
+
+        if (e.Source is Visual visual && !ReferenceEquals(visual, this) && visual.FindAncestorOfType<Button>() is not null)
+        {
+            return;
+        }
+
+        var edge = _activeResizeEdge ?? TryGetResizeEdge(e.GetPosition(this));
+        if (edge is null)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginResizeDrag(edge.Value, e);
+            e.Handled = true;
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private void ClearWindowResizeCursor()
+    {
+        _activeResizeEdge = null;
+        Cursor = null;
+    }
+
+    private WindowEdge? TryGetResizeEdge(Point point)
+    {
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return null;
+        }
+
+        var onLeft = point.X >= 0 && point.X <= WindowResizeBorderThickness;
+        var onRight = point.X <= Bounds.Width && point.X >= Bounds.Width - WindowResizeBorderThickness;
+        var onTop = point.Y >= 0 && point.Y <= WindowResizeBorderThickness;
+        var onBottom = point.Y <= Bounds.Height && point.Y >= Bounds.Height - WindowResizeBorderThickness;
+
+        if (onTop && onLeft)
+        {
+            return WindowEdge.NorthWest;
+        }
+
+        if (onTop && onRight)
+        {
+            return WindowEdge.NorthEast;
+        }
+
+        if (onBottom && onLeft)
+        {
+            return WindowEdge.SouthWest;
+        }
+
+        if (onBottom && onRight)
+        {
+            return WindowEdge.SouthEast;
+        }
+
+        if (onLeft)
+        {
+            return WindowEdge.West;
+        }
+
+        if (onRight)
+        {
+            return WindowEdge.East;
+        }
+
+        if (onTop)
+        {
+            return WindowEdge.North;
+        }
+
+        if (onBottom)
+        {
+            return WindowEdge.South;
+        }
+
+        return null;
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)

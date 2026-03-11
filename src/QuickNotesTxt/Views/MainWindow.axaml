@@ -9,9 +9,9 @@
         Height="760"
         MinWidth="500"
         MinHeight="350"
-        SystemDecorations="None"
-        ExtendClientAreaToDecorationsHint="True"
-        ExtendClientAreaChromeHints="NoChrome"
+  SystemDecorations="None"
+  ExtendClientAreaToDecorationsHint="True"
+  ExtendClientAreaChromeHints="NoChrome"
         KeyDown="OnWindowKeyDown">
   <Window.Resources>
     <DataTemplate x:Key="CompactComboBoxItemTemplate">
