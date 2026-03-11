@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using QuickNotesTxt.Models;
 using QuickNotesTxt.Services;
@@ -27,6 +28,10 @@ public partial class MainWindow : Window
 
         // Use Tunnel routing so corner resize takes priority over title-bar buttons.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+
+        // Tunnel-route Tab on the editor so we intercept it before the TextBox
+        // processes it (which would move focus or replace the selection).
+        EditorTextBox.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         Opened += async (_, _) =>
         {
@@ -416,6 +421,102 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    private void OnEditorKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab || sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var text = textBox.Text ?? string.Empty;
+        var selStart = textBox.SelectionStart;
+        var selEnd = textBox.SelectionEnd;
+        var hasSelection = selStart != selEnd;
+        var isUnindent = (e.KeyModifiers & KeyModifiers.Shift) != 0;
+
+        if (!hasSelection && !isUnindent)
+        {
+            // No selection, plain Tab: insert 4 spaces at caret.
+            var caretIndex = textBox.CaretIndex;
+            textBox.Text = text.Insert(caretIndex, "    ");
+            textBox.CaretIndex = caretIndex + 4;
+            return;
+        }
+
+        // Ensure selStart <= selEnd.
+        if (selStart > selEnd)
+        {
+            (selStart, selEnd) = (selEnd, selStart);
+        }
+
+        // Find the start of the first selected line and end of the last selected line.
+        var lineStart = text.LastIndexOf('\n', Math.Max(selStart - 1, 0));
+        lineStart = lineStart < 0 ? 0 : lineStart + 1;
+
+        var lineEnd = selEnd < text.Length ? text.IndexOf('\n', selEnd) : -1;
+        if (lineEnd < 0)
+        {
+            lineEnd = text.Length;
+        }
+
+        var block = text[lineStart..lineEnd];
+        var lines = block.Split('\n');
+        var totalDelta = 0;
+        var firstLineDelta = 0;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (isUnindent)
+            {
+                // Remove up to 4 leading spaces.
+                var removed = 0;
+                while (removed < 4 && removed < lines[i].Length && lines[i][removed] == ' ')
+                {
+                    removed++;
+                }
+
+                if (removed > 0)
+                {
+                    lines[i] = lines[i][removed..];
+                    totalDelta -= removed;
+                    if (i == 0)
+                    {
+                        firstLineDelta = -removed;
+                    }
+                }
+            }
+            else
+            {
+                lines[i] = "    " + lines[i];
+                totalDelta += 4;
+                if (i == 0)
+                {
+                    firstLineDelta = 4;
+                }
+            }
+        }
+
+        var newBlock = string.Join('\n', lines);
+
+        // Replace the affected block via SelectionStart/SelectedText so that
+        // the TextBox handles the edit internally, keeping undo state cleaner.
+        textBox.SelectionStart = lineStart;
+        textBox.SelectionEnd = lineEnd;
+        textBox.SelectedText = newBlock;
+
+        // Restore the user's logical selection after the binding roundtrip.
+        var newSelStart = Math.Max(lineStart, selStart + firstLineDelta);
+        var newSelEnd = Math.Max(newSelStart, selEnd + totalDelta);
+        Dispatcher.UIThread.Post(() =>
+        {
+            textBox.SelectionStart = newSelStart;
+            textBox.SelectionEnd = newSelEnd;
+            textBox.CaretIndex = newSelEnd;
+        }, DispatcherPriority.Render);
+    }
+
     private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
     {
         if (!CanResize || WindowState != WindowState.Normal)
@@ -428,9 +529,8 @@ public partial class MainWindow : Window
         var isCorner = edge is WindowEdge.NorthWest or WindowEdge.NorthEast
                             or WindowEdge.SouthWest or WindowEdge.SouthEast;
 
-        // Allow buttons to work normally unless we are in a corner resize zone.
-        if (!isCorner && e.Source is Visual visual && !ReferenceEquals(visual, this)
-            && visual.FindAncestorOfType<Button>() is not null)
+        // Allow interactive controls to work normally unless we are in a corner resize zone.
+        if (!isCorner && IsPointerOverInteractiveControl(e))
         {
             ClearWindowResizeCursor();
             return;
@@ -478,9 +578,8 @@ public partial class MainWindow : Window
         var isCorner = edge is WindowEdge.NorthWest or WindowEdge.NorthEast
                             or WindowEdge.SouthWest or WindowEdge.SouthEast;
 
-        // Let buttons handle the click unless we are in a corner resize zone.
-        if (!isCorner && e.Source is Visual visual && !ReferenceEquals(visual, this)
-            && visual.FindAncestorOfType<Button>() is not null)
+        // Let interactive controls handle the click unless we are in a corner resize zone.
+        if (!isCorner && IsPointerOverInteractiveControl(e))
         {
             return;
         }
@@ -499,6 +598,32 @@ public partial class MainWindow : Window
     {
         _activeResizeEdge = null;
         Cursor = null;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> when the pointer event originates from an interactive
+    /// control (button, combo box, text box, list box, or an open popup/dropdown)
+    /// that should receive input instead of triggering a window resize.
+    /// </summary>
+    private bool IsPointerOverInteractiveControl(PointerEventArgs e)
+    {
+        if (e.Source is not Visual visual || ReferenceEquals(visual, this))
+        {
+            return false;
+        }
+
+        // Elements inside an open ComboBox dropdown live under a PopupRoot,
+        // which is a separate visual tree root — not a child of this Window.
+        var root = visual.GetVisualRoot();
+        if (root is not null && root != this)
+        {
+            return true;
+        }
+
+        return visual.FindAncestorOfType<ComboBox>() is not null
+            || visual.FindAncestorOfType<Button>() is not null
+            || visual.FindAncestorOfType<TextBox>() is not null
+            || visual.FindAncestorOfType<ListBox>() is not null;
     }
 
     private WindowEdge? TryGetResizeEdge(Point point)
