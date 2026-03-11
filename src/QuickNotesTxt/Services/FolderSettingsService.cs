@@ -4,6 +4,11 @@ namespace QuickNotesTxt.Services;
 
 public sealed class FolderSettingsService : ISettingsService
 {
+    private static readonly JsonSerializerOptions s_jsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     private readonly string _settingsFilePath;
 
     public FolderSettingsService()
@@ -25,7 +30,7 @@ public sealed class FolderSettingsService : ISettingsService
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
-        var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, cancellationToken: cancellationToken);
+    var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
 
         WindowLayout? layout = settings?.WindowWidth is not null && settings.WindowHeight is not null
             ? new WindowLayout(settings.WindowWidth.Value, settings.WindowHeight.Value,
@@ -140,7 +145,7 @@ public sealed class FolderSettingsService : ISettingsService
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
-        return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, cancellationToken: cancellationToken)
+    return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
                ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
@@ -152,19 +157,19 @@ public sealed class FolderSettingsService : ISettingsService
         }
 
         var json = File.ReadAllText(_settingsFilePath);
-        return JsonSerializer.Deserialize<SettingsRecord>(json)
+    return JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions)
                ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
     {
         await using var stream = File.Create(_settingsFilePath);
-        await JsonSerializer.SerializeAsync(stream, settings, cancellationToken: cancellationToken);
+    await JsonSerializer.SerializeAsync(stream, settings, s_jsonOptions, cancellationToken);
     }
 
     private void SaveSync(SettingsRecord settings)
     {
-        var json = JsonSerializer.Serialize(settings);
+        var json = JsonSerializer.Serialize(settings, s_jsonOptions);
         File.WriteAllText(_settingsFilePath, json);
     }
 
