@@ -135,6 +135,42 @@ public sealed class NotesRepository : INotesRepository
         return query.ToList();
     }
 
+    public IReadOnlyList<NoteSummary> QueryNotesForPicker(IEnumerable<NoteSummary> notes, string searchText, int maxResults)
+    {
+        IEnumerable<NoteSummary> query;
+        var normalizedSearchText = searchText.Trim();
+        var queryTokens = normalizedSearchText
+            .Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        if (string.IsNullOrWhiteSpace(normalizedSearchText))
+        {
+            query = notes
+                .OrderByDescending(note => note.UpdatedAt)
+                .ThenBy(note => GetPickerCandidate(note), StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            query = notes
+                .Select(note => new
+                {
+                    Note = note,
+                    Score = ScorePickerMatch(note, queryTokens)
+                })
+                .Where(result => result.Score is not null)
+                .OrderByDescending(result => result.Score)
+                .ThenByDescending(result => result.Note.UpdatedAt)
+                .ThenBy(result => GetPickerCandidate(result.Note), StringComparer.OrdinalIgnoreCase)
+                .Select(result => result.Note);
+        }
+
+        if (maxResults > 0)
+        {
+            query = query.Take(maxResults);
+        }
+
+        return query.ToList();
+    }
+
     public static string Serialize(NoteDocument document)
     {
         var builder = new StringBuilder();
@@ -276,6 +312,127 @@ public sealed class NotesRepository : INotesRepository
         }
 
         return candidatePath;
+    }
+
+    private static int? ScorePickerMatch(NoteSummary note, IReadOnlyList<string> queryTokens)
+    {
+        if (queryTokens.Count == 0)
+        {
+            return null;
+        }
+
+        var filename = GetPickerCandidate(note);
+        if (string.IsNullOrWhiteSpace(filename))
+        {
+            return null;
+        }
+
+        var filenameScore = 0;
+        var tagScore = 0;
+
+        foreach (var token in queryTokens)
+        {
+            var filenameTokenScore = ScorePickerTextMatch(filename, token);
+            if (filenameTokenScore is not null)
+            {
+                filenameScore += filenameTokenScore.Value;
+                continue;
+            }
+
+            var bestTagScore = note.Tags
+                .Select(tag => ScorePickerTextMatch(tag, token))
+                .Where(score => score is not null)
+                .Select(score => score!.Value)
+                .DefaultIfEmpty(int.MinValue)
+                .Max();
+
+            if (bestTagScore == int.MinValue)
+            {
+                return null;
+            }
+
+            tagScore += 1_500 + (bestTagScore / 4);
+        }
+
+        return (filenameScore * 10) + tagScore;
+    }
+
+    private static int? ScorePickerTextMatch(string candidate, string searchText)
+    {
+        if (string.IsNullOrWhiteSpace(candidate) || string.IsNullOrWhiteSpace(searchText))
+        {
+            return null;
+        }
+
+        var candidateText = candidate.ToLowerInvariant();
+        var queryText = searchText.ToLowerInvariant();
+
+        if (candidateText == queryText)
+        {
+            return 10_000 - candidateText.Length;
+        }
+
+        var substringIndex = candidateText.IndexOf(queryText, StringComparison.Ordinal);
+        if (substringIndex == 0)
+        {
+            return 8_000 - (candidateText.Length * 2);
+        }
+
+        if (substringIndex > 0)
+        {
+            return 7_000 - (substringIndex * 40) - candidateText.Length;
+        }
+
+        var score = 1_000 - candidateText.Length;
+        var previousMatchIndex = -1;
+
+        foreach (var queryCharacter in queryText)
+        {
+            var matchIndex = candidateText.IndexOf(queryCharacter, previousMatchIndex + 1);
+            if (matchIndex < 0)
+            {
+                return null;
+            }
+
+            score += 100;
+
+            if (matchIndex == 0)
+            {
+                score += 120;
+            }
+            else if (IsWordBoundary(candidate[matchIndex - 1]))
+            {
+                score += 60;
+            }
+
+            if (previousMatchIndex >= 0)
+            {
+                var gap = matchIndex - previousMatchIndex - 1;
+                if (gap == 0)
+                {
+                    score += 90;
+                }
+                else
+                {
+                    score -= gap * 8;
+                }
+            }
+
+            previousMatchIndex = matchIndex;
+        }
+
+        return score;
+    }
+
+    private static string GetPickerCandidate(NoteSummary note)
+    {
+        var displayName = Path.GetFileNameWithoutExtension(note.FilePath);
+        return string.IsNullOrWhiteSpace(displayName) ? note.Title : displayName;
+    }
+
+    private static bool IsWordBoundary(char character)
+    {
+        return character is ' ' or '-' or '_' or '/' or '\\' or '.';
     }
 
     private static string EscapeValue(string value)

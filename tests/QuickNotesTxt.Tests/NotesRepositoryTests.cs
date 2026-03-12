@@ -132,6 +132,188 @@ public sealed class NotesRepositoryTests : IDisposable
         Assert.False(File.Exists(filePath));
     }
 
+    [Fact]
+    public void QueryNotesForPicker_ReturnsRecentNotesWhenSearchIsEmpty()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "older-note.txt"),
+                Title = "older-note",
+                UpdatedAt = new DateTime(2026, 3, 1)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "newer-note.txt"),
+                Title = "newer-note",
+                UpdatedAt = new DateTime(2026, 3, 5)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, string.Empty, 10);
+
+        Assert.Equal(new[] { "newer-note", "older-note" }, queried.Select(note => note.DisplayName).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_PrioritizesExactAndPrefixMatches()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "roadmap.txt"),
+                Title = "roadmap",
+                UpdatedAt = new DateTime(2026, 3, 2)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "project-roadmap.txt"),
+                Title = "project-roadmap",
+                UpdatedAt = new DateTime(2026, 3, 6)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "weekly-roadmap-notes.txt"),
+                Title = "weekly-roadmap-notes",
+                UpdatedAt = new DateTime(2026, 3, 7)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, "roadmap", 10);
+
+        Assert.Equal(new[] { "roadmap", "weekly-roadmap-notes", "project-roadmap" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_SortsSubsequenceMatchesByCompactness()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "notes-rust-guide.txt"),
+                Title = "notes-rust-guide",
+                UpdatedAt = new DateTime(2026, 3, 3)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "notes-archive-random-garden.txt"),
+                Title = "notes-archive-random-garden",
+                UpdatedAt = new DateTime(2026, 3, 8)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "release-notes.txt"),
+                Title = "release-notes",
+                UpdatedAt = new DateTime(2026, 3, 4)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, "nrg", 10);
+
+        Assert.Equal(new[] { "notes-rust-guide", "notes-archive-random-garden" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_KeepsFilenameMatchesAheadOfTagOnlyMatches()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "ops-checklist.txt"),
+                Title = "ops-checklist",
+                Tags = ["deploy"],
+                UpdatedAt = new DateTime(2026, 3, 8)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "deploy-notes.txt"),
+                Title = "deploy-notes",
+                Tags = ["ops"],
+                UpdatedAt = new DateTime(2026, 3, 1)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, "deploy", 10);
+
+        Assert.Equal(new[] { "deploy-notes", "ops-checklist" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_UsesTagsWhenFilenameDoesNotMatch()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "meeting-notes.txt"),
+                Title = "meeting-notes",
+                Tags = ["project", "roadmap"],
+                UpdatedAt = new DateTime(2026, 3, 5)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "scratchpad.txt"),
+                Title = "scratchpad",
+                Tags = ["misc"],
+                UpdatedAt = new DateTime(2026, 3, 7)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, "roadmap", 10);
+
+        var note = Assert.Single(queried);
+        Assert.Equal("meeting-notes", note.Title);
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_SupportsMultipleTokensAcrossFilenameAndTags()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "deploy-checklist.txt"),
+                Title = "deploy-checklist",
+                Tags = ["prod"],
+                UpdatedAt = new DateTime(2026, 3, 2)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "incident-log.txt"),
+                Title = "incident-log",
+                Tags = ["prod", "deploy"],
+                UpdatedAt = new DateTime(2026, 3, 6)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, "deploy prod", 10);
+
+        Assert.Equal(new[] { "deploy-checklist", "incident-log" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_RespectsRequestedResultLimit()
+    {
+        var notes = Enumerable.Range(1, 12)
+            .Select(index => new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, $"note-{index:00}.txt"),
+                Title = $"note-{index:00}",
+                UpdatedAt = new DateTime(2026, 3, 1).AddDays(index)
+            })
+            .ToArray();
+
+        var queried = _repository.QueryNotesForPicker(notes, "note", 10);
+
+        Assert.Equal(10, queried.Count);
+        Assert.Equal("note-12", queried[0].Title);
+        Assert.Equal("note-03", queried[^1].Title);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))
@@ -140,4 +322,3 @@ public sealed class NotesRepositoryTests : IDisposable
         }
     }
 }
-

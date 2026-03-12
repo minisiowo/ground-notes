@@ -248,10 +248,24 @@ public partial class MainWindow : Window
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
+        if (DataContext is not MainViewModel vm)
             return;
 
-        if (DataContext is not MainViewModel vm)
+        if (e.PropertyName == nameof(MainViewModel.IsNotePickerOpen))
+        {
+            if (vm.IsNotePickerOpen)
+            {
+                FocusNotePickerSearchTextBox();
+            }
+            else
+            {
+                FocusEditorAfterNotePickerClosed(vm);
+            }
+
+            return;
+        }
+
+        if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
             return;
 
         if (vm.SidebarCollapsed)
@@ -278,6 +292,31 @@ public partial class MainWindow : Window
         var left = collapsed ? 14.0 : 8.0;
         TitleTagsGrid.Margin = new Thickness(left, 12, 14, 10);
         EditorBorder.Margin = new Thickness(left, 0, 14, 14);
+    }
+
+    private void FocusNotePickerSearchTextBox()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            NotePickerSearchTextBox.Focus();
+            NotePickerSearchTextBox.SelectionStart = 0;
+            NotePickerSearchTextBox.SelectionEnd = NotePickerSearchTextBox.Text?.Length ?? 0;
+        }, DispatcherPriority.Input);
+    }
+
+    private void FocusEditorAfterNotePickerClosed(MainViewModel vm)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (vm.HasSelectedFolder)
+            {
+                EditorTextBox.Focus();
+            }
+            else
+            {
+                Focus();
+            }
+        }, DispatcherPriority.Input);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -372,6 +411,55 @@ public partial class MainWindow : Window
             e.Handled = true;
             await vm.NewNoteCommand.ExecuteAsync(null);
         }
+        else if (!hasShift && e.Key is Key.O)
+        {
+            e.Handled = true;
+            vm.OpenNotePickerCommand.Execute(null);
+        }
+        else if (!hasShift && e.Key is Key.D && !vm.IsNotePickerOpen)
+        {
+            e.Handled = true;
+            await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
+        }
+    }
+
+    private void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Down)
+        {
+            e.Handled = true;
+            vm.MoveNotePickerSelectionCommand.Execute(1);
+        }
+        else if (e.Key == Key.Up)
+        {
+            e.Handled = true;
+            vm.MoveNotePickerSelectionCommand.Execute(-1);
+        }
+        else if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            vm.AcceptNotePickerSelectionCommand.Execute(null);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            vm.CloseNotePickerCommand.Execute(null);
+        }
+    }
+
+    private void OnNotePickerListBoxDoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        vm.AcceptNotePickerSelectionCommand.Execute(null);
     }
 
     private async void OnEditorCopyingToClipboard(object? sender, RoutedEventArgs e)

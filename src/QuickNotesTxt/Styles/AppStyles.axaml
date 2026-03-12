@@ -507,6 +507,16 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
+  <Style Selector="TextBlock.pickerMetaText">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.pickerPreviewText">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+  </Style>
+
   <Style Selector="ListBoxItem:pointerover Border.fileRow">
     <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
@@ -518,6 +528,14 @@
   </Style>
 
   <Style Selector="ListBoxItem:selected TextBlock.fileRowText">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected TextBlock.pickerMetaText">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected TextBlock.pickerPreviewText">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 

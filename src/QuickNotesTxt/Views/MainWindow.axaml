@@ -253,8 +253,86 @@
 
       </Grid>
     </Grid>
+
+    <Border Grid.RowSpan="2"
+            IsVisible="{Binding IsNotePickerOpen}"
+            Background="#88000000">
+      <Grid Margin="24">
+        <Border Classes="sectionSurface"
+                Width="620"
+                MaxWidth="620"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,36,0,0"
+                Padding="12"
+                BorderThickness="1">
+          <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+            <TextBlock Classes="titleBarText" Text="Open note" />
+            <TextBlock Grid.Row="1"
+                       Classes="sidebarFooterStatus"
+                       Margin="0,4,0,10"
+                       Text="{Binding NotePickerStatusText}" />
+            <TextBox Grid.Row="2"
+                     x:Name="NotePickerSearchTextBox"
+                     Watermark="Find note"
+                     Text="{Binding NotePickerQuery}"
+                     KeyDown="OnNotePickerSearchTextBoxKeyDown"
+                     VerticalContentAlignment="Center" />
+            <Border Grid.Row="3"
+                    Classes="sectionSurface"
+                    Margin="0,10,0,0"
+                    Padding="2"
+                    BorderThickness="1"
+                    MinHeight="220"
+                    MaxHeight="420">
+              <Grid>
+                <ListBox IsVisible="{Binding HasNotePickerResults}"
+                         ItemsSource="{Binding NotePickerResults}"
+                         SelectedItem="{Binding SelectedNotePickerSummary}"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         DoubleTapped="OnNotePickerListBoxDoubleTapped">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="models:NoteSummary">
+                      <Border Classes="fileRow"
+                              HorizontalAlignment="Stretch"
+                              Padding="8,6"
+                              BorderThickness="1">
+                        <Grid RowDefinitions="Auto,Auto,Auto">
+                          <TextBlock Classes="fileRowText"
+                                     Text="{Binding DisplayName}"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Row="1"
+                                     Classes="pickerMetaText"
+                                     IsVisible="{Binding HasPickerTags}"
+                                     Margin="0,3,0,0"
+                                     Text="{Binding PickerTagsText}"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Row="2"
+                                     Classes="pickerPreviewText"
+                                     IsVisible="{Binding HasPickerPreview}"
+                                     Margin="0,3,0,0"
+                                     Text="{Binding PickerPreviewText}"
+                                     TextTrimming="CharacterEllipsis"
+                                     TextWrapping="NoWrap" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <TextBlock Classes="mutedText"
+                           IsVisible="{Binding HasNotePickerResults, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Text="No matching notes." />
+              </Grid>
+            </Border>
+            <TextBlock Grid.Row="4"
+                       Classes="sidebarFooterStatus"
+                       Margin="0,10,0,0"
+                       Text="{Binding NotePickerFooterHint}" />
+          </Grid>
+        </Border>
+      </Grid>
+    </Border>
   </Grid>
 </Window>
-
-
-

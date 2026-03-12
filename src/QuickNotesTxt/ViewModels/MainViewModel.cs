@@ -17,6 +17,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private const double DefaultUiFontSize = 12;
     private const double MinUiFontSize = 10;
     private const double MaxUiFontSize = 20;
+    private const int NotePickerResultLimitValue = 10;
 
     private readonly INotesRepository _notesRepository;
     private readonly ISettingsService _settingsService;
@@ -93,6 +94,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private IReadOnlyList<string> _fontNames = ["Iosevka Slab"];
 
+    [ObservableProperty]
+    private bool _isNotePickerOpen;
+
+    [ObservableProperty]
+    private string _notePickerQuery = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<NoteSummary> _notePickerResults = [];
+
+    [ObservableProperty]
+    private NoteSummary? _selectedNotePickerSummary;
+
+    [ObservableProperty]
+    private int _notePickerTotalMatchCount;
+
     public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService, IThemeLoaderService themeLoaderService, IFontCatalogService fontCatalogService)
     {
         _notesRepository = notesRepository;
@@ -122,6 +138,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public bool HasNotes => VisibleNotes.Count > 0;
 
+    public bool HasNotePickerResults => NotePickerResults.Count > 0;
+
+    public int NotePickerResultLimit => NotePickerResultLimitValue;
+
+    public bool IsNotePickerTruncated => NotePickerTotalMatchCount > NotePickerResultLimit;
+
+    public string NotePickerStatusText => NotePickerTotalMatchCount switch
+    {
+        0 => "No matching notes.",
+        _ when IsNotePickerTruncated => $"Showing {NotePickerResults.Count} of {NotePickerTotalMatchCount} matches",
+        1 => "1 match",
+        _ => $"{NotePickerTotalMatchCount} matches"
+    };
+
+    public string NotePickerFooterHint => IsNotePickerTruncated
+        ? "Refine search to narrow more notes."
+        : "Type to filter. Enter opens. Up and Down move. Esc closes.";
+
     public bool ShowFolderPrompt => !HasSelectedFolder;
 
     public bool ShowTitleWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorTitle);
@@ -148,6 +182,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool HasActiveTagFilter => !string.IsNullOrWhiteSpace(SelectedTag) && !string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal);
 
     partial void OnSelectedSortOptionChanged(SortOption value) => RefreshVisibleNotes();
+
+    partial void OnNotePickerQueryChanged(string value)
+    {
+        if (IsNotePickerOpen)
+        {
+            RefreshNotePickerResults();
+        }
+    }
 
     partial void OnSelectedThemeNameChanged(string value)
     {
@@ -193,6 +235,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     partial void OnVisibleNotesChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotes));
+
+    partial void OnNotePickerResultsChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotePickerResults));
+
+    partial void OnNotePickerTotalMatchCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsNotePickerTruncated));
+        OnPropertyChanged(nameof(NotePickerStatusText));
+        OnPropertyChanged(nameof(NotePickerFooterHint));
+    }
 
     partial void OnStatusMessageChanged(string value)
     {
@@ -310,6 +361,93 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private void OpenNotePicker()
+    {
+        if (!HasSelectedFolder)
+        {
+            StatusMessage = "Choose a folder first.";
+            return;
+        }
+
+        CancelInlineRename();
+
+        if (IsNotePickerOpen)
+        {
+            RefreshNotePickerResults();
+            return;
+        }
+
+        IsNotePickerOpen = true;
+        NotePickerQuery = string.Empty;
+        RefreshNotePickerResults();
+    }
+
+    [RelayCommand]
+    private void CloseNotePicker()
+    {
+        if (!IsNotePickerOpen)
+        {
+            return;
+        }
+
+        IsNotePickerOpen = false;
+        NotePickerQuery = string.Empty;
+        NotePickerResults = [];
+        SelectedNotePickerSummary = null;
+        NotePickerTotalMatchCount = 0;
+    }
+
+    [RelayCommand]
+    private void MoveNotePickerSelection(int delta)
+    {
+        if (!IsNotePickerOpen || NotePickerResults.Count == 0)
+        {
+            return;
+        }
+
+        var currentIndex = SelectedNotePickerSummary is null
+            ? -1
+            : NotePickerResults.IndexOf(SelectedNotePickerSummary);
+
+        if (currentIndex < 0)
+        {
+            SelectedNotePickerSummary = NotePickerResults[0];
+            return;
+        }
+
+        var nextIndex = currentIndex + delta;
+        if (nextIndex < 0)
+        {
+            nextIndex = NotePickerResults.Count - 1;
+        }
+        else if (nextIndex >= NotePickerResults.Count)
+        {
+            nextIndex = 0;
+        }
+
+        SelectedNotePickerSummary = NotePickerResults[nextIndex];
+    }
+
+    [RelayCommand]
+    private void AcceptNotePickerSelection()
+    {
+        if (!IsNotePickerOpen)
+        {
+            return;
+        }
+
+        var note = SelectedNotePickerSummary ?? NotePickerResults.FirstOrDefault();
+        if (note is null)
+        {
+            return;
+        }
+
+        CloseNotePicker();
+        SelectedNoteSummary = note;
+        FocusEditorRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
     private void ToggleSidebar()
     {
         SidebarCollapsed = !SidebarCollapsed;
@@ -418,6 +556,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RefreshAvailableTags();
         RefreshVisibleNotes();
         StatusMessage = $"Deleted {displayName}";
+    }
+
+    [RelayCommand]
+    private async Task DeleteCurrentNoteAsync()
+    {
+        NoteSummary? noteSummary = null;
+
+        if (CurrentNote is not null)
+        {
+            noteSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase))
+                ?? BuildSummary(CurrentNote);
+        }
+        else if (SelectedNoteSummary is not null)
+        {
+            noteSummary = SelectedNoteSummary;
+        }
+
+        if (noteSummary is null)
+        {
+            return;
+        }
+
+        await DeleteNoteAsync(noteSummary);
     }
 
     public async Task CommitRenameAsync(NoteSummary? noteSummary)
@@ -530,11 +691,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         if (!string.IsNullOrWhiteSpace(settings.NotesFolder))
         {
-            await SetFolderAsync(settings.NotesFolder);
+            await SetFolderAsync(settings.NotesFolder, focusEditorWhenReady: true);
         }
     }
 
-    private async Task SetFolderAsync(string folderPath)
+    private async Task SetFolderAsync(string folderPath, bool focusEditorWhenReady = false)
     {
         Directory.CreateDirectory(folderPath);
         NotesFolder = folderPath;
@@ -544,6 +705,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         LastSavedText = "QuickNotes";
         await RefreshFromDiskAsync();
         StatusMessage = "Ready.";
+
+        if (focusEditorWhenReady)
+        {
+            FocusEditorRequested?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private async Task SetEditorFontSizeAsync(double fontSize)
@@ -857,6 +1023,50 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         var effectiveTag = string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal) ? null : SelectedTag;
         VisibleNotes = new ObservableCollection<NoteSummary>(_notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedSortOption));
+
+        if (IsNotePickerOpen)
+        {
+            RefreshNotePickerResults();
+        }
+    }
+
+    private void RefreshNotePickerResults()
+    {
+        if (!IsNotePickerOpen)
+        {
+            return;
+        }
+
+        var allResults = _notesRepository.QueryNotesForPicker(_allNotes, NotePickerQuery, maxResults: 0);
+        NotePickerTotalMatchCount = allResults.Count;
+
+        var results = NotePickerTotalMatchCount <= NotePickerResultLimit
+            ? allResults
+            : allResults.Take(NotePickerResultLimit).ToList();
+
+        NotePickerResults = new ObservableCollection<NoteSummary>(results);
+
+        if (NotePickerResults.Count == 0)
+        {
+            SelectedNotePickerSummary = null;
+            return;
+        }
+
+        if (SelectedNotePickerSummary is not null)
+        {
+            var matching = NotePickerResults.FirstOrDefault(note => string.Equals(note.FilePath, SelectedNotePickerSummary.FilePath, StringComparison.OrdinalIgnoreCase));
+            if (matching is not null)
+            {
+                SelectedNotePickerSummary = matching;
+                return;
+            }
+        }
+
+        var currentSelection = CurrentNote is null
+            ? null
+            : NotePickerResults.FirstOrDefault(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase));
+
+        SelectedNotePickerSummary = currentSelection ?? NotePickerResults[0];
     }
 
     private const string AllTagsFilter = "All";
@@ -964,6 +1174,3 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         CancelScheduledSave();
     }
 }
-
-
-

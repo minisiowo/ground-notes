@@ -8,6 +8,7 @@
         SystemDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*">
     <Border Grid.Row="0"
@@ -43,7 +44,7 @@
                     HorizontalAlignment="Right"
                     Spacing="8">
           <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" />
-          <Button Content="Delete" Click="OnDeleteClick" />
+          <Button x:Name="DeleteButton" Content="Delete" Click="OnDeleteClick" />
         </StackPanel>
       </Grid>
     </Border>

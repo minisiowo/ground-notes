@@ -10,6 +10,7 @@ public partial class ConfirmDeleteWindow : Window
     {
         InitializeComponent();
         DataContext = new ConfirmDeleteViewModel();
+        Opened += (_, _) => this.FindControl<Button>("DeleteButton")?.Focus();
     }
 
     public ConfirmDeleteWindow(string noteName) : this()
@@ -34,6 +35,20 @@ public partial class ConfirmDeleteWindow : Window
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
         Close(false);
+    }
+
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            Close(true);
+        }
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close(false);
+        }
     }
 
     private sealed class ConfirmDeleteViewModel
