@@ -153,6 +153,31 @@ Create a standalone build:
 dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r win-x64 --self-contained true
 ```
 
+To publish, replace `C:\Apps\QuickNotes`, and recreate a Start Menu shortcut automatically, use one of these helper scripts:
+
+Native Windows PowerShell:
+
+```powershell
+.\scripts\publish-and-install-windows.ps1
+```
+
+WSL:
+
+```bash
+./scripts/publish-and-install-wsl.sh
+```
+
+Both scripts:
+
+- publish `QuickNotesTxt` as a self-contained `win-x64` app
+- clear and repopulate `C:\Apps\QuickNotes`
+- recreate `QuickNotesTxt.lnk` in the current user's Start Menu programs folder
+
+Optional arguments:
+
+- PowerShell: `-Runtime win-arm64 -Configuration Release`
+- WSL: `./scripts/publish-and-install-wsl.sh win-arm64 Release`
+
 The published app will be in:
 
 ```text
@@ -162,6 +187,29 @@ src\QuickNotesTxt\bin\Release\net10.0\win-x64\publish\
 You can move that folder anywhere you want and launch `QuickNotesTxt.exe`.
 
 On ARM64 Windows, replace `win-x64` with `win-arm64`.
+
+## AI prompts
+
+QuickNotesTxt can load AI prompt actions for selected editor text.
+
+- Built-in prompts are shipped in `src/QuickNotesTxt/Assets/AiPrompts/`
+- Custom prompts are loaded from `<notes-folder>/.quicknotestxt/ai-prompts/`
+- Prompt files are JSON and can override built-in prompts when they use the same `id`
+- Configure the OpenAI API key and default model from `AI Settings` in the app
+
+The built-in prompt format looks like this:
+
+```json
+{
+  "id": "translate",
+  "name": "Translate With AI",
+  "description": "Translate selected EN/PL text",
+  "model": "gpt-4.1-mini",
+  "replaceSelection": true,
+  "order": 100,
+  "promptTemplate": "... {selected}"
+}
+```
 
 ## Run the tests
 
