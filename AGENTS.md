@@ -6,6 +6,7 @@ This file gives coding agents the repository-specific context needed to work saf
 
 - Stack: .NET 10, Avalonia UI 11, xUnit, CommunityToolkit.Mvvm.
 - App type: desktop notes app that stores plain-text `.txt` files with frontmatter metadata in a user-selected folder.
+- Notable current features: debounced auto-save, auto-created drafts, tag filtering, inline rename/delete, keyboard note picker, runtime theme switching, bundled font selection, and persisted window layout.
 - Solution file: `QuickNotesTxt.sln`.
 - Test project: `tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj`.
 
@@ -48,6 +49,7 @@ dotnet restore QuickNotesTxt.sln
 
 - `mise install` is optional; use it only if `mise` is available.
 - `dotnet restore QuickNotesTxt.sln` is the standard restore entry point.
+- If `dotnet` first-run setup fails in a sandboxed environment, rerun build/test commands outside the sandbox rather than changing repository files to work around it.
 
 ## Build Commands
 
@@ -80,7 +82,7 @@ dotnet test QuickNotesTxt.sln --no-build --list-tests
 ```
 
 - Prefer `--no-build` after a successful build when iterating quickly.
-- Current suite is xUnit-based and mainly covers repository behavior.
+- Current suite is xUnit-based and covers repository behavior, theme loading/export, bundled font discovery/parsing, folder settings persistence, and note summary formatting.
 
 ## Run A Single Test
 
@@ -148,11 +150,12 @@ dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --fi
 ## MVVM / Avalonia Guidance
 
 - Keep business logic in services and view models, not in code-behind.
-- Keep Avalonia code-behind focused on windowing, input wiring, and UI-specific event handling.
+- Keep Avalonia code-behind focused on windowing, custom chrome/resize behavior, input wiring, clipboard handling, and UI-specific event handling.
 - Follow the existing CommunityToolkit.Mvvm pattern: `[ObservableProperty]`, `[RelayCommand]`, partial hooks, and `ObservableObject` base types.
 - Preserve the current theme/resource architecture when editing UI styling.
-- `MainViewModel` owns debounced auto-save, watcher suppression, filtering/sorting, and theme/font selection state; avoid moving that logic into views.
+- `MainViewModel` owns debounced auto-save, watcher suppression, filtering/sorting, note picker state, inline rename/delete flows, and theme/font selection state; avoid moving that logic into views.
 - `ThemeService` and `ThemeKeys` define the active resource contract for runtime theming; prefer updating those centrally instead of scattering string resource keys.
+- `MainWindow` persists window layout and sidebar width through the settings service; keep that contract aligned if you change startup or chrome behavior.
 - Keep the terminal-style typography and compact desktop layout consistent with existing styles.
 
 ## Theme Customization Guidance
@@ -166,8 +169,8 @@ dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --fi
 
 ## Testing Guidance
 
-- Add or update tests when changing repository parsing, serialization, filtering, rename behavior, deletion behavior, or theme loading/export rules.
-- Prefer focused unit tests in `tests/QuickNotesTxt.Tests/NotesRepositoryTests.cs` and `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`.
+- Add or update tests when changing repository parsing, serialization, filtering, picker ranking, rename behavior, deletion behavior, theme loading/export rules, bundled font discovery/parsing, or persisted settings/window layout behavior.
+- Prefer focused unit tests in `tests/QuickNotesTxt.Tests/NotesRepositoryTests.cs`, `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`, `tests/QuickNotesTxt.Tests/FontCatalogServiceTests.cs`, `tests/QuickNotesTxt.Tests/FolderSettingsServiceTests.cs`, and `tests/QuickNotesTxt.Tests/NoteSummaryTests.cs`.
 - Use temp directories for filesystem tests and clean them up in `Dispose()`.
 
 ## Change Checklist For Agents
