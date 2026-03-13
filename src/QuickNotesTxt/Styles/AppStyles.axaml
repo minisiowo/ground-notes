@@ -6,51 +6,6 @@
     <x:Double x:Key="AppFontSizeSmall">11</x:Double>
     <x:Double x:Key="AppFontSizeLarge">14</x:Double>
 
-    <ControlTheme x:Key="EditorTextBoxContextFlyoutPresenterTheme"
-                  TargetType="MenuFlyoutPresenter">
-      <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="0" />
-      <Setter Property="Template">
-        <ControlTemplate>
-          <Border Name="LayoutRoot"
-                  Background="{TemplateBinding Background}"
-                  BorderBrush="{TemplateBinding BorderBrush}"
-                  BorderThickness="{TemplateBinding BorderThickness}"
-                  Padding="0"
-                  CornerRadius="{TemplateBinding CornerRadius}">
-            <ScrollViewer Theme="{StaticResource FluentMenuScrollViewer}"
-                          Background="{TemplateBinding Background}"
-                          HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollBarVisibility="Auto">
-              <ItemsPresenter Name="PART_ItemsPresenter"
-                              ItemsPanel="{TemplateBinding ItemsPanel}"
-                              Margin="0"
-                              KeyboardNavigation.TabNavigation="Continue"
-                              Grid.IsSharedSizeScope="True" />
-            </ScrollViewer>
-          </Border>
-        </ControlTemplate>
-      </Setter>
-    </ControlTheme>
-
-    <MenuFlyout x:Key="EditorTextBoxContextFlyout"
-                ShowMode="Standard"
-                FlyoutPresenterTheme="{StaticResource EditorTextBoxContextFlyoutPresenterTheme}">
-      <MenuItem Header="{DynamicResource StringTextFlyoutCutText}"
-                Command="{Binding $parent[TextBox].Cut}"
-                IsEnabled="{Binding $parent[TextBox].CanCut}"
-                InputGesture="{x:Static TextBox.CutGesture}" />
-      <MenuItem Header="{DynamicResource StringTextFlyoutCopyText}"
-                Command="{Binding $parent[TextBox].Copy}"
-                IsEnabled="{Binding $parent[TextBox].CanCopy}"
-                InputGesture="{x:Static TextBox.CopyGesture}" />
-      <MenuItem Header="{DynamicResource StringTextFlyoutPasteText}"
-                Command="{Binding $parent[TextBox].Paste}"
-                IsEnabled="{Binding $parent[TextBox].CanPaste}"
-                InputGesture="{x:Static TextBox.PasteGesture}" />
-    </MenuFlyout>
   </Styles.Resources>
 
   <Style Selector="Window">
@@ -244,7 +199,6 @@
     <Setter Property="SelectionBrush" Value="{DynamicResource EditorTextSelectionBrush}" />
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="ContextFlyout" Value="{StaticResource EditorTextBoxContextFlyout}" />
   </Style>
 
   <Style Selector="TextBox.editorTextBox /template/ Border#PART_BorderElement">
@@ -399,23 +353,46 @@
   <!-- ══ ContextMenu / MenuItem ══════════════════════════════ -->
   <Style Selector="ContextMenu">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="2" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="ContextMenu /template/ Border">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="2" />
-    <Setter Property="CornerRadius" Value="1" />
-    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="ContextMenu /template/ ScrollViewer">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="MenuFlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="MenuFlyoutPresenter /template/ Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="MenuFlyoutPresenter /template/ ScrollViewer">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="MenuFlyoutPresenter /template/ ItemsPresenter">
+    <Setter Property="Margin" Value="0" />
   </Style>
 
   <Style Selector="MenuItem">
@@ -423,7 +400,7 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
-    <Setter Property="Padding" Value="6,4" />
+    <Setter Property="Padding" Value="12,6" />
     <Setter Property="MinHeight" Value="0" />
     <Setter Property="Margin" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
@@ -433,9 +410,63 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="1" />
-    <Setter Property="Padding" Value="6,4" />
-    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="16,7" />
+    <Setter Property="MinHeight" Value="30" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Popup Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Popup Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ Popup Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Popup /template/ Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="MenuItem:selected /template/ Popup /template/ Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="MenuItem:pointerover /template/ Popup /template/ Border">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Popup ScrollViewer">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Popup /template/ ScrollViewer">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="MenuItem /template/ Popup ItemsPresenter">
+    <Setter Property="Margin" Value="0" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Border">
@@ -450,6 +481,23 @@
 
   <Style Selector="MenuItem /template/ ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="Margin" Value="4,0,0,0" />
+  </Style>
+
+  <Style Selector="MenuItem:disabled /template/ ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+  </Style>
+
+  <Style Selector="Separator">
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Separator /template/ Border">
+    <Setter Property="Background" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="Height" Value="1" />
+    <Setter Property="Margin" Value="12,4" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ ContentPresenter">

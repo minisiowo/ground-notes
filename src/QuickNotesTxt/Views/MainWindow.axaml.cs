@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -18,6 +19,7 @@ public partial class MainWindow : Window
     private const double WindowCornerResizeThickness = 10;
     private ISettingsService? _settingsService;
     private WindowEdge? _activeResizeEdge;
+    private readonly MenuFlyout _editorContextFlyout = new();
 
     public MainWindow()
     {
@@ -32,6 +34,8 @@ public partial class MainWindow : Window
         // Tunnel-route Tab on the editor so we intercept it before the TextBox
         // processes it (which would move focus or replace the selection).
         EditorTextBox.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        EditorTextBox.ContextFlyout = _editorContextFlyout;
+        RebuildEditorContextFlyout();
 
         Opened += async (_, _) =>
         {
@@ -39,6 +43,7 @@ public partial class MainWindow : Window
             {
                 vm.PickFolderAsync = PickFolderAsync;
                 vm.ConfirmDeleteAsync = ConfirmDeleteAsync;
+                vm.ShowAiSettingsAsync = ShowAiSettingsAsync;
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.FocusEditorRequested += OnFocusEditorRequested;
             }
@@ -265,6 +270,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.PropertyName is nameof(MainViewModel.AiPrompts)
+            or nameof(MainViewModel.IsAiBusy)
+            or nameof(MainViewModel.SelectedAiModel))
+        {
+            RebuildEditorContextFlyout();
+            return;
+        }
+
         if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
             return;
 
@@ -363,6 +376,147 @@ public partial class MainWindow : Window
         return await dialog.ShowDialog<bool>(this);
     }
 
+    private async Task<AiSettings?> ShowAiSettingsAsync(AiSettings settings, string promptsDirectory)
+    {
+        var dialog = new AiSettingsWindow(settings, promptsDirectory);
+        return await dialog.ShowDialog<AiSettings?>(this);
+    }
+
+    private void RebuildEditorContextFlyout()
+    {
+        _editorContextFlyout.Items.Clear();
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", EditorTextBox.CanCut, (_, _) => EditorTextBox.Cut()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", EditorTextBox.CanCopy, (_, _) => EditorTextBox.Copy()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", EditorTextBox.CanPaste, (_, _) => EditorTextBox.Paste()));
+        _editorContextFlyout.Items.Add(new Separator());
+        AddAiMenuSection();
+    }
+
+    private MenuItem CreateEditorMenuItem(string header, bool isEnabled, EventHandler<RoutedEventArgs> onClick)
+    {
+        var item = new MenuItem
+        {
+            Header = header,
+            IsEnabled = isEnabled
+        };
+        item.Click += onClick;
+        return item;
+    }
+
+    private void AddAiMenuSection()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            _editorContextFlyout.Items.Add(new MenuItem
+            {
+                Header = "AI",
+                IsEnabled = false
+            });
+            return;
+        }
+
+        _editorContextFlyout.Items.Add(new MenuItem
+        {
+            Header = "AI",
+            IsEnabled = false
+        });
+
+        if (!vm.HasAiPrompts)
+        {
+            _editorContextFlyout.Items.Add(new MenuItem
+            {
+                Header = "No prompts found",
+                IsEnabled = false
+            });
+        }
+        else
+        {
+            foreach (var prompt in vm.AiPrompts)
+            {
+                var promptItem = new MenuItem
+                {
+                    Header = BuildAiMenuLabel(prompt, vm.SelectedAiModel),
+                    IsEnabled = !vm.IsAiBusy
+                };
+                promptItem.Click += async (_, _) => await ApplyAiPromptAsync(prompt);
+                _editorContextFlyout.Items.Add(promptItem);
+            }
+        }
+
+        _editorContextFlyout.Items.Add(new Separator());
+
+        var reloadItem = new MenuItem
+        {
+            Header = "Reload Prompts",
+            IsEnabled = !vm.IsAiBusy
+        };
+        reloadItem.Click += async (_, _) => await vm.ReloadAiPromptsCommand.ExecuteAsync(null);
+        _editorContextFlyout.Items.Add(reloadItem);
+
+        var settingsItem = new MenuItem
+        {
+            Header = "AI Settings...",
+            IsEnabled = !vm.IsAiBusy
+        };
+        settingsItem.Click += async (_, _) => await vm.OpenAiSettingsCommand.ExecuteAsync(null);
+        _editorContextFlyout.Items.Add(settingsItem);
+    }
+
+    private static string BuildAiMenuLabel(AiPromptDefinition prompt, string defaultModel)
+    {
+        var model = string.IsNullOrWhiteSpace(prompt.Model) ? defaultModel : prompt.Model;
+        return string.IsNullOrWhiteSpace(model) ? prompt.Name : $"{prompt.Name} ({model})";
+    }
+
+    private async Task ApplyAiPromptAsync(AiPromptDefinition prompt)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var selectedText = EditorTextBox.SelectedText;
+        if (string.IsNullOrWhiteSpace(selectedText))
+        {
+            await vm.RunAiPromptAsync(prompt, string.Empty);
+            return;
+        }
+
+        var selectionStart = EditorTextBox.SelectionStart;
+        var selectionEnd = EditorTextBox.SelectionEnd;
+        try
+        {
+            var result = await vm.RunAiPromptAsync(prompt, selectedText);
+            if (string.IsNullOrWhiteSpace(result))
+            {
+                return;
+            }
+
+            var currentText = EditorTextBox.Text ?? string.Empty;
+            var start = Math.Clamp(Math.Min(selectionStart, selectionEnd), 0, currentText.Length);
+            var end = Math.Clamp(Math.Max(selectionStart, selectionEnd), start, currentText.Length);
+
+            EditorTextBox.SelectionStart = selectionStart;
+            EditorTextBox.SelectionEnd = selectionEnd;
+            EditorTextBox.SelectedText = result;
+
+            if (string.Equals(EditorTextBox.Text, currentText, StringComparison.Ordinal))
+            {
+                EditorTextBox.Text = string.Concat(currentText.AsSpan(0, start), result, currentText.AsSpan(end));
+                var caretPosition = start + result.Length;
+                EditorTextBox.SelectionStart = caretPosition;
+                EditorTextBox.SelectionEnd = caretPosition;
+            }
+
+            vm.StatusMessage = $"{prompt.Name} applied.";
+            EditorTextBox.Focus();
+        }
+        finally
+        {
+            EditorTextBox.Focus();
+        }
+    }
+
     private async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
@@ -370,7 +524,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
             return;
         }

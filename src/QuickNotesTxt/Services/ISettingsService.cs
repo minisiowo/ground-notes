@@ -1,8 +1,14 @@
+using QuickNotesTxt.Models;
+
 namespace QuickNotesTxt.Services;
 
 public interface ISettingsService
 {
     Task<AppSettings> GetSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default);
+
+    Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default);
 
     Task<string?> GetNotesFolderAsync(CancellationToken cancellationToken = default);
 
@@ -33,6 +39,6 @@ public interface ISettingsService
     void SetWindowLayoutSync(WindowLayout layout);
 }
 
-public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, double? UiFontSize, string? FontName, string? ThemeName, WindowLayout? WindowLayout);
+public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, double? UiFontSize, string? FontName, string? ThemeName, WindowLayout? WindowLayout, AiSettings AiSettings);
 
 public sealed record WindowLayout(double Width, double Height, double X, double Y, bool IsMaximized, double? SidebarWidth = null, bool? SidebarCollapsed = null);

@@ -26,7 +26,13 @@ public partial class App : Application
             var fileWatcher = new FileWatcherService();
             var themeLoader = new ThemeLoaderService();
             var fontCatalog = new FontCatalogService();
-            var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog);
+            var aiPromptCatalog = new AiPromptCatalogService();
+            var httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(60)
+            };
+            var aiTextActionService = new OpenAiTextActionService(httpClient);
+            var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService);
 
             var mainWindow = new MainWindow
             {

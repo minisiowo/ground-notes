@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuickNotesTxt.Models;
 
 namespace QuickNotesTxt.Services;
 
@@ -26,11 +27,11 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new AppSettings(null, null, null, null, null, null);
+            return new AppSettings(null, null, null, null, null, null, AiSettings.Default);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
-    var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
+        var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
 
         WindowLayout? layout = settings?.WindowWidth is not null && settings.WindowHeight is not null
             ? new WindowLayout(settings.WindowWidth.Value, settings.WindowHeight.Value,
@@ -38,7 +39,38 @@ public sealed class FolderSettingsService : ISettingsService
                 settings.SidebarWidth, settings.SidebarCollapsed)
             : null;
 
-        return new AppSettings(settings?.NotesFolder, settings?.EditorFontSize, settings?.UiFontSize, settings?.FontName, settings?.ThemeName, layout);
+        return new AppSettings(
+            settings?.NotesFolder,
+            settings?.EditorFontSize,
+            settings?.UiFontSize,
+            settings?.FontName,
+            settings?.ThemeName,
+            layout,
+            new AiSettings(
+                settings?.OpenAiApiKey ?? string.Empty,
+                settings?.OpenAiModel ?? AiSettings.Default.DefaultModel,
+                settings?.AiEnabled ?? AiSettings.Default.IsEnabled,
+                settings?.OpenAiProjectId ?? string.Empty,
+                settings?.OpenAiOrganizationId ?? string.Empty));
+    }
+
+    public async Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.AiSettings;
+    }
+
+    public async Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default)
+    {
+        var record = await LoadRecordAsync(cancellationToken);
+        await SaveAsync(record with
+        {
+            OpenAiApiKey = settings.ApiKey,
+            OpenAiModel = settings.DefaultModel,
+            AiEnabled = settings.IsEnabled,
+            OpenAiProjectId = settings.ProjectId,
+            OpenAiOrganizationId = settings.OrganizationId
+        }, cancellationToken);
     }
 
     public async Task<string?> GetNotesFolderAsync(CancellationToken cancellationToken = default)
@@ -156,30 +188,30 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
-    return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null);
+        return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private SettingsRecord LoadRecordSync()
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         var json = File.ReadAllText(_settingsFilePath);
-    return JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null);
+        return JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions)
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
     {
         await using var stream = File.Create(_settingsFilePath);
-    await JsonSerializer.SerializeAsync(stream, settings, s_jsonOptions, cancellationToken);
+        await JsonSerializer.SerializeAsync(stream, settings, s_jsonOptions, cancellationToken);
     }
 
     private void SaveSync(SettingsRecord settings)
@@ -200,5 +232,10 @@ public sealed class FolderSettingsService : ISettingsService
         double? WindowY,
         bool? IsMaximized,
         double? SidebarWidth,
-        bool? SidebarCollapsed);
+        bool? SidebarCollapsed,
+        string? OpenAiApiKey,
+        string? OpenAiModel,
+        bool? AiEnabled,
+        string? OpenAiProjectId,
+        string? OpenAiOrganizationId);
 }

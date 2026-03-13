@@ -1,4 +1,5 @@
 using System.Text.Json;
+using QuickNotesTxt.Models;
 using QuickNotesTxt.Services;
 using Xunit;
 
@@ -43,6 +44,36 @@ public sealed class FolderSettingsServiceTests : IDisposable
         var settings = await _service.GetSettingsAsync();
 
         Assert.Equal("IosevkaSerif", settings.FontName);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_DeserializesLegacySettingsWithoutAiFields()
+    {
+        var legacySettings = JsonSerializer.Serialize(new
+        {
+            notesFolder = "notes",
+            themeName = "Dark"
+        });
+
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal(AiSettings.Default.DefaultModel, settings.AiSettings.DefaultModel);
+        Assert.True(settings.AiSettings.IsEnabled);
+        Assert.Equal(string.Empty, settings.AiSettings.ApiKey);
+    }
+
+    [Fact]
+    public async Task SetAiSettingsAsync_RoundTripsThroughSettingsFile()
+    {
+        var expected = new AiSettings("secret", "gpt-4.1-mini", true, "proj_123", "org_456");
+
+        await _service.SetAiSettingsAsync(expected);
+
+        var settings = await _service.GetAiSettingsAsync();
+
+        Assert.Equal(expected, settings);
     }
 
     public void Dispose()

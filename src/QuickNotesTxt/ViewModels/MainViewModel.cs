@@ -24,6 +24,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IFileWatcherService _fileWatcherService;
     private readonly IThemeLoaderService _themeLoaderService;
     private readonly IFontCatalogService _fontCatalogService;
+    private readonly IAiPromptCatalogService _aiPromptCatalogService;
+    private readonly IAiTextActionService _aiTextActionService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontOption> _allFonts = [new(FontCatalogService.DefaultFontKey, "Iosevka Slab", $"avares://QuickNotesTxt/Assets/Fonts/{FontCatalogService.DefaultFontKey}#Iosevka Slab")];
@@ -109,13 +111,43 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private int _notePickerTotalMatchCount;
 
-    public MainViewModel(INotesRepository notesRepository, ISettingsService settingsService, IFileWatcherService fileWatcherService, IThemeLoaderService themeLoaderService, IFontCatalogService fontCatalogService)
+    [ObservableProperty]
+    private IReadOnlyList<AiPromptDefinition> _aiPrompts = [];
+
+    [ObservableProperty]
+    private string _openAiApiKey = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedAiModel = AiSettings.Default.DefaultModel;
+
+    [ObservableProperty]
+    private string _openAiProjectId = string.Empty;
+
+    [ObservableProperty]
+    private string _openAiOrganizationId = string.Empty;
+
+    [ObservableProperty]
+    private bool _isAiEnabled = AiSettings.Default.IsEnabled;
+
+    [ObservableProperty]
+    private bool _isAiBusy;
+
+    public MainViewModel(
+        INotesRepository notesRepository,
+        ISettingsService settingsService,
+        IFileWatcherService fileWatcherService,
+        IThemeLoaderService themeLoaderService,
+        IFontCatalogService fontCatalogService,
+        IAiPromptCatalogService aiPromptCatalogService,
+        IAiTextActionService aiTextActionService)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
         _fileWatcherService = fileWatcherService;
         _themeLoaderService = themeLoaderService;
         _fontCatalogService = fontCatalogService;
+        _aiPromptCatalogService = aiPromptCatalogService;
+        _aiTextActionService = aiTextActionService;
         _fileWatcherService.NotesChanged += OnNotesChanged;
 
         SortOptions = Enum.GetValues<SortOption>();
@@ -128,6 +160,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public Func<string, Task<bool>>? ConfirmDeleteAsync { get; set; }
 
+    public Func<AiSettings, string, Task<AiSettings?>>? ShowAiSettingsAsync { get; set; }
+
     public IReadOnlyList<SortOption> SortOptions { get; }
 
     public NoteDocument? CurrentNote { get; private set; }
@@ -137,6 +171,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool HasSelectedFolder => !string.IsNullOrWhiteSpace(NotesFolder);
 
     public bool HasNotes => VisibleNotes.Count > 0;
+
+    public bool HasAiPrompts => AiPrompts.Count > 0;
 
     public bool HasNotePickerResults => NotePickerResults.Count > 0;
 
@@ -169,6 +205,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public string FooterStatusText => HasFooterStatusOverride
         ? StatusMessage
         : LastSavedText;
+
+    public string CurrentAiPromptsDirectory => !HasSelectedFolder
+        ? string.Empty
+        : _aiPromptCatalogService.GetNotesFolderPromptsDirectory(NotesFolder);
 
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
@@ -227,6 +267,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnNotesFolderChanged(string value)
     {
         OnPropertyChanged(nameof(HasSelectedFolder));
+        OnPropertyChanged(nameof(CurrentAiPromptsDirectory));
         OnPropertyChanged(nameof(ShowFolderPrompt));
         OnPropertyChanged(nameof(ShowTitleWatermark));
         OnPropertyChanged(nameof(ShowTagsWatermark));
@@ -237,6 +278,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnVisibleNotesChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotes));
 
     partial void OnNotePickerResultsChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotePickerResults));
+
+    partial void OnAiPromptsChanged(IReadOnlyList<AiPromptDefinition> value) => OnPropertyChanged(nameof(HasAiPrompts));
 
     partial void OnNotePickerTotalMatchCountChanged(int value)
     {
@@ -581,6 +624,84 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await DeleteNoteAsync(noteSummary);
     }
 
+    [RelayCommand]
+    private async Task OpenAiSettingsAsync()
+    {
+        if (ShowAiSettingsAsync is null)
+        {
+            StatusMessage = "AI settings are unavailable.";
+            return;
+        }
+
+        var updated = await ShowAiSettingsAsync(BuildAiSettings(), CurrentAiPromptsDirectory);
+        if (updated is null)
+        {
+            return;
+        }
+
+        ApplyAiSettings(updated);
+        await _settingsService.SetAiSettingsAsync(BuildAiSettings());
+        StatusMessage = "AI settings saved.";
+    }
+
+    [RelayCommand]
+    private async Task ReloadAiPromptsAsync()
+    {
+        await LoadAiPromptsAsync();
+        StatusMessage = HasAiPrompts
+            ? $"Loaded {AiPrompts.Count} AI prompts."
+            : "No AI prompts were found.";
+    }
+
+    public async Task<string?> RunAiPromptAsync(AiPromptDefinition prompt, string selectedText, CancellationToken cancellationToken = default)
+    {
+        if (!IsAiEnabled)
+        {
+            StatusMessage = "AI is disabled in settings.";
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedText))
+        {
+            StatusMessage = "Select text first.";
+            return null;
+        }
+
+        if (IsAiBusy)
+        {
+            StatusMessage = "AI is already processing a prompt.";
+            return null;
+        }
+
+        IsAiBusy = true;
+        StatusMessage = $"Running {prompt.Name}...";
+
+        try
+        {
+            var result = await _aiTextActionService.RunPromptAsync(prompt, selectedText, BuildAiSettings(), cancellationToken);
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "AI request canceled.";
+            return null;
+        }
+        catch (InvalidOperationException ex)
+        {
+            StatusMessage = ex.Message;
+            return null;
+        }
+        catch (HttpRequestException)
+        {
+            StatusMessage = "AI request failed.";
+            return null;
+        }
+        finally
+        {
+            IsAiBusy = false;
+        }
+    }
+
     public async Task CommitRenameAsync(NoteSummary? noteSummary)
     {
         if (noteSummary is null || !noteSummary.IsRenaming || !HasSelectedFolder)
@@ -654,6 +775,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         _allThemes = await _themeLoaderService.LoadAllThemesAsync();
         ThemeNames = _allThemes.Select(t => t.Name).ToList();
+        ApplyAiSettings(settings.AiSettings);
+        await LoadAiPromptsAsync();
 
         var initialFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.FontName, StringComparison.Ordinal))
             ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
@@ -704,6 +827,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ClearEditor();
         LastSavedText = "QuickNotes";
         await RefreshFromDiskAsync();
+        await LoadAiPromptsAsync();
         StatusMessage = "Ready.";
 
         if (focusEditorWhenReady)
@@ -945,10 +1069,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         return status == "New note ready."
             || status == "Delete canceled."
+            || status == "AI settings saved."
+            || status == "AI request canceled."
+            || status == "AI request failed."
+            || status == "AI is disabled in settings."
+            || status == "AI is already processing a prompt."
+            || status == "Select text first."
             || status.StartsWith("Deleted ", StringComparison.Ordinal)
             || status.StartsWith("Renamed to ", StringComparison.Ordinal)
             || status.StartsWith("Editor font size: ", StringComparison.Ordinal)
-            || status.StartsWith("UI font size: ", StringComparison.Ordinal);
+            || status.StartsWith("UI font size: ", StringComparison.Ordinal)
+            || status.StartsWith("Loaded ", StringComparison.Ordinal)
+            || status.StartsWith("Running ", StringComparison.Ordinal)
+            || status.EndsWith(" applied.", StringComparison.Ordinal);
     }
     private async Task SaveCurrentNoteAsync(CancellationToken cancellationToken)
     {
@@ -1172,5 +1305,30 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _fileWatcherService.NotesChanged -= OnNotesChanged;
         _fileWatcherService.Dispose();
         CancelScheduledSave();
+    }
+
+    private void ApplyAiSettings(AiSettings settings)
+    {
+        OpenAiApiKey = settings.ApiKey;
+        SelectedAiModel = string.IsNullOrWhiteSpace(settings.DefaultModel)
+            ? AiSettings.Default.DefaultModel
+            : settings.DefaultModel.Trim();
+        OpenAiProjectId = settings.ProjectId;
+        OpenAiOrganizationId = settings.OrganizationId;
+        IsAiEnabled = settings.IsEnabled;
+    }
+
+    private AiSettings BuildAiSettings()
+    {
+        var model = string.IsNullOrWhiteSpace(SelectedAiModel)
+            ? AiSettings.Default.DefaultModel
+            : SelectedAiModel.Trim();
+
+        return new AiSettings(OpenAiApiKey.Trim(), model, IsAiEnabled, OpenAiProjectId.Trim(), OpenAiOrganizationId.Trim());
+    }
+
+    private async Task LoadAiPromptsAsync()
+    {
+        AiPrompts = await _aiPromptCatalogService.LoadPromptsAsync(HasSelectedFolder ? NotesFolder : null);
     }
 }
