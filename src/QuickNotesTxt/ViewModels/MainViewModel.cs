@@ -1252,12 +1252,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private static NoteSummary BuildSummary(NoteDocument document)
     {
-        var preview = document.Body.ReplaceLineEndings(" ").Trim();
-        if (preview.Length > 96)
-        {
-            preview = preview[..96] + "...";
-        }
-
         return new NoteSummary
         {
             Id = document.FilePath,
@@ -1266,7 +1260,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             Tags = [.. document.Tags],
             CreatedAt = document.CreatedAt,
             UpdatedAt = document.UpdatedAt,
-            Preview = preview,
+            Preview = NotePreviewFormatter.Build(document.Body),
             SearchText = string.Join(' ', new[] { document.Title, document.Body, string.Join(' ', document.Tags) }),
             RenameText = Path.GetFileNameWithoutExtension(document.FilePath)
         };

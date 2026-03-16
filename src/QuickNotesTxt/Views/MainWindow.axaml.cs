@@ -4,9 +4,13 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using AvaloniaEdit;
+using AvaloniaEdit.Editing;
+using QuickNotesTxt.Editors;
 using QuickNotesTxt.Models;
 using QuickNotesTxt.Services;
 using QuickNotesTxt.ViewModels;
@@ -20,6 +24,9 @@ public partial class MainWindow : Window
     private ISettingsService? _settingsService;
     private WindowEdge? _activeResizeEdge;
     private readonly MenuFlyout _editorContextFlyout = new();
+    private readonly MarkdownColorizingTransformer _markdownColorizer = new();
+    private bool _isUpdatingEditorFromViewModel;
+    private bool _isUpdatingViewModelFromEditor;
 
     public MainWindow()
     {
@@ -31,10 +38,15 @@ public partial class MainWindow : Window
         // Use Tunnel routing so corner resize takes priority over title-bar buttons.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
-        // Tunnel-route Tab on the editor so we intercept it before the TextBox
-        // processes it (which would move focus or replace the selection).
-        EditorTextBox.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        EditorTextBox.ContextFlyout = _editorContextFlyout;
+        EditorTextEditor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        EditorTextEditor.ContextFlyout = _editorContextFlyout;
+        EditorTextEditor.Options.ConvertTabsToSpaces = false;
+        EditorTextEditor.Options.EnableRectangularSelection = false;
+        EditorTextEditor.Options.WordWrapIndentation = 0;
+        EditorTextEditor.Options.InheritWordWrapIndentation = false;
+        EditorTextEditor.TextArea.TextView.LineTransformers.Add(_markdownColorizer);
+        ApplyEditorSelectionTheme();
+        EditorTextEditor.TextChanged += OnEditorTextChanged;
         RebuildEditorContextFlyout();
 
         Opened += async (_, _) =>
@@ -46,6 +58,7 @@ public partial class MainWindow : Window
                 vm.ShowAiSettingsAsync = ShowAiSettingsAsync;
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.FocusEditorRequested += OnFocusEditorRequested;
+                SyncEditorText(vm.EditorBody);
             }
 
             await RestoreWindowLayoutAsync();
@@ -248,7 +261,7 @@ public partial class MainWindow : Window
 
     private void OnFocusEditorRequested(object? sender, EventArgs e)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => EditorTextBox.Focus(), Avalonia.Threading.DispatcherPriority.Input);
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => EditorTextEditor.Focus(), Avalonia.Threading.DispatcherPriority.Input);
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -275,6 +288,19 @@ public partial class MainWindow : Window
             or nameof(MainViewModel.SelectedAiModel))
         {
             RebuildEditorContextFlyout();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.SelectedThemeName))
+        {
+            ApplyEditorSelectionTheme();
+            EditorTextEditor.TextArea.TextView.InvalidateVisual();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.EditorBody))
+        {
+            SyncEditorText(vm.EditorBody);
             return;
         }
 
@@ -323,7 +349,7 @@ public partial class MainWindow : Window
         {
             if (vm.HasSelectedFolder)
             {
-                EditorTextBox.Focus();
+                EditorTextEditor.Focus();
             }
             else
             {
@@ -385,9 +411,9 @@ public partial class MainWindow : Window
     private void RebuildEditorContextFlyout()
     {
         _editorContextFlyout.Items.Clear();
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", EditorTextBox.CanCut, (_, _) => EditorTextBox.Cut()));
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", EditorTextBox.CanCopy, (_, _) => EditorTextBox.Copy()));
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", EditorTextBox.CanPaste, (_, _) => EditorTextBox.Paste()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", EditorTextEditor.CanCut, async (_, _) => await CutEditorSelectionAsync()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", EditorTextEditor.CanCopy, async (_, _) => await CopyEditorSelectionAsync()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", EditorTextEditor.CanPaste, (_, _) => EditorTextEditor.Paste()));
         _editorContextFlyout.Items.Add(new Separator());
         AddAiMenuSection();
     }
@@ -438,7 +464,11 @@ public partial class MainWindow : Window
                     Header = BuildAiMenuLabel(prompt, vm.SelectedAiModel),
                     IsEnabled = !vm.IsAiBusy
                 };
-                promptItem.Click += async (_, _) => await ApplyAiPromptAsync(prompt);
+                promptItem.Click += async (_, _) =>
+                {
+                    DismissEditorContextFlyout();
+                    await ApplyAiPromptAsync(prompt);
+                };
                 _editorContextFlyout.Items.Add(promptItem);
             }
         }
@@ -475,15 +505,15 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selectedText = EditorTextBox.SelectedText;
+        var selectedText = EditorTextEditor.SelectedText;
         if (string.IsNullOrWhiteSpace(selectedText))
         {
             await vm.RunAiPromptAsync(prompt, string.Empty);
             return;
         }
 
-        var selectionStart = EditorTextBox.SelectionStart;
-        var selectionEnd = EditorTextBox.SelectionEnd;
+        var selectionStart = EditorTextEditor.SelectionStart;
+        var selectionLength = EditorTextEditor.SelectionLength;
         try
         {
             var result = await vm.RunAiPromptAsync(prompt, selectedText);
@@ -492,28 +522,100 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var currentText = EditorTextBox.Text ?? string.Empty;
-            var start = Math.Clamp(Math.Min(selectionStart, selectionEnd), 0, currentText.Length);
-            var end = Math.Clamp(Math.Max(selectionStart, selectionEnd), start, currentText.Length);
-
-            EditorTextBox.SelectionStart = selectionStart;
-            EditorTextBox.SelectionEnd = selectionEnd;
-            EditorTextBox.SelectedText = result;
-
-            if (string.Equals(EditorTextBox.Text, currentText, StringComparison.Ordinal))
+            var document = EditorTextEditor.Document;
+            if (document is null)
             {
-                EditorTextBox.Text = string.Concat(currentText.AsSpan(0, start), result, currentText.AsSpan(end));
-                var caretPosition = start + result.Length;
-                EditorTextBox.SelectionStart = caretPosition;
-                EditorTextBox.SelectionEnd = caretPosition;
+                return;
             }
 
+            var start = Math.Clamp(selectionStart, 0, document.TextLength);
+            var length = Math.Clamp(selectionLength, 0, document.TextLength - start);
+            document.Replace(start, length, result);
+
+            var caretPosition = start + result.Length;
+            EditorTextEditor.Select(caretPosition, 0);
+            EditorTextEditor.CaretOffset = caretPosition;
+
             vm.StatusMessage = $"{prompt.Name} applied.";
-            EditorTextBox.Focus();
+            EditorTextEditor.Focus();
         }
         finally
         {
-            EditorTextBox.Focus();
+            EditorTextEditor.Focus();
+        }
+    }
+
+    private void DismissEditorContextFlyout()
+    {
+        _editorContextFlyout.Hide();
+    }
+
+    private void ApplyEditorSelectionTheme()
+    {
+        var resources = Application.Current?.Resources;
+        EditorTextEditor.TextArea.SelectionBrush = resources?[QuickNotesTxt.Styles.ThemeKeys.EditorTextSelectionBrush] as IBrush;
+        EditorTextEditor.TextArea.SelectionForeground = null;
+        EditorTextEditor.TextArea.SelectionBorder = null;
+        EditorTextEditor.TextArea.SelectionCornerRadius = 0;
+    }
+
+    private void OnEditorTextChanged(object? sender, EventArgs e)
+    {
+        if (_isUpdatingEditorFromViewModel || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var text = EditorTextEditor.Document?.Text ?? string.Empty;
+        if (string.Equals(vm.EditorBody, text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _isUpdatingViewModelFromEditor = true;
+        try
+        {
+            vm.EditorBody = text;
+        }
+        finally
+        {
+            _isUpdatingViewModelFromEditor = false;
+        }
+    }
+
+    private void SyncEditorText(string text)
+    {
+        if (_isUpdatingViewModelFromEditor)
+        {
+            return;
+        }
+
+        var document = EditorTextEditor.Document;
+        if (document is null)
+        {
+            return;
+        }
+
+        text ??= string.Empty;
+        if (string.Equals(document.Text, text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var caretOffset = Math.Min(EditorTextEditor.CaretOffset, text.Length);
+
+        _isUpdatingEditorFromViewModel = true;
+        try
+        {
+            document.BeginUpdate();
+            document.Replace(0, document.TextLength, text);
+            document.EndUpdate();
+            EditorTextEditor.CaretOffset = caretOffset;
+            EditorTextEditor.Select(caretOffset, 0);
+        }
+        finally
+        {
+            _isUpdatingEditorFromViewModel = false;
         }
     }
 
@@ -616,14 +718,9 @@ public partial class MainWindow : Window
         vm.AcceptNotePickerSelectionCommand.Execute(null);
     }
 
-    private async void OnEditorCopyingToClipboard(object? sender, RoutedEventArgs e)
+    private async Task CopyEditorSelectionAsync()
     {
-        if (sender is not TextBox textBox)
-        {
-            return;
-        }
-
-        var selectedText = textBox.SelectedText;
+        var selectedText = EditorTextEditor.SelectedText;
         if (string.IsNullOrEmpty(selectedText))
         {
             return;
@@ -636,17 +733,11 @@ public partial class MainWindow : Window
         }
 
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
-        e.Handled = true;
     }
 
-    private async void OnEditorCuttingToClipboard(object? sender, RoutedEventArgs e)
+    private async Task CutEditorSelectionAsync()
     {
-        if (sender is not TextBox textBox)
-        {
-            return;
-        }
-
-        var selectedText = textBox.SelectedText;
+        var selectedText = EditorTextEditor.SelectedText;
         if (string.IsNullOrEmpty(selectedText))
         {
             return;
@@ -659,31 +750,58 @@ public partial class MainWindow : Window
         }
 
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
-        textBox.SelectedText = string.Empty;
-        e.Handled = true;
+        EditorTextEditor.SelectedText = string.Empty;
     }
 
-    private void OnEditorKeyDown(object? sender, KeyEventArgs e)
+    private async void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Tab || sender is not TextBox textBox)
+        if (sender is not TextEditor textEditor)
+        {
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            if (e.Key == Key.C)
+            {
+                e.Handled = true;
+                await CopyEditorSelectionAsync();
+                return;
+            }
+
+            if (e.Key == Key.X)
+            {
+                e.Handled = true;
+                await CutEditorSelectionAsync();
+                return;
+            }
+        }
+
+        if (e.Key != Key.Tab)
         {
             return;
         }
 
         e.Handled = true;
 
-        var text = textBox.Text ?? string.Empty;
-        var selStart = textBox.SelectionStart;
-        var selEnd = textBox.SelectionEnd;
+        var document = textEditor.Document;
+        if (document is null)
+        {
+            return;
+        }
+
+        var text = document.Text;
+        var selStart = textEditor.SelectionStart;
+        var selEnd = selStart + textEditor.SelectionLength;
         var hasSelection = selStart != selEnd;
         var isUnindent = (e.KeyModifiers & KeyModifiers.Shift) != 0;
 
         if (!hasSelection && !isUnindent)
         {
-            // No selection, plain Tab: insert 4 spaces at caret.
-            var caretIndex = textBox.CaretIndex;
-            textBox.Text = text.Insert(caretIndex, "    ");
-            textBox.CaretIndex = caretIndex + 4;
+            var caretOffset = textEditor.CaretOffset;
+            document.Insert(caretOffset, "    ");
+            textEditor.CaretOffset = caretOffset + 4;
+            textEditor.Select(textEditor.CaretOffset, 0);
             return;
         }
 
@@ -742,20 +860,14 @@ public partial class MainWindow : Window
 
         var newBlock = string.Join('\n', lines);
 
-        // Replace the affected block via SelectionStart/SelectedText so that
-        // the TextBox handles the edit internally, keeping undo state cleaner.
-        textBox.SelectionStart = lineStart;
-        textBox.SelectionEnd = lineEnd;
-        textBox.SelectedText = newBlock;
+        document.Replace(lineStart, lineEnd - lineStart, newBlock);
 
-        // Restore the user's logical selection after the binding roundtrip.
         var newSelStart = Math.Max(lineStart, selStart + firstLineDelta);
         var newSelEnd = Math.Max(newSelStart, selEnd + totalDelta);
         Dispatcher.UIThread.Post(() =>
         {
-            textBox.SelectionStart = newSelStart;
-            textBox.SelectionEnd = newSelEnd;
-            textBox.CaretIndex = newSelEnd;
+            textEditor.Select(newSelStart, newSelEnd - newSelStart);
+            textEditor.CaretOffset = newSelEnd;
         }, DispatcherPriority.Render);
     }
 
@@ -865,6 +977,8 @@ public partial class MainWindow : Window
         return visual.FindAncestorOfType<ComboBox>() is not null
             || visual.FindAncestorOfType<Button>() is not null
             || visual.FindAncestorOfType<TextBox>() is not null
+            || visual.FindAncestorOfType<TextEditor>() is not null
+            || visual.FindAncestorOfType<TextArea>() is not null
             || visual.FindAncestorOfType<ListBox>() is not null;
     }
 

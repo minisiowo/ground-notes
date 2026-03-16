@@ -16,7 +16,7 @@ public sealed class NotesRepositoryTests : IDisposable
         var note = _repository.CreateDraftNote(_tempRoot, new DateTimeOffset(2026, 3, 9, 7, 33, 0, localOffset));
 
         Assert.Equal("2026-03-09-0733", note.Title);
-        Assert.EndsWith("2026-03-09-0733.txt", note.FilePath);
+        Assert.EndsWith("2026-03-09-0733.md", note.FilePath);
     }
 
     [Fact]
@@ -72,8 +72,25 @@ public sealed class NotesRepositoryTests : IDisposable
         var renamed = await _repository.SaveNoteAsync(_tempRoot, saved);
 
         Assert.True(File.Exists(renamed.FilePath));
-        Assert.EndsWith("renamed.txt", renamed.FilePath);
+        Assert.EndsWith("renamed.md", renamed.FilePath);
         Assert.False(File.Exists(originalPath));
+    }
+
+    [Fact]
+    public async Task SaveNoteAsync_MigratesLegacyTxtNoteToMarkdown()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var legacyPath = Path.Combine(_tempRoot, "legacy.txt");
+        await File.WriteAllTextAsync(legacyPath, "legacy body");
+
+        var loaded = await _repository.LoadNoteAsync(legacyPath);
+        Assert.NotNull(loaded);
+
+        var saved = await _repository.SaveNoteAsync(_tempRoot, loaded);
+
+        Assert.EndsWith("legacy.md", saved.FilePath);
+        Assert.True(File.Exists(saved.FilePath));
+        Assert.False(File.Exists(legacyPath));
     }
 
     [Fact]
@@ -87,6 +104,61 @@ public sealed class NotesRepositoryTests : IDisposable
         Assert.Single(summaries);
         Assert.Equal("plain", summaries[0].Title);
         Assert.Equal("plain body", summaries[0].Preview);
+    }
+
+    [Fact]
+    public async Task LoadSummariesAsync_LoadsMarkdownAndPrefersMarkdownOverLegacyStem()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "plain.txt"), "legacy body");
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "plain.md"), "markdown body");
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "fresh.md"), "fresh body");
+
+        var summaries = await _repository.LoadSummariesAsync(_tempRoot);
+
+        Assert.Equal(2, summaries.Count);
+        Assert.Contains(summaries, note => note.Title == "plain" && note.Preview == "markdown body");
+        Assert.Contains(summaries, note => note.Title == "fresh" && note.Preview == "fresh body");
+    }
+
+    [Fact]
+    public async Task LoadSummariesAsync_CleansMarkdownNoiseFromPreview()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "preview.md"), "# Heading\n\n- [x] **done** with `code` and [link](https://example.com)");
+
+        var summaries = await _repository.LoadSummariesAsync(_tempRoot);
+
+        var summary = Assert.Single(summaries);
+        Assert.Equal("Heading done with code and link", summary.Preview);
+    }
+
+    [Fact]
+    public void ParseDocument_DoesNotTreatHorizontalRuleAsFrontMatter()
+    {
+        var parsed = NotesRepository.ParseDocument(Path.Combine(_tempRoot, "rule.md"), "---\nhello\n---\nbody");
+
+        Assert.Equal("rule", parsed.Title);
+        Assert.Equal("---\nhello\n---\nbody", parsed.Body);
+    }
+
+    [Fact]
+    public async Task SaveNoteAsync_AvoidsOverwritingExistingMarkdownStemWhenMigratingLegacyNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var legacyPath = Path.Combine(_tempRoot, "sample.txt");
+        var markdownPath = Path.Combine(_tempRoot, "sample.md");
+        await File.WriteAllTextAsync(legacyPath, "legacy body");
+        await File.WriteAllTextAsync(markdownPath, "existing markdown body");
+
+        var loaded = await _repository.LoadNoteAsync(legacyPath);
+        Assert.NotNull(loaded);
+
+        var saved = await _repository.SaveNoteAsync(_tempRoot, loaded);
+
+        Assert.EndsWith("sample-1.md", saved.FilePath);
+        Assert.True(File.Exists(markdownPath));
+        Assert.False(File.Exists(legacyPath));
     }
 
     [Fact]

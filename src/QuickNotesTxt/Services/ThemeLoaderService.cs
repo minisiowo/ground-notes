@@ -109,6 +109,13 @@ public sealed class ThemeLoaderService : IThemeLoaderService
             theme.PlaceholderText,
             theme.EditorText,
             theme.AppText,
+            theme.MarkdownHeading1,
+            theme.MarkdownHeading2,
+            theme.MarkdownHeading3,
+            theme.MarkdownInlineCodeForeground,
+            theme.MarkdownInlineCodeBackground,
+            theme.MarkdownCodeBlockForeground,
+            theme.MarkdownCodeBlockBackground,
             theme.TitleBarButtonHover,
             theme.TitleBarCloseHover,
         ];

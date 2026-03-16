@@ -25,11 +25,19 @@ public static class ThemeKeys
     public const string PlaceholderTextBrush = "PlaceholderTextBrush";
     public const string EditorTextBrush = "EditorTextBrush";
     public const string AppTextBrush = "AppTextBrush";
+    public const string MarkdownHeading1Brush = "MarkdownHeading1Brush";
+    public const string MarkdownHeading2Brush = "MarkdownHeading2Brush";
+    public const string MarkdownHeading3Brush = "MarkdownHeading3Brush";
+    public const string MarkdownInlineCodeForegroundBrush = "MarkdownInlineCodeForegroundBrush";
+    public const string MarkdownInlineCodeBackgroundBrush = "MarkdownInlineCodeBackgroundBrush";
+    public const string MarkdownCodeBlockForegroundBrush = "MarkdownCodeBlockForegroundBrush";
+    public const string MarkdownCodeBlockBackgroundBrush = "MarkdownCodeBlockBackgroundBrush";
     public const string TitleBarButtonHoverBrush = "TitleBarButtonHoverBrush";
     public const string TitleBarCloseHoverBrush = "TitleBarCloseHoverBrush";
 
     // ── Font size resources ────────────────────────────────────
     public const string TerminalFont = "TerminalFont";
+    public const string CodeFont = "CodeFont";
     public const string AppFontSize = "AppFontSize";
     public const string AppFontSizeSmall = "AppFontSizeSmall";
     public const string AppFontSizeLarge = "AppFontSizeLarge";

@@ -5,6 +5,9 @@ namespace QuickNotesTxt.Services;
 
 public sealed class NotesRepository : INotesRepository
 {
+    private const string MarkdownExtension = ".md";
+    private static readonly string[] s_supportedExtensions = [MarkdownExtension, ".txt"];
+
     public async Task<IReadOnlyList<NoteSummary>> LoadSummariesAsync(string folderPath, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(folderPath) || !Directory.Exists(folderPath))
@@ -13,7 +16,7 @@ public sealed class NotesRepository : INotesRepository
         }
 
         var notes = new List<NoteSummary>();
-        foreach (var filePath in Directory.EnumerateFiles(folderPath, "*.txt", SearchOption.TopDirectoryOnly))
+        foreach (var filePath in EnumeratePreferredNoteFiles(folderPath))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -66,15 +69,7 @@ public sealed class NotesRepository : INotesRepository
         persisted.Title = SanitizeTitle(document.Title);
         persisted.UpdatedAt = DateTime.Now;
 
-        var targetPath = persisted.FilePath;
-        var currentFolder = Path.GetDirectoryName(targetPath) ?? string.Empty;
-        var currentName = Path.GetFileNameWithoutExtension(targetPath);
-
-        if (!string.Equals(currentFolder, folderPath, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(currentName, persisted.Title, StringComparison.Ordinal))
-        {
-            targetPath = GetUniqueFilePath(folderPath, persisted.Title, persisted.FilePath);
-        }
+        var targetPath = GetUniqueFilePath(folderPath, persisted.Title, persisted.FilePath);
 
         if (!string.Equals(document.FilePath, targetPath, StringComparison.OrdinalIgnoreCase) && File.Exists(document.FilePath))
         {
@@ -191,54 +186,15 @@ public sealed class NotesRepository : INotesRepository
     public static NoteDocument ParseDocument(string filePath, string content)
     {
         var normalized = content.Replace("\r\n", "\n");
-        using var reader = new StringReader(normalized);
-        var firstLine = reader.ReadLine();
         var title = Path.GetFileNameWithoutExtension(filePath);
         var tags = new List<string>();
         var createdAt = File.Exists(filePath) ? File.GetCreationTime(filePath) : DateTime.Now;
         var updatedAt = File.Exists(filePath) ? File.GetLastWriteTime(filePath) : createdAt;
-        string body;
+        var body = normalized;
 
-        if (firstLine == "---")
+        if (TryReadFrontMatter(normalized, ref title, ref tags, ref createdAt, ref updatedAt, out var parsedBody))
         {
-            string? line;
-            while ((line = reader.ReadLine()) is not null)
-            {
-                if (line == "---")
-                {
-                    break;
-                }
-
-                var separatorIndex = line.IndexOf(':');
-                if (separatorIndex <= 0)
-                {
-                    continue;
-                }
-
-                var key = line[..separatorIndex].Trim();
-                var value = line[(separatorIndex + 1)..].Trim();
-                switch (key)
-                {
-                    case "title":
-                        title = UnescapeValue(value);
-                        break;
-                    case "tags":
-                        tags = ParseTags(value);
-                        break;
-                    case "createdAt" when DateTime.TryParse(value, out var parsedCreatedAt):
-                        createdAt = parsedCreatedAt;
-                        break;
-                    case "updatedAt" when DateTime.TryParse(value, out var parsedUpdatedAt):
-                        updatedAt = parsedUpdatedAt;
-                        break;
-                }
-            }
-
-            body = reader.ReadToEnd();
-        }
-        else
-        {
-            body = content;
+            body = parsedBody;
         }
 
         return new NoteDocument
@@ -257,12 +213,6 @@ public sealed class NotesRepository : INotesRepository
 
     private static NoteSummary ToSummary(NoteDocument document)
     {
-        var preview = document.Body.ReplaceLineEndings(" ").Trim();
-        if (preview.Length > 96)
-        {
-            preview = preview[..96] + "...";
-        }
-
         return new NoteSummary
         {
             Id = document.Id,
@@ -271,7 +221,7 @@ public sealed class NotesRepository : INotesRepository
             Tags = [.. document.Tags],
             CreatedAt = document.CreatedAt,
             UpdatedAt = document.UpdatedAt,
-            Preview = preview,
+            Preview = NotePreviewFormatter.Build(document.Body),
             SearchText = string.Join(' ', new[] { document.Title, document.Body, string.Join(' ', document.Tags) })
         };
     }
@@ -302,16 +252,123 @@ public sealed class NotesRepository : INotesRepository
 
     private static string GetUniqueFilePath(string folderPath, string title, string? currentFilePath = null)
     {
-        var candidatePath = Path.Combine(folderPath, $"{title}.txt");
+        var candidatePath = Path.Combine(folderPath, $"{title}{MarkdownExtension}");
         var counter = 1;
 
-        while (File.Exists(candidatePath) && !string.Equals(candidatePath, currentFilePath, StringComparison.OrdinalIgnoreCase))
+        while (HasConflictingPath(candidatePath, currentFilePath))
         {
-            candidatePath = Path.Combine(folderPath, $"{title}-{counter}.txt");
+            candidatePath = Path.Combine(folderPath, $"{title}-{counter}{MarkdownExtension}");
             counter++;
         }
 
         return candidatePath;
+    }
+
+    private static IEnumerable<string> EnumeratePreferredNoteFiles(string folderPath)
+    {
+        return Directory.EnumerateFiles(folderPath, "*", SearchOption.TopDirectoryOnly)
+            .Where(IsSupportedNotePath)
+            .GroupBy(Path.GetFileNameWithoutExtension, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderBy(path => string.Equals(Path.GetExtension(path), MarkdownExtension, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .First());
+    }
+
+    private static bool IsSupportedNotePath(string filePath)
+    {
+        var extension = Path.GetExtension(filePath);
+        return s_supportedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool HasConflictingPath(string candidatePath, string? currentFilePath)
+    {
+        var folderPath = Path.GetDirectoryName(candidatePath) ?? string.Empty;
+        var stem = Path.GetFileNameWithoutExtension(candidatePath);
+
+        foreach (var extension in s_supportedExtensions)
+        {
+            var path = Path.Combine(folderPath, stem + extension);
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            if (string.Equals(path, currentFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryReadFrontMatter(
+        string normalizedContent,
+        ref string title,
+        ref List<string> tags,
+        ref DateTime createdAt,
+        ref DateTime updatedAt,
+        out string body)
+    {
+        body = normalizedContent;
+        var lines = normalizedContent.Split('\n');
+        if (lines.Length < 3 || lines[0] != "---")
+        {
+            return false;
+        }
+
+        var closingIndex = Array.IndexOf(lines, "---", 1);
+        if (closingIndex <= 1)
+        {
+            return false;
+        }
+
+        for (var i = 1; i < closingIndex; i++)
+        {
+            if (string.IsNullOrWhiteSpace(lines[i]))
+            {
+                continue;
+            }
+
+            if (lines[i].IndexOf(':') <= 0)
+            {
+                return false;
+            }
+        }
+
+        for (var i = 1; i < closingIndex; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var separatorIndex = line.IndexOf(':');
+            var key = line[..separatorIndex].Trim();
+            var value = line[(separatorIndex + 1)..].Trim();
+            switch (key)
+            {
+                case "title":
+                    title = UnescapeValue(value);
+                    break;
+                case "tags":
+                    tags = ParseTags(value);
+                    break;
+                case "createdAt" when DateTime.TryParse(value, out var parsedCreatedAt):
+                    createdAt = parsedCreatedAt;
+                    break;
+                case "updatedAt" when DateTime.TryParse(value, out var parsedUpdatedAt):
+                    updatedAt = parsedUpdatedAt;
+                    break;
+            }
+        }
+
+        body = string.Join('\n', lines.Skip(closingIndex + 1));
+        return true;
     }
 
     private static int? ScorePickerMatch(NoteSummary note, IReadOnlyList<string> queryTokens)

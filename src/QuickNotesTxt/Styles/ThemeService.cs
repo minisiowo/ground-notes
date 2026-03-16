@@ -65,6 +65,13 @@ public static class ThemeService
         Set(app, ThemeKeys.PlaceholderTextBrush, theme.PlaceholderText);
         Set(app, ThemeKeys.EditorTextBrush, theme.EditorText);
         Set(app, ThemeKeys.AppTextBrush, theme.AppText);
+        Set(app, ThemeKeys.MarkdownHeading1Brush, theme.MarkdownHeading1);
+        Set(app, ThemeKeys.MarkdownHeading2Brush, theme.MarkdownHeading2);
+        Set(app, ThemeKeys.MarkdownHeading3Brush, theme.MarkdownHeading3);
+        Set(app, ThemeKeys.MarkdownInlineCodeForegroundBrush, theme.MarkdownInlineCodeForeground);
+        Set(app, ThemeKeys.MarkdownInlineCodeBackgroundBrush, theme.MarkdownInlineCodeBackground);
+        Set(app, ThemeKeys.MarkdownCodeBlockForegroundBrush, theme.MarkdownCodeBlockForeground);
+        Set(app, ThemeKeys.MarkdownCodeBlockBackgroundBrush, theme.MarkdownCodeBlockBackground);
         Set(app, ThemeKeys.TitleBarButtonHoverBrush, theme.TitleBarButtonHover);
         Set(app, ThemeKeys.TitleBarCloseHoverBrush, theme.TitleBarCloseHover);
 

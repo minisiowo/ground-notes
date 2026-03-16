@@ -2,7 +2,7 @@ namespace QuickNotesTxt.Services;
 
 public sealed class FileWatcherService : IFileWatcherService
 {
-    private FileSystemWatcher? _watcher;
+    private readonly List<FileSystemWatcher> _watchers = [];
 
     public event EventHandler? NotesChanged;
 
@@ -15,33 +15,41 @@ public sealed class FileWatcherService : IFileWatcherService
             return;
         }
 
-        _watcher = new FileSystemWatcher(folderPath, "*.txt")
+        foreach (var filter in new[] { "*.txt", "*.md" })
         {
-            IncludeSubdirectories = false,
-            NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size
-        };
+            var watcher = new FileSystemWatcher(folderPath, filter)
+            {
+                IncludeSubdirectories = false,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime | NotifyFilters.Size
+            };
 
-        _watcher.Created += OnChanged;
-        _watcher.Changed += OnChanged;
-        _watcher.Deleted += OnChanged;
-        _watcher.Renamed += OnChanged;
-        _watcher.EnableRaisingEvents = true;
+            watcher.Created += OnChanged;
+            watcher.Changed += OnChanged;
+            watcher.Deleted += OnChanged;
+            watcher.Renamed += OnChanged;
+            watcher.EnableRaisingEvents = true;
+            _watchers.Add(watcher);
+        }
     }
 
     public void Stop()
     {
-        if (_watcher is null)
+        if (_watchers.Count == 0)
         {
             return;
         }
 
-        _watcher.EnableRaisingEvents = false;
-        _watcher.Created -= OnChanged;
-        _watcher.Changed -= OnChanged;
-        _watcher.Deleted -= OnChanged;
-        _watcher.Renamed -= OnChanged;
-        _watcher.Dispose();
-        _watcher = null;
+        foreach (var watcher in _watchers)
+        {
+            watcher.EnableRaisingEvents = false;
+            watcher.Created -= OnChanged;
+            watcher.Changed -= OnChanged;
+            watcher.Deleted -= OnChanged;
+            watcher.Renamed -= OnChanged;
+            watcher.Dispose();
+        }
+
+        _watchers.Clear();
     }
 
     public void Dispose()

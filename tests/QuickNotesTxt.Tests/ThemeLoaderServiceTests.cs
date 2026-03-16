@@ -118,6 +118,13 @@ public sealed class ThemeLoaderServiceTests : IDisposable
             PlaceholderText = "#9E9E9E",
             EditorText = "#1B1B1B",
             AppText = "#1B1B1B",
+            MarkdownHeading1 = "#005FB8",
+            MarkdownHeading2 = "#7A5C00",
+            MarkdownHeading3 = "#356859",
+            MarkdownInlineCodeForeground = "#004B91",
+            MarkdownInlineCodeBackground = "#E7EEF5",
+            MarkdownCodeBlockForeground = "#1E3A5F",
+            MarkdownCodeBlockBackground = "#E1E8EF",
             TitleBarButtonHover = "#E5E5E5",
             TitleBarCloseHover = "#C42B1C",
         };
@@ -130,6 +137,10 @@ public sealed class ThemeLoaderServiceTests : IDisposable
         Assert.Equal(original.IsLight, loaded.IsLight);
         Assert.Equal(original.AppBackground, loaded.AppBackground);
         Assert.Equal(original.PrimaryText, loaded.PrimaryText);
+        Assert.Equal(original.MarkdownHeading1, loaded.MarkdownHeading1);
+        Assert.Equal(original.MarkdownHeading2, loaded.MarkdownHeading2);
+        Assert.Equal(original.MarkdownInlineCodeForeground, loaded.MarkdownInlineCodeForeground);
+        Assert.Equal(original.MarkdownCodeBlockBackground, loaded.MarkdownCodeBlockBackground);
         Assert.Equal(original.TitleBarCloseHover, loaded.TitleBarCloseHover);
     }
 
@@ -163,6 +174,13 @@ public sealed class ThemeLoaderServiceTests : IDisposable
             placeholderText = "#5A5A5A",
             editorText = "#D4D4D4",
             appText = "#CCCCCC",
+            markdownHeading1 = "#4AA3FF",
+            markdownHeading2 = "#6CB7A8",
+            markdownHeading3 = "#8FB7A3",
+            markdownInlineCodeForeground = "#7CC0FF",
+            markdownInlineCodeBackground = "#1A2530",
+            markdownCodeBlockForeground = "#A9D3FF",
+            markdownCodeBlockBackground = "#18222B",
             titleBarButtonHover = "#333333",
             titleBarCloseHover = "#E81123",
         };
