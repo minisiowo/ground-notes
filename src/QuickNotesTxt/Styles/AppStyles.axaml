@@ -3,6 +3,8 @@
         xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit">
   <Styles.Resources>
     <FontFamily x:Key="TerminalFont">avares://QuickNotesTxt/Assets/Fonts/IosevkaSlab#Iosevka Slab</FontFamily>
+    <FontWeight x:Key="TerminalFontWeight">Normal</FontWeight>
+    <FontStyle x:Key="TerminalFontStyle">Normal</FontStyle>
     <FontFamily x:Key="CodeFont">avares://QuickNotesTxt/Assets/Fonts/JetbrainsMonoNl#JetBrains Mono NL</FontFamily>
     <x:Double x:Key="AppFontSize">12</x:Double>
     <x:Double x:Key="AppFontSizeSmall">11</x:Double>
@@ -21,6 +23,12 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+  </Style>
+
+  <Style Selector="TextBlock.editorPlaceholderText">
+    <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
   </Style>
 
   <Style Selector="TextBlock.metaText">
@@ -150,6 +158,11 @@
     <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
   </Style>
 
+  <Style Selector="TextBox.editorFont">
+    <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
+  </Style>
+
   <!-- Remove FluentTheme bottom accent line on TextBox -->
   <Style Selector="TextBox /template/ Border#PART_BorderElement">
     <Setter Property="BorderThickness" Value="1" />
@@ -179,6 +192,11 @@
     <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="TextBox.editorFont /template/ TextBlock#PART_Watermark">
+    <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
   </Style>
 
   <Style Selector="TextBox /template/ TextBlock#PART_FloatingWatermark">
@@ -240,6 +258,8 @@
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
   </Style>
 
   <!-- ══ ComboBox ════════════════════════════════════════════ -->

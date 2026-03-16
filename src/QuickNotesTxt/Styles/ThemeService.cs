@@ -13,6 +13,9 @@ namespace QuickNotesTxt.Styles;
 public static class ThemeService
 {
     public static void ApplyTerminalFont(FontFamily fontFamily)
+        => ApplyTerminalFont(fontFamily, FontWeight.Normal, FontStyle.Normal);
+
+    public static void ApplyTerminalFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
     {
         var app = Application.Current;
         if (app is null)
@@ -21,6 +24,8 @@ public static class ThemeService
         }
 
         app.Resources[ThemeKeys.TerminalFont] = fontFamily;
+        app.Resources[ThemeKeys.TerminalFontWeight] = fontWeight;
+        app.Resources[ThemeKeys.TerminalFontStyle] = fontStyle;
     }
 
     public static void ApplyUiFontSize(double fontSize)

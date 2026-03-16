@@ -1,3 +1,5 @@
+using System.Text;
+using Avalonia.Media;
 using QuickNotesTxt.Services;
 using Xunit;
 
@@ -23,35 +25,32 @@ public sealed class FontCatalogServiceTests : IDisposable
         var font = Assert.Single(fonts);
         Assert.Equal(FontCatalogService.DefaultFontKey, font.Key);
         Assert.Equal("Iosevka Slab", font.DisplayName);
+
+        var variant = Assert.Single(font.StandardVariants);
+        Assert.Equal(FontCatalogService.DefaultVariantKey, variant.DisplayName);
+        Assert.Equal(FontWeight.Normal, variant.FontWeight);
+        Assert.Equal(FontStyle.Normal, variant.FontStyle);
     }
 
     [Fact]
-    public void LoadBundledFonts_LoadsValidFontFoldersInDeterministicOrder()
+    public void LoadBundledFonts_LoadsFamiliesInDeterministicOrder()
     {
-        CreateFontFolder("IosevkaSerif", "IosevkaSerif-Regular.ttf");
-        CreateFontFolder("IosevkaSlab", "IosevkaSlab-Regular.ttf");
+        CreateFontFile("IosevkaSerif", "Iosevka-Regular.ttf", "Iosevka Serif", "Regular", "Iosevka Serif Regular");
+        CreateFontFile("IosevkaSlab", "IosevkaSlab-Regular.ttf", "Iosevka Slab", "Regular", "Iosevka Slab Regular");
 
         var fonts = _service.LoadBundledFonts();
 
         Assert.Collection(fonts,
-            font =>
-            {
-                Assert.Equal("Iosevka Serif", font.DisplayName);
-                Assert.Equal("avares://QuickNotesTxt/Assets/Fonts/IosevkaSerif#Iosevka Serif", font.ResourceUri);
-            },
-            font =>
-            {
-                Assert.Equal("Iosevka Slab", font.DisplayName);
-                Assert.Equal("avares://QuickNotesTxt/Assets/Fonts/IosevkaSlab#Iosevka Slab", font.ResourceUri);
-            });
+            font => Assert.Equal("Iosevka Serif", font.DisplayName),
+            font => Assert.Equal("Iosevka Slab", font.DisplayName));
     }
 
     [Fact]
     public void LoadBundledFonts_IgnoresFoldersWithoutSupportedFontFiles()
     {
         Directory.CreateDirectory(Path.Combine(_fontsDir, "EmptyFont"));
-        CreateFontFolder("IosevkaSlab", "IosevkaSlab-Regular.ttf");
         File.WriteAllText(Path.Combine(_fontsDir, "EmptyFont", "readme.txt"), "not a font");
+        CreateFontFile("IosevkaSlab", "IosevkaSlab-Regular.ttf", "Iosevka Slab", "Regular", "Iosevka Slab Regular");
 
         var fonts = _service.LoadBundledFonts();
 
@@ -60,21 +59,37 @@ public sealed class FontCatalogServiceTests : IDisposable
     }
 
     [Fact]
-    public void LoadBundledFonts_UsesActualFontFamilyNameFromTtfFile()
+    public void LoadBundledFonts_UsesEmbeddedFamilyMetadata()
     {
-        // Create a folder named "IosevkaSerif" but with a font file whose
-        // embedded family name is "Iosevka" — the service should use the
-        // real embedded name, not the folder name.
-        var folderPath = Path.Combine(_fontsDir, "IosevkaSerif");
-        Directory.CreateDirectory(folderPath);
-        var fontFile = Path.Combine(folderPath, "Iosevka-Regular.ttf");
-        File.WriteAllBytes(fontFile, BuildMinimalTtfWithFamilyName("Iosevka"));
+        CreateFontFile("IosevkaSerif", "Custom-Regular.ttf", "Ignored Folder Name", "Regular", "Ignored Folder Name Regular", typographicFamilyName: "Iosevka");
 
         var fonts = _service.LoadBundledFonts();
 
         var font = Assert.Single(fonts);
         Assert.Equal("Iosevka", font.DisplayName);
-        Assert.Equal("avares://QuickNotesTxt/Assets/Fonts/IosevkaSerif#Iosevka", font.ResourceUri);
+    }
+
+    [Fact]
+    public void LoadBundledFonts_FiltersAdvancedVariantsAndSortsStandardVariants()
+    {
+        CreateFontFile("MonaspaceKrypton", "MonaspaceKrypton-ExtraBold.otf", "Monaspace Krypton", "ExtraBold", "Monaspace Krypton ExtraBold");
+        CreateFontFile("MonaspaceKrypton", "MonaspaceKrypton-Regular.otf", "Monaspace Krypton", "Regular", "Monaspace Krypton Regular");
+        CreateFontFile("MonaspaceKrypton", "MonaspaceKrypton-Italic.otf", "Monaspace Krypton", "Italic", "Monaspace Krypton Italic");
+        CreateFontFile("MonaspaceKrypton", "MonaspaceKrypton-WideRegular.otf", "Monaspace Krypton", "Regular", "Monaspace Krypton Wide Regular", typographicSubfamilyName: "Wide Regular");
+        CreateFontFile("MonaspaceKrypton", "MonaspaceKrypton-SemiWideBold.otf", "Monaspace Krypton", "Bold", "Monaspace Krypton SemiWide Bold", typographicSubfamilyName: "SemiWide Bold");
+
+        var fonts = _service.LoadBundledFonts();
+
+        var family = Assert.Single(fonts);
+        Assert.Equal("Monaspace Krypton", family.DisplayName);
+        Assert.Equal(new[] { "Regular", "Italic", "ExtraBold" }, family.StandardVariants.Select(variant => variant.DisplayName).ToArray());
+        Assert.All(family.StandardVariants, variant => Assert.DoesNotContain("Wide", variant.DisplayName, StringComparison.Ordinal));
+        Assert.Equal(FontWeight.Normal, family.StandardVariants[0].FontWeight);
+        Assert.Equal(FontStyle.Normal, family.StandardVariants[0].FontStyle);
+        Assert.Equal(FontWeight.Normal, family.StandardVariants[1].FontWeight);
+        Assert.Equal(FontStyle.Italic, family.StandardVariants[1].FontStyle);
+        Assert.Equal(FontWeight.ExtraBold, family.StandardVariants[2].FontWeight);
+        Assert.Equal(FontStyle.Normal, family.StandardVariants[2].FontStyle);
     }
 
     [Fact]
@@ -94,70 +109,93 @@ public sealed class FontCatalogServiceTests : IDisposable
     {
         Directory.CreateDirectory(_tempRoot);
         var filePath = Path.Combine(_tempRoot, "test.ttf");
-        File.WriteAllBytes(filePath, BuildMinimalTtfWithFamilyName("Test Family"));
+        File.WriteAllBytes(filePath, BuildMinimalTtf("Test Family", "Regular", "Test Family Regular"));
 
         var result = FontCatalogService.TryReadFontFamilyNameFromFile(filePath);
 
         Assert.Equal("Test Family", result);
     }
 
-    private void CreateFontFolder(string folderName, string fileName)
+    private void CreateFontFile(
+        string folderName,
+        string fileName,
+        string familyName,
+        string subfamilyName,
+        string fullName,
+        string? typographicFamilyName = null,
+        string? typographicSubfamilyName = null)
     {
         var folderPath = Path.Combine(_fontsDir, folderName);
         Directory.CreateDirectory(folderPath);
-        File.WriteAllText(Path.Combine(folderPath, fileName), "font");
+        var filePath = Path.Combine(folderPath, fileName);
+        File.WriteAllBytes(filePath, BuildMinimalTtf(familyName, subfamilyName, fullName, typographicFamilyName, typographicSubfamilyName));
     }
 
-    /// <summary>
-    /// Builds a minimal TrueType file with a single 'name' table containing
-    /// only a Font Family (Name ID 1) record using Windows/Unicode BMP encoding.
-    /// </summary>
-    private static byte[] BuildMinimalTtfWithFamilyName(string familyName)
+    private static byte[] BuildMinimalTtf(
+        string familyName,
+        string subfamilyName,
+        string fullName,
+        string? typographicFamilyName = null,
+        string? typographicSubfamilyName = null)
     {
-        var nameBytes = System.Text.Encoding.BigEndianUnicode.GetBytes(familyName);
+        var records = new List<(ushort NameId, byte[] Value)>
+        {
+            ((ushort)1, Encoding.BigEndianUnicode.GetBytes(familyName)),
+            ((ushort)2, Encoding.BigEndianUnicode.GetBytes(subfamilyName)),
+            ((ushort)4, Encoding.BigEndianUnicode.GetBytes(fullName))
+        };
+
+        if (!string.IsNullOrWhiteSpace(typographicFamilyName))
+        {
+            records.Add(((ushort)16, Encoding.BigEndianUnicode.GetBytes(typographicFamilyName)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(typographicSubfamilyName))
+        {
+            records.Add(((ushort)17, Encoding.BigEndianUnicode.GetBytes(typographicSubfamilyName)));
+        }
 
         using var ms = new MemoryStream();
         using var bw = new BinaryWriter(ms);
 
-        // ── Offset Table ──────────────────
-        bw.Write(BeToBe((uint)0x00010000)); // sfVersion
-        bw.Write(BeToBe((ushort)1));        // numTables = 1
-        bw.Write(BeToBe((ushort)16));       // searchRange
-        bw.Write(BeToBe((ushort)0));        // entrySelector
-        bw.Write(BeToBe((ushort)16));       // rangeShift
+        bw.Write(BeToBe((uint)0x00010000));
+        bw.Write(BeToBe((ushort)1));
+        bw.Write(BeToBe((ushort)16));
+        bw.Write(BeToBe((ushort)0));
+        bw.Write(BeToBe((ushort)16));
 
-        // ── Table Record for 'name' ──────
         uint nameTag = 0x6E616D65;
-        bw.Write(BeToBe(nameTag));          // tag
-        bw.Write(BeToBe((uint)0));          // checkSum (not validated)
+        bw.Write(BeToBe(nameTag));
+        bw.Write(BeToBe((uint)0));
         uint tableOffsetPos = (uint)ms.Position;
-        bw.Write(BeToBe((uint)0));          // offset (placeholder)
-        bw.Write(BeToBe((uint)0));          // length (placeholder)
+        bw.Write(BeToBe((uint)0));
+        bw.Write(BeToBe((uint)0));
 
-        // ── 'name' table ─────────────────
         uint nameTableStart = (uint)ms.Position;
-
-        // Name table header
-        bw.Write(BeToBe((ushort)0));        // format
-        bw.Write(BeToBe((ushort)1));        // count = 1 record
-        ushort stringOffsetInTable = 6 + 12; // header(6) + 1 record(12)
+        bw.Write(BeToBe((ushort)0));
+        bw.Write(BeToBe((ushort)records.Count));
+        ushort stringOffsetInTable = (ushort)(6 + (records.Count * 12));
         bw.Write(BeToBe(stringOffsetInTable));
 
-        // Name record: platformID=3 (Windows), encodingID=1 (Unicode BMP),
-        // languageID=0x0409 (en-US), nameID=1 (Font Family)
-        bw.Write(BeToBe((ushort)3));        // platformID
-        bw.Write(BeToBe((ushort)1));        // encodingID
-        bw.Write(BeToBe((ushort)0x0409));   // languageID
-        bw.Write(BeToBe((ushort)1));        // nameID
-        bw.Write(BeToBe((ushort)nameBytes.Length));
-        bw.Write(BeToBe((ushort)0));        // offset into string storage
+        ushort stringStorageOffset = 0;
+        foreach (var (nameId, value) in records)
+        {
+            bw.Write(BeToBe((ushort)3));
+            bw.Write(BeToBe((ushort)1));
+            bw.Write(BeToBe((ushort)0x0409));
+            bw.Write(BeToBe(nameId));
+            bw.Write(BeToBe((ushort)value.Length));
+            bw.Write(BeToBe(stringStorageOffset));
+            stringStorageOffset += (ushort)value.Length;
+        }
 
-        // String storage
-        bw.Write(nameBytes);
+        foreach (var (_, value) in records)
+        {
+            bw.Write(value);
+        }
 
         uint nameTableEnd = (uint)ms.Position;
 
-        // Patch table record offset & length
         ms.Seek(tableOffsetPos, SeekOrigin.Begin);
         bw.Write(BeToBe(nameTableStart));
         bw.Write(BeToBe(nameTableEnd - nameTableStart));

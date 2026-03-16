@@ -1,0 +1,156 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="QuickNotesTxt.Views.SettingsWindow"
+        Title="Settings"
+        Width="680"
+        Height="760"
+        MinWidth="620"
+        MinHeight="600"
+        CanResize="False"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Border Grid.Row="0"
+            Classes="titleBarSurface"
+            BorderThickness="0,0,0,1"
+            PointerPressed="OnTitleBarPointerPressed">
+      <Grid ColumnDefinitions="*,Auto">
+        <Border Grid.Column="0"
+                Background="Transparent"
+                Padding="12,6">
+          <TextBlock Classes="titleBarText" Text="Settings" VerticalAlignment="Center" />
+        </Border>
+        <Button Grid.Column="1"
+                Classes="titleBarButton titleBarCloseButton"
+                Click="OnCancelClick"
+                Content="X"
+                Width="42"
+                Height="30" />
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="1"
+                  Margin="16,16,16,0"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+      <StackPanel Spacing="14">
+        <Border Classes="sectionSurface" Padding="18,16" BorderThickness="1">
+          <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="14">
+            <StackPanel Grid.ColumnSpan="2" Spacing="4">
+              <TextBlock Classes="titleBarText" Text="Appearance" />
+              <TextBlock Classes="metaText"
+                         Text="Theme, font, and size changes are applied when you save this window."
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Spacing="6">
+              <TextBlock Text="Theme" />
+              <ComboBox x:Name="ThemeComboBox"
+                        SelectionChanged="OnAppearanceSelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+              <TextBlock Text="Font family" />
+              <ComboBox x:Name="FontFamilyComboBox"
+                        SelectionChanged="OnFontFamilySelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Spacing="6">
+              <TextBlock Text="Font variant" />
+              <ComboBox x:Name="FontVariantComboBox"
+                        SelectionChanged="OnAppearanceSelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
+              <TextBlock Text="Editor font size" />
+              <ComboBox x:Name="EditorFontSizeComboBox"
+                        SelectionChanged="OnAppearanceSelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="3" Spacing="6">
+              <TextBlock Text="UI font size" />
+              <ComboBox x:Name="UiFontSizeComboBox"
+                        SelectionChanged="OnAppearanceSelectionChanged" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Classes="sectionSurface" Padding="18,16" BorderThickness="1">
+          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="14">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="titleBarText" Text="AI" />
+              <TextBlock Classes="metaText"
+                         Text="Configure optional OpenAI-powered editor actions and custom prompt loading."
+                         TextWrapping="Wrap" />
+            </StackPanel>
+
+            <CheckBox x:Name="AiEnabledCheckBox"
+                       Grid.Row="1"
+                       Content="Enable AI actions"
+                       IsChecked="True" />
+
+            <StackPanel Grid.Row="2" Spacing="6">
+              <TextBlock Text="OpenAI API key" />
+              <TextBox x:Name="ApiKeyTextBox"
+                        PasswordChar="*"
+                        Watermark="sk-..." />
+            </StackPanel>
+
+            <StackPanel Grid.Row="3" Spacing="6">
+              <TextBlock Text="Default model" />
+              <TextBox x:Name="DefaultModelTextBox"
+                        Watermark="gpt-4.1-mini" />
+            </StackPanel>
+
+            <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="14">
+              <StackPanel Spacing="6">
+                <TextBlock Text="OpenAI Project ID (optional)" />
+                <TextBox x:Name="ProjectIdTextBox"
+                        Watermark="proj_..." />
+              </StackPanel>
+
+              <StackPanel Grid.Column="1" Spacing="6">
+              <TextBlock Text="OpenAI Organization ID (optional)" />
+              <TextBox x:Name="OrganizationIdTextBox"
+                        Watermark="org_..." />
+              </StackPanel>
+            </Grid>
+
+            <Border Grid.Row="5"
+                    Background="{DynamicResource PaneBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrushBase}"
+                    BorderThickness="1"
+                    CornerRadius="1"
+                    Padding="12,10">
+              <StackPanel Spacing="6">
+                <TextBlock Text="Custom prompts folder" />
+              <TextBlock x:Name="PromptsFolderTextBlock"
+                         Classes="metaText"
+                         TextWrapping="Wrap" />
+              <TextBlock Classes="metaText"
+                         Text="Built-in prompts load from Assets. Add prompt JSON files to the custom prompts folder inside your notes directory."
+                         TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2"
+            Margin="16"
+            Padding="0,14,0,4"
+            BorderBrush="{DynamicResource BorderBrushBase}"
+            BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal"
+                  HorizontalAlignment="Right"
+                  Spacing="8">
+        <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" />
+        <Button x:Name="SaveButton" Content="Save" Click="OnSaveClick" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

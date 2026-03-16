@@ -76,7 +76,7 @@
               ClipToBounds="True"
               Padding="12"
               BorderThickness="0,0,1,0">
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
           <Grid ColumnDefinitions="*,*" Margin="0,0,0,10">
             <Button Command="{Binding ChooseFolderCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Folder" />
             <Button Grid.Column="1" Margin="8,0,0,0" Command="{Binding NewNoteCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="New note" />
@@ -148,28 +148,7 @@
                      Text="{Binding FooterStatusText}"
                      TextWrapping="Wrap" />
 
-          <Grid Grid.Row="6" ColumnDefinitions="*,*" Margin="0,10,0,0">
-            <ComboBox Classes="footerSelector"
-                      MinHeight="30"
-                      MinWidth="0"
-                      HorizontalAlignment="Stretch"
-                      ItemsSource="{Binding ThemeNames}"
-                      ItemTemplate="{StaticResource CompactComboBoxItemTemplate}"
-                      SelectedItem="{Binding SelectedThemeName}"
-                      ToolTip.Tip="Theme" />
-            <ComboBox Grid.Column="1"
-                      Classes="footerSelector"
-                      Margin="8,0,0,0"
-                      MinHeight="30"
-                      MinWidth="0"
-                      HorizontalAlignment="Stretch"
-                      ItemsSource="{Binding FontNames}"
-                      ItemTemplate="{StaticResource CompactComboBoxItemTemplate}"
-                      SelectedItem="{Binding SelectedFontName}"
-                      ToolTip.Tip="Font" />
-          </Grid>
-
-          <Button Grid.Row="7"
+          <Button Grid.Row="6"
                   Margin="0,8,0,0"
                   IsVisible="{Binding HasActiveTagFilter}"
                   Command="{Binding ClearTagFilterCommand}"
@@ -198,8 +177,9 @@
               Margin="8,12,14,10"
               IsEnabled="{Binding HasSelectedFolder}">
           <Grid>
-            <TextBox Text="{Binding EditorTitle}" VerticalContentAlignment="Center" />
+            <TextBox Classes="editorFont" Text="{Binding EditorTitle}" VerticalContentAlignment="Center" />
             <TextBlock Margin="8,0"
+                       Classes="editorPlaceholderText"
                        IsHitTestVisible="False"
                        IsVisible="{Binding ShowTitleWatermark}"
                        VerticalAlignment="Center"
@@ -211,8 +191,9 @@
           </Grid>
           <Grid Grid.Column="1"
                 Margin="8,0,0,0">
-            <TextBox Text="{Binding EditorTags}" VerticalContentAlignment="Center" />
+            <TextBox Classes="editorFont" Text="{Binding EditorTags}" VerticalContentAlignment="Center" />
             <TextBlock Margin="8,0"
+                       Classes="editorPlaceholderText"
                        IsHitTestVisible="False"
                        IsVisible="{Binding ShowTagsWatermark}"
                        VerticalAlignment="Center"
@@ -239,6 +220,7 @@
                            VerticalScrollBarVisibility="Auto"
                            WordWrap="True" />
             <TextBlock Margin="12"
+                       Classes="editorPlaceholderText"
                        IsHitTestVisible="False"
                        IsVisible="{Binding ShowEditorWatermark}"
                        FontFamily="{DynamicResource TerminalFont}"

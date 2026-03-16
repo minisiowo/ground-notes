@@ -28,7 +28,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IAiTextActionService _aiTextActionService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
-    private IReadOnlyList<BundledFontOption> _allFonts = [new(FontCatalogService.DefaultFontKey, "Iosevka Slab", $"avares://QuickNotesTxt/Assets/Fonts/{FontCatalogService.DefaultFontKey}#Iosevka Slab")];
+    private IReadOnlyList<BundledFontFamilyOption> _allFonts =
+    [
+        new(
+            FontCatalogService.DefaultFontKey,
+            "Iosevka Slab",
+            $"avares://QuickNotesTxt/Assets/Fonts/{FontCatalogService.DefaultFontKey}#Iosevka Slab",
+            [new BundledFontVariantOption(FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultVariantKey, FontWeight.Normal, FontStyle.Normal)])
+    ];
     private CancellationTokenSource? _saveCts;
     private bool _isApplyingSelection;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
@@ -91,10 +98,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<string> _themeNames = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
 
     [ObservableProperty]
-    private string _selectedFontName = "Iosevka Slab";
+    private string _selectedFontFamilyName = "Iosevka Slab";
 
     [ObservableProperty]
-    private IReadOnlyList<string> _fontNames = ["Iosevka Slab"];
+    private IReadOnlyList<string> _fontFamilyNames = ["Iosevka Slab"];
+
+    [ObservableProperty]
+    private string _selectedFontVariantName = FontCatalogService.DefaultVariantKey;
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _fontVariantNames = [FontCatalogService.DefaultVariantKey];
 
     [ObservableProperty]
     private bool _isNotePickerOpen;
@@ -156,11 +169,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public event EventHandler? FocusEditorRequested;
 
+    public bool IsSettingsPreviewActive { get; private set; }
+
     public Func<Task<string?>>? PickFolderAsync { get; set; }
 
     public Func<string, Task<bool>>? ConfirmDeleteAsync { get; set; }
 
-    public Func<AiSettings, string, Task<AiSettings?>>? ShowAiSettingsAsync { get; set; }
+    public Func<SettingsDialogModel, Task<SettingsDialogModel?>>? ShowSettingsAsync { get; set; }
 
     public IReadOnlyList<SortOption> SortOptions { get; }
 
@@ -237,26 +252,106 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (theme is not null)
         {
             ThemeService.Apply(theme);
-            if (!_isApplyingSelection)
+            if (!_isApplyingSelection && !IsSettingsPreviewActive)
             {
                 _ = _settingsService.SetThemeNameAsync(value);
             }
         }
     }
 
-    partial void OnSelectedFontNameChanged(string value)
+    partial void OnSelectedFontFamilyNameChanged(string value)
     {
-        var font = _allFonts.FirstOrDefault(f => string.Equals(f.DisplayName, value, StringComparison.Ordinal));
-        if (font is null)
+        if (_isApplyingSelection)
         {
             return;
         }
 
-        ThemeService.ApplyTerminalFont(new FontFamily(font.ResourceUri));
-        if (!_isApplyingSelection)
+        var fontFamily = GetFontFamilyByDisplayName(value);
+        if (fontFamily is null)
         {
-            _ = _settingsService.SetFontNameAsync(font.Key);
+            return;
         }
+
+        var variant = ResolveFontVariant(fontFamily, SelectedFontVariantName)
+            ?? GetDefaultFontVariant(fontFamily);
+
+        ApplyFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+    }
+
+    partial void OnSelectedFontVariantNameChanged(string value)
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        var fontFamily = GetFontFamilyByDisplayName(SelectedFontFamilyName);
+        var variant = fontFamily is null ? null : ResolveFontVariant(fontFamily, value);
+        if (fontFamily is null || variant is null)
+        {
+            return;
+        }
+
+        ApplyFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+    }
+
+    private BundledFontFamilyOption? GetFontFamilyByDisplayName(string displayName)
+    {
+        return _allFonts.FirstOrDefault(font => string.Equals(font.DisplayName, displayName, StringComparison.Ordinal));
+    }
+
+    private static BundledFontVariantOption? ResolveFontVariant(BundledFontFamilyOption fontFamily, string variantDisplayName)
+    {
+        return fontFamily.StandardVariants.FirstOrDefault(variant => string.Equals(variant.DisplayName, variantDisplayName, StringComparison.Ordinal));
+    }
+
+    private static BundledFontVariantOption GetDefaultFontVariant(BundledFontFamilyOption fontFamily)
+    {
+        return ResolveFontVariant(fontFamily, FontCatalogService.DefaultVariantKey)
+            ?? ResolveFontVariant(fontFamily, "Medium")
+            ?? ResolveFontVariant(fontFamily, "Light")
+            ?? fontFamily.StandardVariants[0];
+    }
+
+    private void ApplyFontSelection(
+        BundledFontFamilyOption fontFamily,
+        BundledFontVariantOption variant,
+        bool persist,
+        bool updateFamilyName = true,
+        bool updateVariantName = true)
+    {
+        _isApplyingSelection = true;
+        try
+        {
+            FontVariantNames = fontFamily.StandardVariants.Select(v => v.DisplayName).ToList();
+
+            if (updateFamilyName)
+            {
+                SelectedFontFamilyName = fontFamily.DisplayName;
+            }
+
+            if (updateVariantName)
+            {
+                SelectedFontVariantName = variant.DisplayName;
+            }
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        ThemeService.ApplyTerminalFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+
+        if (persist)
+        {
+            _ = PersistFontSelectionAsync(fontFamily.Key, variant.Key);
+        }
+    }
+
+    private async Task PersistFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
+    {
+        await _settingsService.SetFontNameAsync(fontFamilyKey);
+        await _settingsService.SetFontVariantNameAsync(fontVariantKey);
     }
 
     partial void OnUiFontSizeChanged(double value)
@@ -625,23 +720,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private async Task OpenAiSettingsAsync()
+    private async Task OpenSettingsAsync()
     {
-        if (ShowAiSettingsAsync is null)
+        if (ShowSettingsAsync is null)
         {
-            StatusMessage = "AI settings are unavailable.";
+            StatusMessage = "Settings are unavailable.";
             return;
         }
 
-        var updated = await ShowAiSettingsAsync(BuildAiSettings(), CurrentAiPromptsDirectory);
+        var original = BuildSettingsDialogModel();
+        var updated = await ShowSettingsAsync(original);
         if (updated is null)
         {
+            ApplySettingsPreview(original);
+            IsSettingsPreviewActive = false;
             return;
         }
 
-        ApplyAiSettings(updated);
-        await _settingsService.SetAiSettingsAsync(BuildAiSettings());
-        StatusMessage = "AI settings saved.";
+        IsSettingsPreviewActive = false;
+        await ApplySettingsAsync(updated);
+        StatusMessage = "Settings saved.";
     }
 
     [RelayCommand]
@@ -771,7 +869,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
 
         _allFonts = _fontCatalogService.LoadBundledFonts();
-        FontNames = _allFonts.Select(f => f.DisplayName).ToList();
+        FontFamilyNames = _allFonts.Select(f => f.DisplayName).ToList();
 
         _allThemes = await _themeLoaderService.LoadAllThemesAsync();
         ThemeNames = _allThemes.Select(t => t.Name).ToList();
@@ -782,17 +880,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
             ?? _allFonts[0];
 
-        _isApplyingSelection = true;
-        try
-        {
-            SelectedFontName = initialFont.DisplayName;
-        }
-        finally
-        {
-            _isApplyingSelection = false;
-        }
+        var initialVariant = ResolveFontVariant(initialFont, settings.FontVariantName ?? string.Empty)
+            ?? GetDefaultFontVariant(initialFont);
 
-        ThemeService.ApplyTerminalFont(new FontFamily(initialFont.ResourceUri));
+        ApplyFontSelection(initialFont, initialVariant, persist: false);
 
         if (!string.IsNullOrWhiteSpace(settings.ThemeName))
         {
@@ -870,6 +961,90 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private static double ClampUiFontSize(double fontSize)
     {
         return Math.Clamp(fontSize, MinUiFontSize, MaxUiFontSize);
+    }
+
+    private SettingsDialogModel BuildSettingsDialogModel()
+    {
+        return new SettingsDialogModel(
+            ThemeNames,
+            _allFonts,
+            SelectedThemeName,
+            SelectedFontFamilyName,
+            SelectedFontVariantName,
+            EditorFontSize,
+            UiFontSize,
+            IsAiEnabled,
+            OpenAiApiKey,
+            SelectedAiModel,
+            OpenAiProjectId,
+            OpenAiOrganizationId,
+            CurrentAiPromptsDirectory);
+    }
+
+    private async Task ApplySettingsAsync(SettingsDialogModel model)
+    {
+        ApplyThemeSelection(model.SelectedThemeName, persist: true);
+
+        var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
+            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? _allFonts[0];
+        var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
+            ?? GetDefaultFontVariant(fontFamily);
+        ApplyFontSelection(fontFamily, variant, persist: false);
+        await PersistFontSelectionAsync(fontFamily.Key, variant.Key);
+
+        await SetEditorFontSizeAsync(model.EditorFontSize);
+        await SetUiFontSizeAsync(model.UiFontSize);
+
+        ApplyAiSettings(new AiSettings(
+            model.ApiKey,
+            model.DefaultModel,
+            model.IsAiEnabled,
+            model.ProjectId,
+            model.OrganizationId));
+        await _settingsService.SetAiSettingsAsync(BuildAiSettings());
+    }
+
+    public void ApplySettingsPreview(SettingsDialogModel model)
+    {
+        IsSettingsPreviewActive = true;
+        ApplyThemeSelection(model.SelectedThemeName, persist: false);
+
+        var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
+            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? _allFonts[0];
+        var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
+            ?? GetDefaultFontVariant(fontFamily);
+        ApplyFontSelection(fontFamily, variant, persist: false);
+
+        EditorFontSize = ClampEditorFontSize(model.EditorFontSize);
+        UiFontSize = ClampUiFontSize(model.UiFontSize);
+    }
+
+    private void ApplyThemeSelection(string themeName, bool persist)
+    {
+        var theme = _allThemes.FirstOrDefault(t => string.Equals(t.Name, themeName, StringComparison.Ordinal));
+        if (theme is null)
+        {
+            return;
+        }
+
+        _isApplyingSelection = true;
+        try
+        {
+            SelectedThemeName = theme.Name;
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        ThemeService.Apply(theme);
+
+        if (persist)
+        {
+            _ = _settingsService.SetThemeNameAsync(theme.Name);
+        }
     }
 
     private async Task RefreshFromDiskAsync()

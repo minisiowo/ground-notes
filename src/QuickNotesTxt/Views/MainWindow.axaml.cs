@@ -55,7 +55,7 @@ public partial class MainWindow : Window
             {
                 vm.PickFolderAsync = PickFolderAsync;
                 vm.ConfirmDeleteAsync = ConfirmDeleteAsync;
-                vm.ShowAiSettingsAsync = ShowAiSettingsAsync;
+                vm.ShowSettingsAsync = ShowSettingsAsync;
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.FocusEditorRequested += OnFocusEditorRequested;
                 SyncEditorText(vm.EditorBody);
@@ -402,10 +402,20 @@ public partial class MainWindow : Window
         return await dialog.ShowDialog<bool>(this);
     }
 
-    private async Task<AiSettings?> ShowAiSettingsAsync(AiSettings settings, string promptsDirectory)
+    private async Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model)
     {
-        var dialog = new AiSettingsWindow(settings, promptsDirectory);
-        return await dialog.ShowDialog<AiSettings?>(this);
+        var dialog = new SettingsWindow(model);
+        dialog.PreviewSettingsAsync = previewModel =>
+        {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.ApplySettingsPreview(previewModel);
+            }
+
+            return Task.CompletedTask;
+        };
+
+        return await dialog.ShowDialog<SettingsDialogModel?>(this);
     }
 
     private void RebuildEditorContextFlyout()
@@ -485,10 +495,9 @@ public partial class MainWindow : Window
 
         var settingsItem = new MenuItem
         {
-            Header = "AI Settings...",
-            IsEnabled = !vm.IsAiBusy
+            Header = "Settings..."
         };
-        settingsItem.Click += async (_, _) => await vm.OpenAiSettingsCommand.ExecuteAsync(null);
+        settingsItem.Click += async (_, _) => await vm.OpenSettingsCommand.ExecuteAsync(null);
         _editorContextFlyout.Items.Add(settingsItem);
     }
 
@@ -623,6 +632,13 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel vm)
         {
+            return;
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Meta) && e.Key is Key.OemPeriod or Key.Decimal)
+        {
+            e.Handled = true;
+            await vm.OpenSettingsCommand.ExecuteAsync(null);
             return;
         }
 

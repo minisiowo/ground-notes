@@ -1,91 +1,72 @@
 # AGENTS.md
-
 This file gives coding agents the repository-specific context needed to work safely and quickly in `quick-notes-txt`.
 
 ## Project Summary
-
 - Stack: .NET 10, Avalonia UI 11, xUnit, CommunityToolkit.Mvvm.
-- App type: desktop notes app that stores plain-text `.txt` files with frontmatter metadata in a user-selected folder.
-- Notable current features: debounced auto-save, auto-created drafts, tag filtering, inline rename/delete, keyboard note picker, runtime theme switching, bundled font selection, and persisted window layout.
-- Solution file: `QuickNotesTxt.sln`.
+- App type: desktop notes app for plain-text notes with frontmatter metadata.
+- Notes live in a user-selected folder and support `.md` and `.txt` inputs.
+- Current features include auto-created drafts, debounced auto-save, tag filtering, inline rename/delete, note picker, runtime themes, bundled fonts, AI text actions, and persisted window layout.
+- Solution: `QuickNotesTxt.sln`.
 - Test project: `tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj`.
 
 ## Repository Layout
-
 - `src/QuickNotesTxt/` - Avalonia application code.
-- `src/QuickNotesTxt/Models/` - note and UI data models.
-- `src/QuickNotesTxt/Services/` - filesystem, settings, and watcher services.
-- `src/QuickNotesTxt/ViewModels/` - MVVM view models.
-- `src/QuickNotesTxt/Views/` - Avalonia XAML views and code-behind.
-- `src/QuickNotesTxt/Styles/` - themes and shared styles.
-- `src/QuickNotesTxt/Converters/` - Avalonia value converters.
-- `src/QuickNotesTxt/Assets/` - bundled fonts and other app assets.
-- `artifacts/verify/` - local build output used for verification; treat as generated artifacts.
-- `global.json` - pinned .NET SDK version.
-- `mise.toml` - optional tool setup for `mise` users.
+- `src/QuickNotesTxt/Models/` - note, theme, font, and AI models.
+- `src/QuickNotesTxt/Services/` - repository, watcher, settings, theme, font, prompt, and OpenAI services.
+- `src/QuickNotesTxt/ViewModels/` - MVVM state and commands, mainly `MainViewModel`.
+- `src/QuickNotesTxt/Views/` - XAML views and code-behind.
+- `src/QuickNotesTxt/Assets/` - bundled fonts and AI prompt assets.
+- `tests/QuickNotesTxt.Tests/` - xUnit tests.
+- `artifacts/verify/` - generated verification output, not source.
 
 ## Cursor / Copilot Rules
-
 - No `.cursorrules` file was found.
 - No files were found under `.cursor/rules/`.
 - No `.github/copilot-instructions.md` file was found.
-- Do not assume hidden editor-specific rules exist elsewhere in the repo.
-- `CLAUDE.md` exists in the repository root; keep AGENTS and CLAUDE guidance aligned when repository behavior changes.
+- Do not assume hidden editor-specific rules exist elsewhere.
 
-## Required Tooling
-
-- Use .NET SDK `10.0.103` or a compatible newer SDK in the same allowed feature band.
-- `global.json` pins the expected SDK.
-- `mise.toml` also pins `dotnet = "10.0.103"`.
-- Nullable reference types are enabled repository-wide.
-- The repo sets `LangVersion` to `latest`.
-
-## Setup Commands
+## Tooling And Setup
+- Required SDK: .NET `10.0.103` or newer in the same feature band.
+- `global.json` pins the SDK and uses `rollForward: latestFeature`.
+- `Directory.Build.props` enables nullable reference types, implicit usings, and `LangVersion=latest`.
 
 ```bash
 mise install
 dotnet restore QuickNotesTxt.sln
 ```
 
-- `mise install` is optional; use it only if `mise` is available.
-- `dotnet restore QuickNotesTxt.sln` is the standard restore entry point.
-- If `dotnet` first-run setup fails in a sandboxed environment, rerun build/test commands outside the sandbox rather than changing repository files to work around it.
+- `mise install` is optional.
+- Prefer `dotnet restore QuickNotesTxt.sln` as the normal restore entry point.
 
 ## Build Commands
-
 ```bash
 dotnet build QuickNotesTxt.sln
 dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
 dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release
 ```
 
-- Prefer solution builds when validating broad changes.
-- Use project-only builds for focused app iteration.
-- If Avalonia XAML compilation fails with a locked `original.dll`, rerun the build after the conflicting process exits.
+- Use the solution build for broad validation.
+- If Avalonia XAML compilation fails because `original.dll` is locked, rerun after the conflicting process exits.
 
 ## Run Commands
-
 ```bash
 dotnet run --project src/QuickNotesTxt
 ```
 
 - Running the app requires a graphical desktop session.
-- First launch prompts the user to choose a notes folder.
 
 ## Test Commands
-
 ```bash
 dotnet test QuickNotesTxt.sln
 dotnet test QuickNotesTxt.sln --no-build
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build
 dotnet test QuickNotesTxt.sln --no-build --list-tests
 ```
 
-- Prefer `--no-build` after a successful build when iterating quickly.
-- Current suite is xUnit-based and covers repository behavior, theme loading/export, bundled font discovery/parsing, folder settings persistence, and note summary formatting.
+- Prefer `--no-build` after a successful build.
 
 ## Run A Single Test
-
 Use `--filter` with the fully qualified test name:
 
 ```bash
@@ -96,100 +77,86 @@ Useful variants:
 
 ```bash
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~NotesRepositoryTests"
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~ThemeLoaderServiceTests"
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "Name~SerializeAndParse"
 ```
 
 - Discover exact names with `dotnet test QuickNotesTxt.sln --no-build --list-tests`.
-- Keep single-test commands project-scoped unless there is a good reason to hit the whole solution.
+- Prefer project-scoped single-test runs unless solution-wide behavior matters.
 
-## Lint / Format Expectations
+## Lint / Formatting Expectations
+- No dedicated lint command is configured.
+- No repo `.editorconfig` file is present.
+- Do not invent a mandatory formatter or lint step in docs, CI notes, or commits.
+- Match existing formatting and keep diffs narrow.
 
-- No dedicated lint command is configured in the repository.
-- No `.editorconfig` file is present in the repository root.
-- Do not invent a required lint step in commits or automation docs.
-- When making edits, follow existing formatting conventions and keep diffs minimal.
+## Architecture Notes
+- This is a desktop MVVM app built around `MainViewModel`.
+- `NotesRepository` owns frontmatter parsing, serialization, file naming, searching, filtering, and picker scoring.
+- `FileWatcherService` monitors the notes folder for external changes.
+- `FolderSettingsService` persists folder, theme, font, AI settings, and window layout.
+- `OpenAiTextActionService` and `AiPromptCatalogService` support prompt-driven AI text actions.
 
-## C# Code Style
-
+## C# Style
 - Use file-scoped namespaces.
 - Use 4-space indentation.
 - Keep one top-level type per file.
-- Prefer `sealed` for concrete classes unless inheritance is intended.
+- Prefer concise members and guard clauses over deeply nested control flow.
+- Use expression-bodied members only when they stay easy to scan.
+
+## Imports And Dependencies
+- Order `using` directives as `System.*`, then third-party namespaces, then `QuickNotesTxt.*`.
+- Do not add redundant `using` directives.
+- Add new packages only when the current lightweight stack cannot reasonably handle the requirement.
+
+## Types And Nullability
+- Treat nullable annotations as part of the API contract.
+- Prefer explicit null handling over the null-forgiving operator.
+- Use `var` when the right-hand side makes the type obvious; otherwise spell the type out.
+- Use collection expressions and target-typed `new` when they improve readability and match local style.
+
+## Naming Conventions
 - Use `PascalCase` for types, methods, properties, enums, and enum members.
 - Use `_camelCase` for private fields.
 - Prefix interfaces with `I`.
-- Suffix asynchronous methods with `Async`.
-
-## Imports And Dependencies
-
-- Order `using` directives with `System.*` first, then third-party namespaces, then `QuickNotesTxt.*`.
-- Keep `using` blocks simple; do not add alias imports unless they clearly reduce confusion.
-- Add dependencies only when they are necessary and consistent with the app's lightweight scope.
-
-## Types And Nullability
-
-- Treat nullable annotations as meaningful design signals, not noise.
-- Prefer explicit null handling over the null-forgiving operator.
-- Use `var` when the right-hand side makes the type obvious; otherwise prefer explicit types.
-- Favor `IReadOnlyList<T>` in APIs that should not expose mutation.
-
-## Naming Conventions
-
-- Match established names such as `NotesRepository`, `FileWatcherService`, and `MainViewModel`.
 - Name methods by behavior, not implementation detail.
-- Keep boolean names positive and readable, for example `HasSelectedFolder` and `ShowEditorWatermark`.
+- Keep boolean members positive and readable, such as `HasSelectedFolder` or `IsAiBusy`.
 
 ## Error Handling And Control Flow
-
 - Prefer guard clauses and early returns.
-- Catch only expected exceptions.
-- Swallow exceptions only for known benign cases already justified by UI or cancellation behavior.
+- Catch only expected exceptions such as JSON, I/O, cancellation, HTTP, or modeled UI-state exceptions.
+- Swallow exceptions only for known benign cases with a clear cancellation or UI reason.
 - Use `StringComparison.Ordinal` or `StringComparison.OrdinalIgnoreCase` for string and path comparisons.
 - Keep filesystem behavior deterministic and explicit.
 
-## MVVM / Avalonia Guidance
-
+## Avalonia / MVVM Guidance
 - Keep business logic in services and view models, not in code-behind.
-- Keep Avalonia code-behind focused on windowing, custom chrome/resize behavior, input wiring, clipboard handling, and UI-specific event handling.
+- Keep code-behind focused on windowing, resize/chrome behavior, focus, clipboard, and editor-specific input wiring.
 - Follow the existing CommunityToolkit.Mvvm pattern: `[ObservableProperty]`, `[RelayCommand]`, partial hooks, and `ObservableObject` base types.
-- Preserve the current theme/resource architecture when editing UI styling.
-- `MainViewModel` owns debounced auto-save, watcher suppression, filtering/sorting, note picker state, inline rename/delete flows, and theme/font selection state; avoid moving that logic into views.
-- `ThemeService` and `ThemeKeys` define the active resource contract for runtime theming; prefer updating those centrally instead of scattering string resource keys.
-- `MainWindow` persists window layout and sidebar width through the settings service; keep that contract aligned if you change startup or chrome behavior.
-- Keep the terminal-style typography and compact desktop layout consistent with existing styles.
+- `MainViewModel` should remain the owner of save scheduling, watcher suppression, filtering, picker state, rename/delete flows, theme state, font state, and AI command state.
 
-## Theme Customization Guidance
-
-- Built-in themes live in `src/QuickNotesTxt/Styles/AppTheme.cs`.
-- Custom themes are loaded from JSON files by `ThemeLoaderService`.
-- Default custom theme directory is `%LocalAppData%/QuickNotesTxt/themes` on Windows or the platform-equivalent `LocalApplicationData` path.
-- Custom theme names must not collide with built-in theme names, case-insensitively.
-- Theme JSON should map cleanly to `AppTheme` and every color value must parse as a valid Avalonia color.
-- When changing theme schema or loading/export behavior, update tests in `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`.
+## Filesystem, Themes, Fonts, And AI
+- Keep note parse and serialize behavior aligned; notes use frontmatter plus body content.
+- `NotesRepository` prefers `.md` output and supports both `.md` and `.txt` inputs.
+- Keep title sanitization and unique file path behavior deterministic.
+- Custom themes are loaded by `ThemeLoaderService` from the platform local app data themes directory.
+- Bundled fonts are discovered by `FontCatalogService`; keep asset paths and resource URIs aligned.
+- Never log, commit, or hardcode user API keys, project IDs, or organization IDs.
 
 ## Testing Guidance
-
-- Add or update tests when changing repository parsing, serialization, filtering, picker ranking, rename behavior, deletion behavior, theme loading/export rules, bundled font discovery/parsing, or persisted settings/window layout behavior.
-- Prefer focused unit tests in `tests/QuickNotesTxt.Tests/NotesRepositoryTests.cs`, `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`, `tests/QuickNotesTxt.Tests/FontCatalogServiceTests.cs`, `tests/QuickNotesTxt.Tests/FolderSettingsServiceTests.cs`, and `tests/QuickNotesTxt.Tests/NoteSummaryTests.cs`.
-- Use temp directories for filesystem tests and clean them up in `Dispose()`.
+- Add or update tests when changing note parsing, serialization, search, filtering, picker ranking, rename/delete behavior, theme loading/export, font discovery, AI prompt loading, AI request/response handling, or settings persistence.
+- Relevant test files include `tests/QuickNotesTxt.Tests/NotesRepositoryTests.cs`, `tests/QuickNotesTxt.Tests/ThemeLoaderServiceTests.cs`, `tests/QuickNotesTxt.Tests/FontCatalogServiceTests.cs`, `tests/QuickNotesTxt.Tests/FolderSettingsServiceTests.cs`, `tests/QuickNotesTxt.Tests/AiPromptCatalogServiceTests.cs`, `tests/QuickNotesTxt.Tests/OpenAiTextActionServiceTests.cs`, and `tests/QuickNotesTxt.Tests/NoteSummaryTests.cs`.
+- Use temp directories in filesystem tests and clean them up in `Dispose()`.
 
 ## Change Checklist For Agents
-
 - Read the surrounding file before editing.
-- Keep changes scoped to the user's request.
+- Keep changes scoped to the user request.
 - Avoid unrelated renames or formatting churn.
-- Build the solution after non-trivial code changes.
-- Mention any commands you could not run or any environment-specific failures.
+- Run targeted tests when behavior changes in a covered area.
+- Mention any commands you could not run or environment-specific failures.
 
 ## Validation Baseline
-
-- `dotnet build QuickNotesTxt.sln` succeeds in this repository.
-- `dotnet test QuickNotesTxt.sln --no-build` passes.
-- `dotnet test ... --filter` works for single-test execution.
-- If test/build outputs are already available under `artifacts/verify/`, avoid treating them as source files during edits.
-
-## Notes For Future Agents
-
-- The repo currently has no dedicated AGENT-specific editor rules to merge in.
-- If future Cursor or Copilot rule files are added, update this document to include and reconcile them.
-- Keep this file repository-specific; avoid generic advice that is not grounded in the actual codebase.
+- `dotnet build QuickNotesTxt.sln` should succeed.
+- `dotnet test QuickNotesTxt.sln --no-build` should pass after a successful build.
+- `dotnet test ... --filter` should work for single-test execution.
+- Treat `artifacts/verify/` output as generated verification data, not editable source.

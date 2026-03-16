@@ -4,5 +4,5 @@ namespace QuickNotesTxt.Services;
 
 public interface IFontCatalogService
 {
-    IReadOnlyList<BundledFontOption> LoadBundledFonts();
+    IReadOnlyList<BundledFontFamilyOption> LoadBundledFonts();
 }

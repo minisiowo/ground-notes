@@ -22,6 +22,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settingsService = new FolderSettingsService();
+            var savedLayout = settingsService.GetWindowLayoutSync();
             var repository = new NotesRepository();
             var fileWatcher = new FileWatcherService();
             var themeLoader = new ThemeLoaderService();
@@ -43,7 +44,6 @@ public partial class App : Application
 
             // Apply saved layout synchronously before the window is shown,
             // so it appears at the correct position and size immediately.
-            var savedLayout = settingsService.GetWindowLayoutSync();
             if (savedLayout is not null)
             {
                 mainWindow.Position = new PixelPoint((int)savedLayout.X, (int)savedLayout.Y);

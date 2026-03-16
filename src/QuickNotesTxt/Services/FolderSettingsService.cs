@@ -11,6 +11,7 @@ public sealed class FolderSettingsService : ISettingsService
     };
 
     private readonly string _settingsFilePath;
+    private readonly SemaphoreSlim _settingsLock = new(1, 1);
 
     public FolderSettingsService()
         : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "QuickNotesTxt"))
@@ -25,33 +26,42 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task<AppSettings> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(_settingsFilePath))
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
         {
-            return new AppSettings(null, null, null, null, null, null, AiSettings.Default);
+            if (!File.Exists(_settingsFilePath))
+            {
+                return new AppSettings(null, null, null, null, null, null, null, AiSettings.Default);
+            }
+
+            await using var stream = File.OpenRead(_settingsFilePath);
+            var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
+
+            WindowLayout? layout = settings?.WindowWidth is not null && settings.WindowHeight is not null
+                ? new WindowLayout(settings.WindowWidth.Value, settings.WindowHeight.Value,
+                    settings.WindowX ?? 0, settings.WindowY ?? 0, settings.IsMaximized ?? false,
+                    settings.SidebarWidth, settings.SidebarCollapsed)
+                : null;
+
+            return new AppSettings(
+                settings?.NotesFolder,
+                settings?.EditorFontSize,
+                settings?.UiFontSize,
+                settings?.FontName,
+                settings?.FontVariantName,
+                settings?.ThemeName,
+                layout,
+                new AiSettings(
+                    settings?.OpenAiApiKey ?? string.Empty,
+                    settings?.OpenAiModel ?? AiSettings.Default.DefaultModel,
+                    settings?.AiEnabled ?? AiSettings.Default.IsEnabled,
+                    settings?.OpenAiProjectId ?? string.Empty,
+                    settings?.OpenAiOrganizationId ?? string.Empty));
         }
-
-        await using var stream = File.OpenRead(_settingsFilePath);
-        var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
-
-        WindowLayout? layout = settings?.WindowWidth is not null && settings.WindowHeight is not null
-            ? new WindowLayout(settings.WindowWidth.Value, settings.WindowHeight.Value,
-                settings.WindowX ?? 0, settings.WindowY ?? 0, settings.IsMaximized ?? false,
-                settings.SidebarWidth, settings.SidebarCollapsed)
-            : null;
-
-        return new AppSettings(
-            settings?.NotesFolder,
-            settings?.EditorFontSize,
-            settings?.UiFontSize,
-            settings?.FontName,
-            settings?.ThemeName,
-            layout,
-            new AiSettings(
-                settings?.OpenAiApiKey ?? string.Empty,
-                settings?.OpenAiModel ?? AiSettings.Default.DefaultModel,
-                settings?.AiEnabled ?? AiSettings.Default.IsEnabled,
-                settings?.OpenAiProjectId ?? string.Empty,
-                settings?.OpenAiOrganizationId ?? string.Empty));
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default)
@@ -62,15 +72,23 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
         {
-            OpenAiApiKey = settings.ApiKey,
-            OpenAiModel = settings.DefaultModel,
-            AiEnabled = settings.IsEnabled,
-            OpenAiProjectId = settings.ProjectId,
-            OpenAiOrganizationId = settings.OrganizationId
-        }, cancellationToken);
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with
+            {
+                OpenAiApiKey = settings.ApiKey,
+                OpenAiModel = settings.DefaultModel,
+                AiEnabled = settings.IsEnabled,
+                OpenAiProjectId = settings.ProjectId,
+                OpenAiOrganizationId = settings.OrganizationId
+            }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<string?> GetNotesFolderAsync(CancellationToken cancellationToken = default)
@@ -81,8 +99,16 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task SetNotesFolderAsync(string folderPath, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with { NotesFolder = folderPath }, cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { NotesFolder = folderPath }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<double?> GetEditorFontSizeAsync(CancellationToken cancellationToken = default)
@@ -93,8 +119,16 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task SetEditorFontSizeAsync(double fontSize, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with { EditorFontSize = fontSize }, cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { EditorFontSize = fontSize }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<double?> GetUiFontSizeAsync(CancellationToken cancellationToken = default)
@@ -105,8 +139,16 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task SetUiFontSizeAsync(double fontSize, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with { UiFontSize = fontSize }, cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { UiFontSize = fontSize }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<string?> GetFontNameAsync(CancellationToken cancellationToken = default)
@@ -117,8 +159,36 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task SetFontNameAsync(string fontName, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with { FontName = fontName }, cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { FontName = fontName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
+
+    public async Task<string?> GetFontVariantNameAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.FontVariantName;
+    }
+
+    public async Task SetFontVariantNameAsync(string fontVariantName, CancellationToken cancellationToken = default)
+    {
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { FontVariantName = fontVariantName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<string?> GetThemeNameAsync(CancellationToken cancellationToken = default)
@@ -129,8 +199,16 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task SetThemeNameAsync(string themeName, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with { ThemeName = themeName }, cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { ThemeName = themeName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task<WindowLayout?> GetWindowLayoutAsync(CancellationToken cancellationToken = default)
@@ -141,71 +219,95 @@ public sealed class FolderSettingsService : ISettingsService
 
     public WindowLayout? GetWindowLayoutSync()
     {
-        var record = LoadRecordSync();
-        if (record.WindowWidth is not null && record.WindowHeight is not null)
+        _settingsLock.Wait();
+        try
         {
-            return new WindowLayout(
-                record.WindowWidth.Value, record.WindowHeight.Value,
-                record.WindowX ?? 0, record.WindowY ?? 0,
-                record.IsMaximized ?? false,
-                record.SidebarWidth, record.SidebarCollapsed);
-        }
+            var record = LoadRecordSync();
+            if (record.WindowWidth is not null && record.WindowHeight is not null)
+            {
+                return new WindowLayout(
+                    record.WindowWidth.Value, record.WindowHeight.Value,
+                    record.WindowX ?? 0, record.WindowY ?? 0,
+                    record.IsMaximized ?? false,
+                    record.SidebarWidth, record.SidebarCollapsed);
+            }
 
-        return null;
+            return null;
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public async Task SetWindowLayoutAsync(WindowLayout layout, CancellationToken cancellationToken = default)
     {
-        var record = await LoadRecordAsync(cancellationToken);
-        await SaveAsync(record with
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
         {
-            WindowWidth = layout.Width,
-            WindowHeight = layout.Height,
-            WindowX = layout.X,
-            WindowY = layout.Y,
-            IsMaximized = layout.IsMaximized,
-            SidebarWidth = layout.SidebarWidth,
-            SidebarCollapsed = layout.SidebarCollapsed
-        }, cancellationToken);
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with
+            {
+                WindowWidth = layout.Width,
+                WindowHeight = layout.Height,
+                WindowX = layout.X,
+                WindowY = layout.Y,
+                IsMaximized = layout.IsMaximized,
+                SidebarWidth = layout.SidebarWidth,
+                SidebarCollapsed = layout.SidebarCollapsed
+            }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     public void SetWindowLayoutSync(WindowLayout layout)
     {
-        var record = LoadRecordSync();
-        SaveSync(record with
+        _settingsLock.Wait();
+        try
         {
-            WindowWidth = layout.Width,
-            WindowHeight = layout.Height,
-            WindowX = layout.X,
-            WindowY = layout.Y,
-            IsMaximized = layout.IsMaximized,
-            SidebarWidth = layout.SidebarWidth,
-            SidebarCollapsed = layout.SidebarCollapsed
-        });
+            var record = LoadRecordSync();
+            SaveSync(record with
+            {
+                WindowWidth = layout.Width,
+                WindowHeight = layout.Height,
+                WindowX = layout.X,
+                WindowY = layout.Y,
+                IsMaximized = layout.IsMaximized,
+                SidebarWidth = layout.SidebarWidth,
+                SidebarCollapsed = layout.SidebarCollapsed
+            });
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
     }
 
     private async Task<SettingsRecord> LoadRecordAsync(CancellationToken cancellationToken)
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
         return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private SettingsRecord LoadRecordSync()
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         var json = File.ReadAllText(_settingsFilePath);
         return JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
@@ -225,6 +327,7 @@ public sealed class FolderSettingsService : ISettingsService
         double? EditorFontSize,
         double? UiFontSize,
         string? FontName,
+        string? FontVariantName,
         string? ThemeName,
         double? WindowWidth,
         double? WindowHeight,

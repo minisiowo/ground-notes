@@ -37,6 +37,8 @@ public static class ThemeKeys
 
     // ── Font size resources ────────────────────────────────────
     public const string TerminalFont = "TerminalFont";
+    public const string TerminalFontWeight = "TerminalFontWeight";
+    public const string TerminalFontStyle = "TerminalFontStyle";
     public const string CodeFont = "CodeFont";
     public const string AppFontSize = "AppFontSize";
     public const string AppFontSizeSmall = "AppFontSizeSmall";
