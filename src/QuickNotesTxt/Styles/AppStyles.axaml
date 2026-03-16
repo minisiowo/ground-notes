@@ -352,43 +352,43 @@
 
   <!-- ══ ContextMenu / MenuItem ══════════════════════════════ -->
   <Style Selector="ContextMenu">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="ContextMenu /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="ContextMenu /template/ ScrollViewer">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter /template/ ScrollViewer">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter /template/ ItemsPresenter">
@@ -416,50 +416,50 @@
   </Style>
 
   <Style Selector="MenuItem /template/ Popup Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Popup Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
   </Style>
 
   <Style Selector="MenuItem:pointerover /template/ Popup Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
   </Style>
 
   <Style Selector="MenuItem /template/ Popup /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Popup /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
   </Style>
 
   <Style Selector="MenuItem:pointerover /template/ Popup /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
   </Style>
 
   <Style Selector="MenuItem /template/ Popup ScrollViewer">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />
   </Style>
 
   <Style Selector="MenuItem /template/ Popup /template/ ScrollViewer">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="Padding" Value="0" />

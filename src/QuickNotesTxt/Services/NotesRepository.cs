@@ -112,27 +112,27 @@ public sealed class NotesRepository : INotesRepository
     {
         var query = notes;
 
-        if (!string.IsNullOrWhiteSpace(searchText))
-        {
-            query = query.Where(note =>
-                note.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                note.SearchText.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                note.Tags.Any(tag => tag.Contains(searchText, StringComparison.OrdinalIgnoreCase)));
-        }
-
         if (!string.IsNullOrWhiteSpace(selectedTag))
         {
             query = query.Where(note => note.Tags.Contains(selectedTag, StringComparer.OrdinalIgnoreCase));
         }
 
-        query = sortOption switch
+        if (!string.IsNullOrWhiteSpace(searchText))
         {
-            SortOption.Title => query.OrderBy(note => note.Title, StringComparer.OrdinalIgnoreCase),
-            SortOption.CreatedAt => query.OrderByDescending(note => note.CreatedAt),
-            _ => query.OrderByDescending(note => note.UpdatedAt)
-        };
+            var queryTokens = searchText.Trim()
+                .Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
 
-        return query.ToList();
+            var scoredNotes = query
+                .Select(note => new ScoredNote(note, ScorePickerMatch(note, queryTokens)))
+                .Where(result => result.Score is not null)
+                .OrderByDescending(result => result.Score);
+
+            return ApplySidebarSort(scoredNotes, sortOption)
+                .Select(result => result.Note)
+                .ToList();
+        }
+
+        return OrderBySidebarSort(query, sortOption).ToList();
     }
 
     public IReadOnlyList<NoteSummary> QueryNotesForPicker(IEnumerable<NoteSummary> notes, string searchText, int maxResults)
@@ -423,6 +423,40 @@ public sealed class NotesRepository : INotesRepository
 
         return score;
     }
+
+    private static IOrderedEnumerable<NoteSummary> OrderBySidebarSort(IEnumerable<NoteSummary> notes, SortOption sortOption)
+    {
+        return sortOption switch
+        {
+            SortOption.Title => notes
+                .OrderBy(note => GetPickerCandidate(note), StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(note => note.UpdatedAt),
+            SortOption.CreatedAt => notes
+                .OrderByDescending(note => note.CreatedAt)
+                .ThenBy(note => GetPickerCandidate(note), StringComparer.OrdinalIgnoreCase),
+            _ => notes
+                .OrderByDescending(note => note.UpdatedAt)
+                .ThenBy(note => GetPickerCandidate(note), StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private static IOrderedEnumerable<ScoredNote> ApplySidebarSort(IOrderedEnumerable<ScoredNote> query, SortOption sortOption)
+    {
+        return sortOption switch
+        {
+            SortOption.Title => query
+                .ThenBy(result => GetPickerCandidate(result.Note), StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(result => result.Note.UpdatedAt),
+            SortOption.CreatedAt => query
+                .ThenByDescending(result => result.Note.CreatedAt)
+                .ThenBy(result => GetPickerCandidate(result.Note), StringComparer.OrdinalIgnoreCase),
+            _ => query
+                .ThenByDescending(result => result.Note.UpdatedAt)
+                .ThenBy(result => GetPickerCandidate(result.Note), StringComparer.OrdinalIgnoreCase)
+        };
+    }
+
+    private sealed record ScoredNote(NoteSummary Note, int? Score);
 
     private static string GetPickerCandidate(NoteSummary note)
     {

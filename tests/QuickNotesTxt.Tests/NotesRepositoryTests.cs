@@ -90,34 +90,132 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
-    public void QueryNotes_FiltersBySearchAndTagAndSorts()
+    public void QueryNotes_UsesPickerStyleMatchingWithTagFilter()
     {
         var notes = new[]
         {
             new NoteSummary
             {
-                Title = "Zulu",
-                Preview = "plain",
-                SearchText = "Zulu plain misc",
-                Tags = ["misc"],
+                FilePath = Path.Combine(_tempRoot, "deploy-checklist.txt"),
+                Title = "deploy-checklist",
+                Tags = ["prod"],
                 CreatedAt = new DateTime(2026, 3, 1),
                 UpdatedAt = new DateTime(2026, 3, 4)
             },
             new NoteSummary
             {
-                Title = "Alpha",
-                Preview = "contains project details",
-                SearchText = "Alpha contains project details work",
-                Tags = ["work"],
+                FilePath = Path.Combine(_tempRoot, "incident-log.txt"),
+                Title = "incident-log",
+                Tags = ["prod", "deploy"],
                 CreatedAt = new DateTime(2026, 3, 3),
                 UpdatedAt = new DateTime(2026, 3, 5)
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "project", "work", SortOption.Title);
+        var queried = _repository.QueryNotes(notes, "deploy prod", "prod", SortOption.Title);
 
-        var note = Assert.Single(queried);
-        Assert.Equal("Alpha", note.Title);
+        Assert.Equal(new[] { "deploy-checklist", "incident-log" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotes_UsesSidebarSortAsSearchTieBreak()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "deploy-zeta.txt"),
+                Title = "deploy-zeta",
+                CreatedAt = new DateTime(2026, 3, 1),
+                UpdatedAt = new DateTime(2026, 3, 2)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "deploy-beta.txt"),
+                Title = "deploy-beta",
+                CreatedAt = new DateTime(2026, 3, 3),
+                UpdatedAt = new DateTime(2026, 3, 4)
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, "deploy", null, SortOption.Title);
+
+        Assert.Equal(new[] { "deploy-beta", "deploy-zeta" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotes_UsesPickerStyleRankingForFuzzyMatches()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "roadmap.txt"),
+                Title = "roadmap",
+                UpdatedAt = new DateTime(2026, 3, 2)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "project-roadmap.txt"),
+                Title = "project-roadmap",
+                UpdatedAt = new DateTime(2026, 3, 6)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "weekly-roadmap-notes.txt"),
+                Title = "weekly-roadmap-notes",
+                UpdatedAt = new DateTime(2026, 3, 7)
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, "roadmap", null, SortOption.LastModified);
+
+        Assert.Equal(new[] { "roadmap", "weekly-roadmap-notes", "project-roadmap" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotes_EmptySearchStillUsesSelectedSort()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "zulu.txt"),
+                Title = "Zulu",
+                CreatedAt = new DateTime(2026, 3, 1),
+                UpdatedAt = new DateTime(2026, 3, 4)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
+                Title = "Alpha",
+                CreatedAt = new DateTime(2026, 3, 3),
+                UpdatedAt = new DateTime(2026, 3, 5)
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, string.Empty, null, SortOption.Title);
+
+        Assert.Equal(new[] { "Alpha", "Zulu" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotes_DoesNotReturnBodyOnlyMatches()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "meeting-notes.txt"),
+                Title = "meeting-notes",
+                SearchText = "meeting-notes contains roadmap details",
+                UpdatedAt = new DateTime(2026, 3, 5)
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, "roadmap", null, SortOption.LastModified);
+
+        Assert.Empty(queried);
     }
 
     [Fact]
