@@ -39,7 +39,12 @@ public static class ThemeKeys
     public const string TerminalFont = "TerminalFont";
     public const string TerminalFontWeight = "TerminalFontWeight";
     public const string TerminalFontStyle = "TerminalFontStyle";
+    public const string SidebarFont = "SidebarFont";
+    public const string SidebarFontWeight = "SidebarFontWeight";
+    public const string SidebarFontStyle = "SidebarFontStyle";
     public const string CodeFont = "CodeFont";
+    public const string CodeFontWeight = "CodeFontWeight";
+    public const string CodeFontStyle = "CodeFontStyle";
     public const string AppFontSize = "AppFontSize";
     public const string AppFontSizeSmall = "AppFontSizeSmall";
     public const string AppFontSizeLarge = "AppFontSizeLarge";

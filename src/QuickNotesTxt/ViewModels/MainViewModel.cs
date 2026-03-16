@@ -98,6 +98,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<string> _themeNames = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
 
     [ObservableProperty]
+    private string _selectedSidebarFontFamilyName = "Iosevka Slab";
+
+    [ObservableProperty]
+    private string _selectedSidebarFontVariantName = FontCatalogService.DefaultVariantKey;
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _sidebarFontVariantNames = [FontCatalogService.DefaultVariantKey];
+
+    [ObservableProperty]
     private string _selectedFontFamilyName = "Iosevka Slab";
 
     [ObservableProperty]
@@ -108,6 +117,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private IReadOnlyList<string> _fontVariantNames = [FontCatalogService.DefaultVariantKey];
+
+    [ObservableProperty]
+    private string _selectedCodeFontFamilyName = "JetBrains Mono";
+
+    [ObservableProperty]
+    private string _selectedCodeFontVariantName = FontCatalogService.DefaultVariantKey;
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _codeFontVariantNames = [FontCatalogService.DefaultVariantKey];
 
     [ObservableProperty]
     private bool _isNotePickerOpen;
@@ -259,6 +277,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    partial void OnSelectedSidebarFontFamilyNameChanged(string value)
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        var fontFamily = GetFontFamilyByDisplayName(value);
+        if (fontFamily is null)
+        {
+            return;
+        }
+
+        var variant = ResolveFontVariant(fontFamily, SelectedSidebarFontVariantName)
+            ?? GetDefaultFontVariant(fontFamily);
+        ApplySidebarFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+    }
+
+    partial void OnSelectedSidebarFontVariantNameChanged(string value)
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        var fontFamily = GetFontFamilyByDisplayName(SelectedSidebarFontFamilyName);
+        var variant = fontFamily is null ? null : ResolveFontVariant(fontFamily, value);
+        if (fontFamily is null || variant is null)
+        {
+            return;
+        }
+
+        ApplySidebarFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+    }
+
     partial void OnSelectedFontFamilyNameChanged(string value)
     {
         if (_isApplyingSelection)
@@ -293,6 +346,41 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         ApplyFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+    }
+
+    partial void OnSelectedCodeFontFamilyNameChanged(string value)
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        var fontFamily = GetFontFamilyByDisplayName(value);
+        if (fontFamily is null)
+        {
+            return;
+        }
+
+        var variant = ResolveFontVariant(fontFamily, SelectedCodeFontVariantName)
+            ?? GetDefaultFontVariant(fontFamily);
+        ApplyCodeFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+    }
+
+    partial void OnSelectedCodeFontVariantNameChanged(string value)
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        var fontFamily = GetFontFamilyByDisplayName(SelectedCodeFontFamilyName);
+        var variant = fontFamily is null ? null : ResolveFontVariant(fontFamily, value);
+        if (fontFamily is null || variant is null)
+        {
+            return;
+        }
+
+        ApplyCodeFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
     }
 
     private BundledFontFamilyOption? GetFontFamilyByDisplayName(string displayName)
@@ -352,6 +440,88 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         await _settingsService.SetFontNameAsync(fontFamilyKey);
         await _settingsService.SetFontVariantNameAsync(fontVariantKey);
+    }
+
+    private async Task PersistSidebarFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
+    {
+        await _settingsService.SetSidebarFontNameAsync(fontFamilyKey);
+        await _settingsService.SetSidebarFontVariantNameAsync(fontVariantKey);
+    }
+
+    private void ApplySidebarFontSelection(
+        BundledFontFamilyOption fontFamily,
+        BundledFontVariantOption variant,
+        bool persist,
+        bool updateFamilyName = true,
+        bool updateVariantName = true)
+    {
+        _isApplyingSelection = true;
+        try
+        {
+            SidebarFontVariantNames = fontFamily.StandardVariants.Select(v => v.DisplayName).ToList();
+
+            if (updateFamilyName)
+            {
+                SelectedSidebarFontFamilyName = fontFamily.DisplayName;
+            }
+
+            if (updateVariantName)
+            {
+                SelectedSidebarFontVariantName = variant.DisplayName;
+            }
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        ThemeService.ApplySidebarFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+
+        if (persist)
+        {
+            _ = PersistSidebarFontSelectionAsync(fontFamily.Key, variant.Key);
+        }
+    }
+
+    private async Task PersistCodeFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
+    {
+        await _settingsService.SetCodeFontNameAsync(fontFamilyKey);
+        await _settingsService.SetCodeFontVariantNameAsync(fontVariantKey);
+    }
+
+    private void ApplyCodeFontSelection(
+        BundledFontFamilyOption fontFamily,
+        BundledFontVariantOption variant,
+        bool persist,
+        bool updateFamilyName = true,
+        bool updateVariantName = true)
+    {
+        _isApplyingSelection = true;
+        try
+        {
+            CodeFontVariantNames = fontFamily.StandardVariants.Select(v => v.DisplayName).ToList();
+
+            if (updateFamilyName)
+            {
+                SelectedCodeFontFamilyName = fontFamily.DisplayName;
+            }
+
+            if (updateVariantName)
+            {
+                SelectedCodeFontVariantName = variant.DisplayName;
+            }
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        ThemeService.ApplyCodeFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+
+        if (persist)
+        {
+            _ = PersistCodeFontSelectionAsync(fontFamily.Key, variant.Key);
+        }
     }
 
     partial void OnUiFontSizeChanged(double value)
@@ -885,6 +1055,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         ApplyFontSelection(initialFont, initialVariant, persist: false);
 
+        var initialSidebarFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.SidebarFontName, StringComparison.Ordinal))
+            ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? initialFont;
+        var initialSidebarVariant = ResolveFontVariant(initialSidebarFont, settings.SidebarFontVariantName ?? string.Empty)
+            ?? GetDefaultFontVariant(initialSidebarFont);
+        ApplySidebarFontSelection(initialSidebarFont, initialSidebarVariant, persist: false);
+
+        var initialCodeFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.CodeFontName, StringComparison.Ordinal))
+            ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
+            ?? initialFont;
+        var initialCodeVariant = ResolveFontVariant(initialCodeFont, settings.CodeFontVariantName ?? string.Empty)
+            ?? GetDefaultFontVariant(initialCodeFont);
+        ApplyCodeFontSelection(initialCodeFont, initialCodeVariant, persist: false);
+
         if (!string.IsNullOrWhiteSpace(settings.ThemeName))
         {
             var theme = _allThemes.FirstOrDefault(t => t.Name == settings.ThemeName);
@@ -969,8 +1153,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ThemeNames,
             _allFonts,
             SelectedThemeName,
+            SelectedSidebarFontFamilyName,
+            SelectedSidebarFontVariantName,
             SelectedFontFamilyName,
             SelectedFontVariantName,
+            SelectedCodeFontFamilyName,
+            SelectedCodeFontVariantName,
             EditorFontSize,
             UiFontSize,
             IsAiEnabled,
@@ -985,6 +1173,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         ApplyThemeSelection(model.SelectedThemeName, persist: true);
 
+        var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
+            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? _allFonts[0];
+        var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
+            ?? GetDefaultFontVariant(sidebarFontFamily);
+        ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
+        await PersistSidebarFontSelectionAsync(sidebarFontFamily.Key, sidebarVariant.Key);
+
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
             ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
             ?? _allFonts[0];
@@ -992,6 +1188,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ?? GetDefaultFontVariant(fontFamily);
         ApplyFontSelection(fontFamily, variant, persist: false);
         await PersistFontSelectionAsync(fontFamily.Key, variant.Key);
+
+        var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
+            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
+            ?? fontFamily;
+        var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
+            ?? GetDefaultFontVariant(codeFontFamily);
+        ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
+        await PersistCodeFontSelectionAsync(codeFontFamily.Key, codeVariant.Key);
 
         await SetEditorFontSizeAsync(model.EditorFontSize);
         await SetUiFontSizeAsync(model.UiFontSize);
@@ -1010,12 +1214,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IsSettingsPreviewActive = true;
         ApplyThemeSelection(model.SelectedThemeName, persist: false);
 
+        var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
+            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? _allFonts[0];
+        var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
+            ?? GetDefaultFontVariant(sidebarFontFamily);
+        ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
+
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
             ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
             ?? _allFonts[0];
         var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
             ?? GetDefaultFontVariant(fontFamily);
         ApplyFontSelection(fontFamily, variant, persist: false);
+
+        var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
+            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
+            ?? fontFamily;
+        var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
+            ?? GetDefaultFontVariant(codeFontFamily);
+        ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
 
         EditorFontSize = ClampEditorFontSize(model.EditorFontSize);
         UiFontSize = ClampUiFontSize(model.UiFontSize);

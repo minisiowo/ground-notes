@@ -122,6 +122,8 @@ internal sealed partial class MarkdownColorizingTransformer : DocumentColorizing
                 line.Offset + match.Groups["code"].Index + match.Groups["code"].Length,
                 GetBrush(ThemeKeys.MarkdownInlineCodeForegroundBrush),
                 backgroundBrush: GetBrush(ThemeKeys.MarkdownInlineCodeBackgroundBrush),
+                fontWeight: GetCodeFontWeight(),
+                fontStyle: GetCodeFontStyle(),
                 fontFamily: GetCodeFont());
             ApplySpan(line.Offset + match.Groups["markerEnd"].Index, line.Offset + match.Groups["markerEnd"].Index + match.Groups["markerEnd"].Length, GetBrush(ThemeKeys.MutedTextBrush));
         }
@@ -141,6 +143,8 @@ internal sealed partial class MarkdownColorizingTransformer : DocumentColorizing
             line.Offset + line.Length,
             GetBrush(ThemeKeys.MarkdownCodeBlockForegroundBrush),
             backgroundBrush: GetBrush(ThemeKeys.MarkdownCodeBlockBackgroundBrush),
+            fontWeight: GetCodeFontWeight(),
+            fontStyle: GetCodeFontStyle(),
             fontFamily: GetCodeFont());
 
         if (fenceMatch.Success)
@@ -150,6 +154,8 @@ internal sealed partial class MarkdownColorizingTransformer : DocumentColorizing
                 line.Offset + fenceMatch.Groups["fence"].Index + fenceMatch.Groups["fence"].Length,
                 GetBrush(ThemeKeys.MutedTextBrush),
                 backgroundBrush: GetBrush(ThemeKeys.MarkdownCodeBlockBackgroundBrush),
+                fontWeight: GetCodeFontWeight(),
+                fontStyle: GetCodeFontStyle(),
                 fontFamily: GetCodeFont());
         }
 
@@ -237,6 +243,18 @@ internal sealed partial class MarkdownColorizingTransformer : DocumentColorizing
     {
         var app = Application.Current;
         return app?.Resources[ThemeKeys.CodeFont] as FontFamily;
+    }
+
+    private static FontWeight? GetCodeFontWeight()
+    {
+        var app = Application.Current;
+        return app?.Resources[ThemeKeys.CodeFontWeight] is FontWeight fontWeight ? fontWeight : null;
+    }
+
+    private static FontStyle? GetCodeFontStyle()
+    {
+        var app = Application.Current;
+        return app?.Resources[ThemeKeys.CodeFontStyle] is FontStyle fontStyle ? fontStyle : null;
     }
 
     [GeneratedRegex("^(?<indent>\\s*)(?<fence>(?:`{3,}|~{3,})).*$", RegexOptions.Compiled)]

@@ -31,7 +31,7 @@ public sealed class FolderSettingsService : ISettingsService
         {
             if (!File.Exists(_settingsFilePath))
             {
-                return new AppSettings(null, null, null, null, null, null, null, AiSettings.Default);
+                return new AppSettings(null, null, null, null, null, null, null, null, null, null, null, AiSettings.Default);
             }
 
             await using var stream = File.OpenRead(_settingsFilePath);
@@ -49,6 +49,10 @@ public sealed class FolderSettingsService : ISettingsService
                 settings?.UiFontSize,
                 settings?.FontName,
                 settings?.FontVariantName,
+                settings?.SidebarFontName,
+                settings?.SidebarFontVariantName,
+                settings?.CodeFontName,
+                settings?.CodeFontVariantName,
                 settings?.ThemeName,
                 layout,
                 new AiSettings(
@@ -191,6 +195,86 @@ public sealed class FolderSettingsService : ISettingsService
         }
     }
 
+    public async Task<string?> GetSidebarFontNameAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.SidebarFontName;
+    }
+
+    public async Task SetSidebarFontNameAsync(string sidebarFontName, CancellationToken cancellationToken = default)
+    {
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { SidebarFontName = sidebarFontName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
+
+    public async Task<string?> GetSidebarFontVariantNameAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.SidebarFontVariantName;
+    }
+
+    public async Task SetSidebarFontVariantNameAsync(string sidebarFontVariantName, CancellationToken cancellationToken = default)
+    {
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { SidebarFontVariantName = sidebarFontVariantName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
+
+    public async Task<string?> GetCodeFontNameAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.CodeFontName;
+    }
+
+    public async Task SetCodeFontNameAsync(string codeFontName, CancellationToken cancellationToken = default)
+    {
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { CodeFontName = codeFontName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
+
+    public async Task<string?> GetCodeFontVariantNameAsync(CancellationToken cancellationToken = default)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        return settings.CodeFontVariantName;
+    }
+
+    public async Task SetCodeFontVariantNameAsync(string codeFontVariantName, CancellationToken cancellationToken = default)
+    {
+        await _settingsLock.WaitAsync(cancellationToken);
+        try
+        {
+            var record = await LoadRecordAsync(cancellationToken);
+            await SaveAsync(record with { CodeFontVariantName = codeFontVariantName }, cancellationToken);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
+
     public async Task<string?> GetThemeNameAsync(CancellationToken cancellationToken = default)
     {
         var settings = await GetSettingsAsync(cancellationToken);
@@ -290,24 +374,24 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
         return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private SettingsRecord LoadRecordSync()
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
         }
 
         var json = File.ReadAllText(_settingsFilePath);
         return JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)
@@ -328,6 +412,10 @@ public sealed class FolderSettingsService : ISettingsService
         double? UiFontSize,
         string? FontName,
         string? FontVariantName,
+        string? SidebarFontName,
+        string? SidebarFontVariantName,
+        string? CodeFontName,
+        string? CodeFontVariantName,
         string? ThemeName,
         double? WindowWidth,
         double? WindowHeight,

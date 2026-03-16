@@ -12,8 +12,40 @@ namespace QuickNotesTxt.Styles;
 /// </summary>
 public static class ThemeService
 {
+    public static void ApplySidebarFont(FontFamily fontFamily)
+        => ApplySidebarFont(fontFamily, FontWeight.Normal, FontStyle.Normal);
+
+    public static void ApplySidebarFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        app.Resources[ThemeKeys.SidebarFont] = fontFamily;
+        app.Resources[ThemeKeys.SidebarFontWeight] = fontWeight;
+        app.Resources[ThemeKeys.SidebarFontStyle] = fontStyle;
+    }
+
     public static void ApplyTerminalFont(FontFamily fontFamily)
         => ApplyTerminalFont(fontFamily, FontWeight.Normal, FontStyle.Normal);
+
+    public static void ApplyCodeFont(FontFamily fontFamily)
+        => ApplyCodeFont(fontFamily, FontWeight.Normal, FontStyle.Normal);
+
+    public static void ApplyCodeFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        app.Resources[ThemeKeys.CodeFont] = fontFamily;
+        app.Resources[ThemeKeys.CodeFontWeight] = fontWeight;
+        app.Resources[ThemeKeys.CodeFontStyle] = fontStyle;
+    }
 
     public static void ApplyTerminalFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
     {

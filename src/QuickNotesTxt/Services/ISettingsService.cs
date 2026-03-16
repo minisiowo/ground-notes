@@ -30,6 +30,22 @@ public interface ISettingsService
 
     Task SetFontVariantNameAsync(string fontVariantName, CancellationToken cancellationToken = default);
 
+    Task<string?> GetSidebarFontNameAsync(CancellationToken cancellationToken = default);
+
+    Task SetSidebarFontNameAsync(string sidebarFontName, CancellationToken cancellationToken = default);
+
+    Task<string?> GetSidebarFontVariantNameAsync(CancellationToken cancellationToken = default);
+
+    Task SetSidebarFontVariantNameAsync(string sidebarFontVariantName, CancellationToken cancellationToken = default);
+
+    Task<string?> GetCodeFontNameAsync(CancellationToken cancellationToken = default);
+
+    Task SetCodeFontNameAsync(string codeFontName, CancellationToken cancellationToken = default);
+
+    Task<string?> GetCodeFontVariantNameAsync(CancellationToken cancellationToken = default);
+
+    Task SetCodeFontVariantNameAsync(string codeFontVariantName, CancellationToken cancellationToken = default);
+
     Task<string?> GetThemeNameAsync(CancellationToken cancellationToken = default);
 
     Task SetThemeNameAsync(string themeName, CancellationToken cancellationToken = default);
@@ -43,6 +59,18 @@ public interface ISettingsService
     void SetWindowLayoutSync(WindowLayout layout);
 }
 
-public sealed record AppSettings(string? NotesFolder, double? EditorFontSize, double? UiFontSize, string? FontName, string? FontVariantName, string? ThemeName, WindowLayout? WindowLayout, AiSettings AiSettings);
+public sealed record AppSettings(
+    string? NotesFolder,
+    double? EditorFontSize,
+    double? UiFontSize,
+    string? FontName,
+    string? FontVariantName,
+    string? SidebarFontName,
+    string? SidebarFontVariantName,
+    string? CodeFontName,
+    string? CodeFontVariantName,
+    string? ThemeName,
+    WindowLayout? WindowLayout,
+    AiSettings AiSettings);
 
 public sealed record WindowLayout(double Width, double Height, double X, double Y, bool IsMaximized, double? SidebarWidth = null, bool? SidebarCollapsed = null);

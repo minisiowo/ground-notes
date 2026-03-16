@@ -9,6 +9,7 @@ namespace QuickNotesTxt.Services;
 public sealed class FontCatalogService : IFontCatalogService
 {
     public const string DefaultFontKey = "IosevkaSlab";
+    public const string DefaultCodeFontKey = "JetBrainsMono";
     public const string DefaultVariantKey = "Regular";
 
     private const string AssetUriPrefix = "avares://QuickNotesTxt/Assets/Fonts";

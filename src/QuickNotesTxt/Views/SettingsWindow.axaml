@@ -38,44 +38,100 @@
                   VerticalScrollBarVisibility="Auto">
       <StackPanel Spacing="14">
         <Border Classes="sectionSurface" Padding="18,16" BorderThickness="1">
-          <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="14">
-            <StackPanel Grid.ColumnSpan="2" Spacing="4">
+          <StackPanel Spacing="14">
+            <StackPanel Spacing="4">
               <TextBlock Classes="titleBarText" Text="Appearance" />
               <TextBlock Classes="metaText"
                          Text="Theme, font, and size changes are applied when you save this window."
                          TextWrapping="Wrap" />
             </StackPanel>
 
-            <StackPanel Grid.Row="1" Spacing="6">
-              <TextBlock Text="Theme" />
-              <ComboBox x:Name="ThemeComboBox"
-                        SelectionChanged="OnAppearanceSelectionChanged" />
-            </StackPanel>
+            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
+              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*" ColumnSpacing="14" RowSpacing="12">
+                <TextBlock Grid.ColumnSpan="3"
+                           Classes="metaText"
+                           Text="General" />
 
-            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-              <TextBlock Text="Font family" />
-              <ComboBox x:Name="FontFamilyComboBox"
-                        SelectionChanged="OnFontFamilySelectionChanged" />
-            </StackPanel>
+                <StackPanel Grid.Row="1" Spacing="6">
+                  <TextBlock Text="Theme" />
+                  <ComboBox x:Name="ThemeComboBox"
+                            SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
 
-            <StackPanel Grid.Row="2" Spacing="6">
-              <TextBlock Text="Font variant" />
-              <ComboBox x:Name="FontVariantComboBox"
-                        SelectionChanged="OnAppearanceSelectionChanged" />
-            </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                  <TextBlock Text="UI font size" />
+                  <ComboBox x:Name="UiFontSizeComboBox"
+                            SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
 
-            <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
-              <TextBlock Text="Editor font size" />
-              <ComboBox x:Name="EditorFontSizeComboBox"
-                        SelectionChanged="OnAppearanceSelectionChanged" />
-            </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="2" Spacing="6">
+                  <TextBlock Text="Editor font size" />
+                  <ComboBox x:Name="EditorFontSizeComboBox"
+                            SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
+              </Grid>
+            </Border>
 
-            <StackPanel Grid.Row="3" Spacing="6">
-              <TextBlock Text="UI font size" />
-              <ComboBox x:Name="UiFontSizeComboBox"
-                        SelectionChanged="OnAppearanceSelectionChanged" />
-            </StackPanel>
-          </Grid>
+            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
+              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="12">
+                <TextBlock Grid.ColumnSpan="2"
+                           Classes="metaText"
+                           Text="Sidebar Text" />
+
+                <StackPanel Grid.Row="1" Spacing="6">
+                  <TextBlock Text="Sidebar font" />
+                  <ComboBox x:Name="SidebarFontFamilyComboBox"
+                            SelectionChanged="OnSidebarFontFamilySelectionChanged" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                  <TextBlock Text="Sidebar font variant" />
+                  <ComboBox x:Name="SidebarFontVariantComboBox"
+                            SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
+              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="12">
+                <TextBlock Grid.ColumnSpan="2"
+                           Classes="metaText"
+                           Text="Editor Text" />
+
+                <StackPanel Grid.Row="1" Spacing="6">
+                  <TextBlock Text="Editor font" />
+                  <ComboBox x:Name="FontFamilyComboBox"
+                            SelectionChanged="OnFontFamilySelectionChanged" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                  <TextBlock Text="Editor font variant" />
+                  <ComboBox x:Name="FontVariantComboBox"
+                            SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
+              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="12">
+                <TextBlock Grid.ColumnSpan="2"
+                           Classes="metaText"
+                           Text="Code Blocks" />
+
+                <StackPanel Grid.Row="1" Spacing="6">
+                  <TextBlock Text="Code font" />
+                  <ComboBox x:Name="CodeFontFamilyComboBox"
+                            SelectionChanged="OnCodeFontFamilySelectionChanged" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                  <TextBlock Text="Code font variant" />
+                  <ComboBox x:Name="CodeFontVariantComboBox"
+                            SelectionChanged="OnAppearanceSelectionChanged" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </StackPanel>
         </Border>
 
         <Border Classes="sectionSurface" Padding="18,16" BorderThickness="1">

@@ -25,8 +25,14 @@ public partial class SettingsWindow : Window
         ThemeComboBox.ItemsSource = model.ThemeNames;
         ThemeComboBox.SelectedItem = model.SelectedThemeName;
 
+        SidebarFontFamilyComboBox.ItemsSource = _fontFamilies.Select(font => font.DisplayName).ToList();
+        SidebarFontFamilyComboBox.SelectedItem = model.SelectedSidebarFontFamilyName;
+
         FontFamilyComboBox.ItemsSource = _fontFamilies.Select(font => font.DisplayName).ToList();
         FontFamilyComboBox.SelectedItem = model.SelectedFontFamilyName;
+
+        CodeFontFamilyComboBox.ItemsSource = _fontFamilies.Select(font => font.DisplayName).ToList();
+        CodeFontFamilyComboBox.SelectedItem = model.SelectedCodeFontFamilyName;
 
         EditorFontSizeComboBox.ItemsSource = Enumerable.Range(10, 15).Select(static size => size.ToString()).ToList();
         EditorFontSizeComboBox.SelectedItem = Math.Round(model.EditorFontSize).ToString("0");
@@ -43,8 +49,23 @@ public partial class SettingsWindow : Window
             ? "Choose a notes folder first."
             : model.PromptsDirectory;
 
-        PopulateVariants(model.SelectedFontFamilyName, model.SelectedFontVariantName);
+        PopulateVariants(SidebarFontVariantComboBox, model.SelectedSidebarFontFamilyName, model.SelectedSidebarFontVariantName);
+        PopulateVariants(FontVariantComboBox, model.SelectedFontFamilyName, model.SelectedFontVariantName);
+        PopulateVariants(CodeFontVariantComboBox, model.SelectedCodeFontFamilyName, model.SelectedCodeFontVariantName);
         _isInitializing = false;
+    }
+
+    private async void OnSidebarFontFamilySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selectedFamilyName = SidebarFontFamilyComboBox.SelectedItem as string;
+        if (string.IsNullOrWhiteSpace(selectedFamilyName))
+        {
+            return;
+        }
+
+        var selectedVariantName = SidebarFontVariantComboBox.SelectedItem as string;
+        PopulateVariants(SidebarFontVariantComboBox, selectedFamilyName, selectedVariantName);
+        await RequestPreviewAsync();
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -64,7 +85,20 @@ public partial class SettingsWindow : Window
         }
 
         var selectedVariantName = FontVariantComboBox.SelectedItem as string;
-        PopulateVariants(selectedFamilyName, selectedVariantName);
+        PopulateVariants(FontVariantComboBox, selectedFamilyName, selectedVariantName);
+        await RequestPreviewAsync();
+    }
+
+    private async void OnCodeFontFamilySelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        var selectedFamilyName = CodeFontFamilyComboBox.SelectedItem as string;
+        if (string.IsNullOrWhiteSpace(selectedFamilyName))
+        {
+            return;
+        }
+
+        var selectedVariantName = CodeFontVariantComboBox.SelectedItem as string;
+        PopulateVariants(CodeFontVariantComboBox, selectedFamilyName, selectedVariantName);
         await RequestPreviewAsync();
     }
 
@@ -73,13 +107,13 @@ public partial class SettingsWindow : Window
         await RequestPreviewAsync();
     }
 
-    private void PopulateVariants(string familyName, string? selectedVariantName)
+    private void PopulateVariants(ComboBox variantComboBox, string familyName, string? selectedVariantName)
     {
         var family = _fontFamilies.FirstOrDefault(font => string.Equals(font.DisplayName, familyName, StringComparison.Ordinal));
         var variants = family?.StandardVariants.Select(variant => variant.DisplayName).ToList() ?? [];
 
-        FontVariantComboBox.ItemsSource = variants;
-        FontVariantComboBox.SelectedItem = variants.Contains(selectedVariantName, StringComparer.Ordinal)
+        variantComboBox.ItemsSource = variants;
+        variantComboBox.SelectedItem = variants.Contains(selectedVariantName, StringComparer.Ordinal)
             ? selectedVariantName
             : variants.FirstOrDefault();
     }
@@ -99,8 +133,12 @@ public partial class SettingsWindow : Window
             ThemeComboBox.ItemsSource?.Cast<string>().ToList() ?? [],
             _fontFamilies,
             themeName,
+            SidebarFontFamilyComboBox.SelectedItem as string ?? string.Empty,
+            SidebarFontVariantComboBox.SelectedItem as string ?? string.Empty,
             fontFamilyName,
             fontVariantName,
+            CodeFontFamilyComboBox.SelectedItem as string ?? string.Empty,
+            CodeFontVariantComboBox.SelectedItem as string ?? string.Empty,
             ParseComboBoxDouble(EditorFontSizeComboBox, 12),
             ParseComboBoxDouble(UiFontSizeComboBox, 12),
             AiEnabledCheckBox.IsChecked ?? true,

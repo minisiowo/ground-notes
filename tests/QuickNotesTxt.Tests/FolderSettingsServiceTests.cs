@@ -34,6 +34,10 @@ public sealed class FolderSettingsServiceTests : IDisposable
 
         Assert.Null(settings.FontName);
         Assert.Null(settings.FontVariantName);
+        Assert.Null(settings.SidebarFontName);
+        Assert.Null(settings.SidebarFontVariantName);
+        Assert.Null(settings.CodeFontName);
+        Assert.Null(settings.CodeFontVariantName);
         Assert.Equal("Dark", settings.ThemeName);
     }
 
@@ -47,6 +51,30 @@ public sealed class FolderSettingsServiceTests : IDisposable
 
         Assert.Equal("IosevkaSerif", settings.FontName);
         Assert.Equal("Bold", settings.FontVariantName);
+    }
+
+    [Fact]
+    public async Task SetSidebarFontNameAsync_RoundTripsThroughSettingsFile()
+    {
+        await _service.SetSidebarFontNameAsync("MonaspaceXenon");
+        await _service.SetSidebarFontVariantNameAsync("Medium");
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal("MonaspaceXenon", settings.SidebarFontName);
+        Assert.Equal("Medium", settings.SidebarFontVariantName);
+    }
+
+    [Fact]
+    public async Task SetCodeFontNameAsync_RoundTripsThroughSettingsFile()
+    {
+        await _service.SetCodeFontNameAsync("JetBrainsMono");
+        await _service.SetCodeFontVariantNameAsync("SemiBold");
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal("JetBrainsMono", settings.CodeFontName);
+        Assert.Equal("SemiBold", settings.CodeFontVariantName);
     }
 
     [Fact]
