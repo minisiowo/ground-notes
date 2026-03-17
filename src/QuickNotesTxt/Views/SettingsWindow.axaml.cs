@@ -42,7 +42,7 @@ public partial class SettingsWindow : Window
         UiFontSizeComboBox.ItemsSource = Enumerable.Range(10, 11).Select(static size => size.ToString()).ToList();
         UiFontSizeComboBox.SelectedItem = Math.Round(model.UiFontSize).ToString("0");
 
-        AiEnabledCheckBox.IsChecked = model.IsAiEnabled;
+        AiEnabledToggle.IsChecked = model.IsAiEnabled;
         ApiKeyTextBox.Text = model.ApiKey;
         DefaultModelTextBox.Text = model.DefaultModel;
         ProjectIdTextBox.Text = model.ProjectId;
@@ -113,7 +113,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private async void OnAppearanceSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private async void OnAppearanceSelectionChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (_isUpdatingVariantSelection)
         {
@@ -169,7 +169,7 @@ public partial class SettingsWindow : Window
             CodeFontVariantComboBox.SelectedItem as string ?? string.Empty,
             ParseComboBoxDouble(EditorFontSizeComboBox, 12),
             ParseComboBoxDouble(UiFontSizeComboBox, 12),
-            AiEnabledCheckBox.IsChecked ?? true,
+            AiEnabledToggle.IsChecked ?? true,
             ApiKeyTextBox.Text?.Trim() ?? string.Empty,
             string.IsNullOrWhiteSpace(DefaultModelTextBox.Text) ? "gpt-4.1-mini" : DefaultModelTextBox.Text.Trim(),
             ProjectIdTextBox.Text?.Trim() ?? string.Empty,

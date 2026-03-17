@@ -41,6 +41,21 @@ public partial class MainWindow : Window
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
 
+        _markdownColorizer.RedrawRequested += (_, startLine) =>
+        {
+            var document = EditorTextEditor.Document;
+            if (document is null || startLine > document.LineCount)
+            {
+                return;
+            }
+
+            var startLineSegment = document.GetLineByNumber(startLine);
+            var lastLineSegment = document.GetLineByNumber(document.LineCount);
+            
+            // Redraw from the start of the changed line to the end of the document
+            EditorTextEditor.TextArea.TextView.Redraw(startLineSegment.Offset, lastLineSegment.EndOffset - startLineSegment.Offset);
+        };
+
         // Use Tunnel routing so corner resize takes priority over title-bar buttons.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
@@ -51,7 +66,6 @@ public partial class MainWindow : Window
         EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
         SlashCommandPopup.PlacementTarget = EditorBorder;
-        SlashCommandPopup.Placement = PlacementMode.AnchorAndGravity;
         EditorTextEditor.Options.ConvertTabsToSpaces = false;
         EditorTextEditor.Options.EnableRectangularSelection = false;
         EditorTextEditor.Options.WordWrapIndentation = 0;
@@ -290,12 +304,19 @@ public partial class MainWindow : Window
             if (vm.IsNotePickerOpen)
             {
                 FocusNotePickerSearchTextBox();
+                UpdateNotePickerHeight();
             }
             else
             {
                 FocusEditorAfterNotePickerClosed(vm);
             }
 
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.NotePickerResults))
+        {
+            UpdateNotePickerHeight();
             return;
         }
 
@@ -350,6 +371,36 @@ public partial class MainWindow : Window
         var left = collapsed ? 14.0 : 8.0;
         TitleTagsGrid.Margin = new Thickness(left, 12, 14, 10);
         EditorBorder.Margin = new Thickness(left, 0, 14, 14);
+    }
+
+    private void UpdateNotePickerHeight()
+    {
+        if (DataContext is not MainViewModel vm || !vm.IsNotePickerOpen)
+        {
+            return;
+        }
+
+        // Defer to let the ListBox items update first
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                // Measure the border with the current width and unlimited height
+                NotePickerBorder.InvalidateMeasure();
+                NotePickerBorder.UpdateLayout();
+                NotePickerBorder.Measure(new Size(NotePickerBorder.Bounds.Width, double.PositiveInfinity));
+
+                // Clamp to window height minus some margin to prevent cutting off
+                var maxAllowedHeight = Bounds.Height - 80;
+                var targetHeight = Math.Min(maxAllowedHeight, NotePickerBorder.DesiredSize.Height);
+
+                // Set the height to trigger the DoubleTransition
+                NotePickerBorder.Height = targetHeight;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }, Avalonia.Threading.DispatcherPriority.Render);
     }
 
     private void FocusNotePickerSearchTextBox()
@@ -1366,6 +1417,19 @@ public partial class MainWindow : Window
         }
 
         var wasVisible = SlashCommandPopup.IsOpen;
+        
+        // Skip updating if commands are exactly the same to reduce flicker
+        if (wasVisible && _activeSlashCommands.Count == commands.Count && 
+            _activeSlashCommands.Zip(commands, (a, b) => a.Id == b.Id).All(x => x))
+        {
+            _activeSlashTrigger = trigger;
+            SlashCommandHintText.Text = string.IsNullOrWhiteSpace(trigger.Value.Query)
+                ? "Formatting commands"
+                : $"/{trigger.Value.Query}";
+            ScheduleSlashCommandPopupPositionUpdate();
+            return;
+        }
+
         _activeSlashTrigger = trigger;
         _activeSlashCommands = commands;
         SlashCommandPopup.IsOpen = true;
@@ -1534,16 +1598,14 @@ public partial class MainWindow : Window
             const double edgePadding = 12;
             const double horizontalPadding = 4;
             const double verticalPadding = 8;
-            const double preferredPopupWidth = 300;
-            const double minPopupWidth = 220;
-            const double preferredListHeight = 180;
-            const double minListHeight = 72;
-            const double popupChromeHeight = 44;
+            const double preferredPopupWidth = 400;
+            const double minPopupWidth = 120;
+            const double preferredListHeight = 220;
+            const double minListHeight = 80;
+            const double popupChromeHeight = 54;
 
             var availableWidth = Math.Max(minPopupWidth, EditorBorder.Bounds.Width - (edgePadding * 2));
-            var popupWidth = Math.Clamp(preferredPopupWidth, minPopupWidth, availableWidth);
-            SlashCommandPopupContent.Width = popupWidth;
-            SlashCommandPopupContent.MaxWidth = popupWidth;
+            var maxPopupWidth = Math.Clamp(preferredPopupWidth, minPopupWidth, availableWidth);
 
             var anchorLeft = popupTopLeft.Value.X;
             var anchorRight = popupTopLeft.Value.X + Math.Max(1, caretRect.Width);
@@ -1556,8 +1618,23 @@ public partial class MainWindow : Window
             var listMaxHeight = Math.Min(preferredListHeight, maxViewportHeight);
             SlashCommandListBox.MaxHeight = listMaxHeight;
 
-            SlashCommandPopupContent.Measure(new Size(popupWidth, Math.Max(60, EditorBorder.Bounds.Height - (edgePadding * 2))));
-            var popupHeight = Math.Min(EditorBorder.Bounds.Height - (edgePadding * 2), SlashCommandPopupContent.DesiredSize.Height);
+            // Reset width/height to let them be recalculated naturally during measure
+            SlashCommandPopupContent.Width = double.NaN;
+            SlashCommandPopupContent.Height = double.NaN;
+
+            // Force layout update to ensure DesiredSize is accurate after items change
+            SlashCommandPopupContent.InvalidateMeasure();
+            SlashCommandPopupContent.UpdateLayout();
+
+            // Measure it with UNRESTRICTED dimensions to see how much room it naturally wants
+            SlashCommandPopupContent.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            
+            var targetWidth = Math.Clamp(SlashCommandPopupContent.DesiredSize.Width + 2, minPopupWidth, maxPopupWidth);
+            var targetHeight = Math.Min(maxViewportHeight + popupChromeHeight, SlashCommandPopupContent.DesiredSize.Height);
+
+            // Animate both! 
+            SlashCommandPopupContent.Width = targetWidth;
+            SlashCommandPopupContent.Height = targetHeight;
 
             var availableRight = Math.Max(0, EditorBorder.Bounds.Width - anchorRight - horizontalPadding - edgePadding);
             var availableLeft = Math.Max(0, anchorLeft - horizontalPadding - edgePadding);
@@ -1567,24 +1644,24 @@ public partial class MainWindow : Window
             var horizontalOffset = horizontalPadding;
             var verticalOffset = verticalPadding;
 
-            if (availableBelow >= popupHeight && availableRight >= popupWidth)
+            if (availableBelow >= targetHeight && availableRight >= targetWidth)
             {
                 anchor = PopupAnchor.BottomRight;
                 gravity = PopupGravity.BottomRight;
             }
-            else if (availableBelow >= popupHeight && availableLeft >= popupWidth)
+            else if (availableBelow >= targetHeight && availableLeft >= targetWidth)
             {
                 anchor = PopupAnchor.BottomLeft;
                 gravity = PopupGravity.BottomLeft;
                 horizontalOffset = -horizontalPadding;
             }
-            else if (availableAbove >= popupHeight && availableRight >= popupWidth)
+            else if (availableAbove >= targetHeight && availableRight >= targetWidth)
             {
                 anchor = PopupAnchor.TopRight;
                 gravity = PopupGravity.TopRight;
                 verticalOffset = -verticalPadding;
             }
-            else if (availableAbove >= popupHeight && availableLeft >= popupWidth)
+            else if (availableAbove >= targetHeight && availableLeft >= targetWidth)
             {
                 anchor = PopupAnchor.TopLeft;
                 gravity = PopupGravity.TopLeft;

@@ -44,12 +44,12 @@ public sealed class FolderSettingsServiceTests : IDisposable
     [Fact]
     public async Task SetFontNameAsync_RoundTripsThroughSettingsFile()
     {
-        await _service.SetFontNameAsync("IosevkaSerif");
+        await _service.SetFontNameAsync("Iosevka");
         await _service.SetFontVariantNameAsync("Bold");
 
         var settings = await _service.GetSettingsAsync();
 
-        Assert.Equal("IosevkaSerif", settings.FontName);
+        Assert.Equal("Iosevka", settings.FontName);
         Assert.Equal("Bold", settings.FontVariantName);
     }
 

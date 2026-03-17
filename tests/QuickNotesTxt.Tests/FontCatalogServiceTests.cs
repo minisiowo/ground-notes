@@ -35,14 +35,14 @@ public sealed class FontCatalogServiceTests : IDisposable
     [Fact]
     public void LoadBundledFonts_LoadsFamiliesInDeterministicOrder()
     {
-        CreateFontFile("IosevkaSerif", "Iosevka-Regular.ttf", "Iosevka Serif", "Regular", "Iosevka Serif Regular");
+        CreateFontFile("Iosevka", "Iosevka-Regular.ttf", "Iosevka", "Regular", "Iosevka Regular");
         CreateFontFile("IosevkaSlab", "IosevkaSlab-Regular.ttf", "Iosevka Slab", "Regular", "Iosevka Slab Regular");
 
         var fonts = _service.LoadBundledFonts();
 
         Assert.Collection(fonts,
-            font => Assert.Equal("Iosevka Serif", font.DisplayName),
-            font => Assert.Equal("Iosevka Slab", font.DisplayName));
+            font => Assert.Equal("Iosevka Slab", font.DisplayName),
+            font => Assert.Equal("Iosevka", font.DisplayName));
     }
 
     [Fact]

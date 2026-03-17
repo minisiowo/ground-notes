@@ -13,6 +13,12 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
     private readonly MarkdownStyleSpanBuffer _spanBuffer = new();
     private ResourceCache? _resourceCache;
 
+    public event EventHandler<int>? RedrawRequested
+    {
+        add => _fenceStateTracker.RedrawRequested += value;
+        remove => _fenceStateTracker.RedrawRequested -= value;
+    }
+
     protected override void ColorizeLine(DocumentLine line)
     {
         _spanBuffer.Clear();

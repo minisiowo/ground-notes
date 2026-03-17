@@ -8,6 +8,8 @@ internal sealed class MarkdownFenceStateTracker : IDisposable
     private readonly Dictionary<int, MarkdownFenceState> _stateBeforeLine = [];
     private int _highestComputedLine = 1;
 
+    public event EventHandler<int>? RedrawRequested;
+
     public MarkdownFenceState GetStateBeforeLine(TextDocument document, int lineNumber)
     {
         Attach(document);
@@ -46,6 +48,7 @@ internal sealed class MarkdownFenceStateTracker : IDisposable
         _stateBeforeLine.Clear();
         _stateBeforeLine[1] = MarkdownFenceState.None;
         _highestComputedLine = 1;
+        RedrawRequested?.Invoke(this, 1);
     }
 
     public void Dispose()
@@ -111,5 +114,6 @@ internal sealed class MarkdownFenceStateTracker : IDisposable
 
         _highestComputedLine = _stateBeforeLine.Count == 0 ? 1 : _stateBeforeLine.Keys.Max();
         _stateBeforeLine[1] = MarkdownFenceState.None;
+        RedrawRequested?.Invoke(this, lineNumber);
     }
 }

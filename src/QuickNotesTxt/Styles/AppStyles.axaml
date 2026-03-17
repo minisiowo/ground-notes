@@ -2,13 +2,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit">
   <Styles.Resources>
-    <FontFamily x:Key="TerminalFont">avares://QuickNotesTxt/Assets/Fonts/IosevkaSlab#Iosevka Slab</FontFamily>
+    <!-- Base fonts that are safe. These will be overridden by ThemeService at runtime if bundled fonts are available. -->
+    <FontFamily x:Key="TerminalFont">Cascadia Code, Consolas, DejaVu Sans Mono, monospace</FontFamily>
     <FontWeight x:Key="TerminalFontWeight">Normal</FontWeight>
     <FontStyle x:Key="TerminalFontStyle">Normal</FontStyle>
-    <FontFamily x:Key="SidebarFont">avares://QuickNotesTxt/Assets/Fonts/IosevkaSlab#Iosevka Slab</FontFamily>
+    <FontFamily x:Key="SidebarFont">Segoe UI, Ubuntu, Cantarell, sans-serif</FontFamily>
     <FontWeight x:Key="SidebarFontWeight">Normal</FontWeight>
     <FontStyle x:Key="SidebarFontStyle">Normal</FontStyle>
-    <FontFamily x:Key="CodeFont">avares://QuickNotesTxt/Assets/Fonts/JetBrainsMono#JetBrains Mono</FontFamily>
+    <FontFamily x:Key="CodeFont">Cascadia Code, Consolas, DejaVu Sans Mono, monospace</FontFamily>
     <FontWeight x:Key="CodeFontWeight">Normal</FontWeight>
     <FontStyle x:Key="CodeFontStyle">Normal</FontStyle>
     <x:Double x:Key="AppFontSize">12</x:Double>
@@ -650,4 +651,79 @@
   <Style Selector="Border.sidebarResizeHandle:pointerover Border.sidebarResizeStripe">
     <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />
   </Style>
+
+  <!-- ══ Settings UI ═════════════════════════════════════════ -->
+  <Style Selector="TextBlock.settingsHeader">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeLarge}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Margin" Value="0,8,0,8" />
+  </Style>
+
+  <Style Selector="Border.settingsCard">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Margin" Value="0,0,0,2" />
+  </Style>
+
+  <Style Selector="TextBlock.settingsLabel">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+
+  <Style Selector="TextBlock.settingsDescription">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+  </Style>
+
+  <Style Selector="TabControl">
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="MinHeight" Value="40" />
+    <Setter Property="Padding" Value="20,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Name="PART_LayoutRoot"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                Padding="{TemplateBinding Padding}">
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Content="{TemplateBinding Header}"
+                            ContentTemplate="{TemplateBinding HeaderTemplate}"
+                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                            RecognizesAccessKey="True" />
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </Style>
+
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+  </Style>
+
+  <Style Selector="TabItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+  </Style>
+
+  <Style Selector="TabItem:selected /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
 </Styles>

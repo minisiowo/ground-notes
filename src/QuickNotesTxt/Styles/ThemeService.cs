@@ -23,7 +23,7 @@ public static class ThemeService
             return;
         }
 
-        SetValue(app, ThemeKeys.SidebarFont, fontFamily);
+        SafeSetFont(app, ThemeKeys.SidebarFont, fontFamily);
         SetValue(app, ThemeKeys.SidebarFontWeight, fontWeight);
         SetValue(app, ThemeKeys.SidebarFontStyle, fontStyle);
     }
@@ -42,7 +42,7 @@ public static class ThemeService
             return;
         }
 
-        SetValue(app, ThemeKeys.CodeFont, fontFamily);
+        SafeSetFont(app, ThemeKeys.CodeFont, fontFamily);
         SetValue(app, ThemeKeys.CodeFontWeight, fontWeight);
         SetValue(app, ThemeKeys.CodeFontStyle, fontStyle);
     }
@@ -55,9 +55,26 @@ public static class ThemeService
             return;
         }
 
-        SetValue(app, ThemeKeys.TerminalFont, fontFamily);
+        SafeSetFont(app, ThemeKeys.TerminalFont, fontFamily);
         SetValue(app, ThemeKeys.TerminalFontWeight, fontWeight);
         SetValue(app, ThemeKeys.TerminalFontStyle, fontStyle);
+    }
+
+    private static void SafeSetFont(Application app, string key, FontFamily fontFamily)
+    {
+        try
+        {
+            // Try to access the font to see if it's valid. 
+            // This might not catch everything if Avalonia defers loading,
+            // but it's a first line of defense.
+            _ = new Typeface(fontFamily).GlyphTypeface;
+            SetValue(app, key, fontFamily);
+        }
+        catch
+        {
+            // Fallback to default system font
+            SetValue(app, key, FontFamily.Default);
+        }
     }
 
     public static void ApplyUiFontSize(double fontSize)

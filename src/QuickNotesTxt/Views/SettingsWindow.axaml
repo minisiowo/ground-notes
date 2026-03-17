@@ -2,8 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="QuickNotesTxt.Views.SettingsWindow"
         Title="Settings"
-        Width="680"
-        Height="760"
+        Width="620"
+        Height="640"
         MinWidth="620"
         MinHeight="600"
         CanResize="False"
@@ -13,6 +13,7 @@
         KeyDown="OnWindowKeyDown"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto">
+    <!-- Title Bar -->
     <Border Grid.Row="0"
             Classes="titleBarSurface"
             BorderThickness="0,0,0,1"
@@ -20,192 +21,180 @@
       <Grid ColumnDefinitions="*,Auto">
         <Border Grid.Column="0"
                 Background="Transparent"
-                Padding="12,6">
+                Padding="16,10">
           <TextBlock Classes="titleBarText" Text="Settings" VerticalAlignment="Center" />
         </Border>
         <Button Grid.Column="1"
                 Classes="titleBarButton titleBarCloseButton"
                 Click="OnCancelClick"
                 Content="X"
-                Width="42"
-                Height="30" />
+                Width="46"
+                Height="34" />
       </Grid>
     </Border>
 
-    <ScrollViewer Grid.Row="1"
-                  Margin="16,16,16,0"
-                  HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
-      <StackPanel Spacing="14">
-        <Border Classes="sectionSurface" Padding="18,16" BorderThickness="1">
-          <StackPanel Spacing="14">
+    <!-- Content -->
+    <TabControl Grid.Row="1" Margin="0">
+      <!-- Tab 1: Appearance -->
+      <TabItem Header="Appearance">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="24,16" Spacing="24">
+            <!-- General Section -->
             <StackPanel Spacing="4">
-              <TextBlock Classes="titleBarText" Text="Appearance" />
-              <TextBlock Classes="metaText"
-                         Text="Theme, font, and size changes are applied when you save this window."
-                         TextWrapping="Wrap" />
+              <TextBlock Classes="settingsHeader" Text="General" />
+              
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="App Theme" />
+                    <TextBlock Classes="settingsDescription" Text="Choose between Light and Dark mode." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="ThemeComboBox" Width="140" SelectionChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="UI Font Size" />
+                    <TextBlock Classes="settingsDescription" Text="Scaling for menus and sidebar." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="UiFontSizeComboBox" Width="140" SelectionChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Editor Font Size" />
+                    <TextBlock Classes="settingsDescription" Text="Size for the markdown text editor." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="EditorFontSizeComboBox" Width="140" SelectionChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
             </StackPanel>
 
-            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*" ColumnSpacing="14" RowSpacing="12">
-                <TextBlock Grid.ColumnSpan="3"
-                           Classes="metaText"
-                           Text="General" />
+            <!-- Typography Section -->
+            <StackPanel Spacing="4">
+              <TextBlock Classes="settingsHeader" Text="Typography" />
 
-                <StackPanel Grid.Row="1" Spacing="6">
-                  <TextBlock Text="Theme" />
-                  <ComboBox x:Name="ThemeComboBox"
-                            SelectionChanged="OnAppearanceSelectionChanged" />
-                </StackPanel>
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Sidebar Font" />
+                    <TextBlock Classes="settingsDescription" Text="Font used in the notes list." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="SidebarFontFamilyComboBox" Width="180" Margin="12,0,0,0" SelectionChanged="OnSidebarFontFamilySelectionChanged" />
+                  <ComboBox Grid.Column="2" x:Name="SidebarFontVariantComboBox" Width="140" Margin="8,0,0,0" SelectionChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
 
-                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-                  <TextBlock Text="UI font size" />
-                  <ComboBox x:Name="UiFontSizeComboBox"
-                            SelectionChanged="OnAppearanceSelectionChanged" />
-                </StackPanel>
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Editor Font" />
+                    <TextBlock Classes="settingsDescription" Text="Main writing font." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="FontFamilyComboBox" Width="180" Margin="12,0,0,0" SelectionChanged="OnFontFamilySelectionChanged" />
+                  <ComboBox Grid.Column="2" x:Name="FontVariantComboBox" Width="140" Margin="8,0,0,0" SelectionChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
 
-                <StackPanel Grid.Row="1" Grid.Column="2" Spacing="6">
-                  <TextBlock Text="Editor font size" />
-                  <ComboBox x:Name="EditorFontSizeComboBox"
-                            SelectionChanged="OnAppearanceSelectionChanged" />
-                </StackPanel>
-              </Grid>
-            </Border>
-
-            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="12">
-                <TextBlock Grid.ColumnSpan="2"
-                           Classes="metaText"
-                           Text="Sidebar Text" />
-
-                <StackPanel Grid.Row="1" Spacing="6">
-                  <TextBlock Text="Sidebar font" />
-                  <ComboBox x:Name="SidebarFontFamilyComboBox"
-                            SelectionChanged="OnSidebarFontFamilySelectionChanged" />
-                </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-                  <TextBlock Text="Sidebar font variant" />
-                  <ComboBox x:Name="SidebarFontVariantComboBox"
-                            SelectionChanged="OnAppearanceSelectionChanged" />
-                </StackPanel>
-              </Grid>
-            </Border>
-
-            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="12">
-                <TextBlock Grid.ColumnSpan="2"
-                           Classes="metaText"
-                           Text="Editor Text" />
-
-                <StackPanel Grid.Row="1" Spacing="6">
-                  <TextBlock Text="Editor font" />
-                  <ComboBox x:Name="FontFamilyComboBox"
-                            SelectionChanged="OnFontFamilySelectionChanged" />
-                </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-                  <TextBlock Text="Editor font variant" />
-                  <ComboBox x:Name="FontVariantComboBox"
-                            SelectionChanged="OnAppearanceSelectionChanged" />
-                </StackPanel>
-              </Grid>
-            </Border>
-
-            <Border Classes="sectionSurface" Padding="14" BorderThickness="1">
-              <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="14" RowSpacing="12">
-                <TextBlock Grid.ColumnSpan="2"
-                           Classes="metaText"
-                           Text="Code Blocks" />
-
-                <StackPanel Grid.Row="1" Spacing="6">
-                  <TextBlock Text="Code font" />
-                  <ComboBox x:Name="CodeFontFamilyComboBox"
-                            SelectionChanged="OnCodeFontFamilySelectionChanged" />
-                </StackPanel>
-
-                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
-                  <TextBlock Text="Code font variant" />
-                  <ComboBox x:Name="CodeFontVariantComboBox"
-                            SelectionChanged="OnAppearanceSelectionChanged" />
-                </StackPanel>
-              </Grid>
-            </Border>
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Code Block Font" />
+                    <TextBlock Classes="settingsDescription" Text="Monospaced font for code blocks." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="CodeFontFamilyComboBox" Width="180" Margin="12,0,0,0" SelectionChanged="OnCodeFontFamilySelectionChanged" />
+                  <ComboBox Grid.Column="2" x:Name="CodeFontVariantComboBox" Width="140" Margin="8,0,0,0" SelectionChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+            </StackPanel>
           </StackPanel>
-        </Border>
+        </ScrollViewer>
+      </TabItem>
 
-        <Border Classes="sectionSurface" Padding="18,16" BorderThickness="1">
-          <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto" RowSpacing="14">
+      <!-- Tab 2: AI Actions -->
+      <TabItem Header="AI Actions">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="24,16" Spacing="24">
             <StackPanel Spacing="4">
-              <TextBlock Classes="titleBarText" Text="AI" />
-              <TextBlock Classes="metaText"
-                         Text="Configure optional OpenAI-powered editor actions and custom prompt loading."
-                         TextWrapping="Wrap" />
+              <TextBlock Classes="settingsHeader" Text="AI Integration" />
+              
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Enable AI features" />
+                    <TextBlock Classes="settingsDescription" Text="Unlock context actions like summarization and translation." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1" x:Name="AiEnabledToggle" IsChecked="True" OnContent="" OffContent="" IsCheckedChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="OpenAI API Key" />
+                    <TextBlock Classes="settingsDescription" Text="Keys are stored locally and never shared." />
+                  </StackPanel>
+                  <TextBox Grid.Column="1" x:Name="ApiKeyTextBox" PasswordChar="*" Watermark="sk-..." TextChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Model ID" />
+                    <TextBlock Classes="settingsDescription" Text="E.g., gpt-4o-mini" />
+                  </StackPanel>
+                  <TextBox Grid.Column="1" x:Name="DefaultModelTextBox" Watermark="gpt-4.1-mini" TextChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Project ID" />
+                    <TextBlock Classes="settingsDescription" Text="Optional OpenAI project identifier." />
+                  </StackPanel>
+                  <TextBox Grid.Column="1" x:Name="ProjectIdTextBox" Watermark="proj_..." TextChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Organization ID" />
+                    <TextBlock Classes="settingsDescription" Text="Optional OpenAI organization identifier." />
+                  </StackPanel>
+                  <TextBox Grid.Column="1" x:Name="OrganizationIdTextBox" Watermark="org_..." TextChanged="OnAppearanceSelectionChanged" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard" Margin="0,12,0,0">
+                <StackPanel Spacing="8">
+                  <TextBlock Classes="settingsLabel" Text="Custom Prompts Folder" />
+                  <TextBlock x:Name="PromptsFolderTextBlock" Classes="metaText" TextWrapping="Wrap" />
+                  <TextBlock Classes="settingsDescription" Text="Add .json files here to define your own AI actions. Folder is located inside your current notes directory." />
+                </StackPanel>
+              </Border>
             </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
 
-            <CheckBox x:Name="AiEnabledCheckBox"
-                       Grid.Row="1"
-                       Content="Enable AI actions"
-                       IsChecked="True" />
-
-            <StackPanel Grid.Row="2" Spacing="6">
-              <TextBlock Text="OpenAI API key" />
-              <TextBox x:Name="ApiKeyTextBox"
-                        PasswordChar="*"
-                        Watermark="sk-..." />
-            </StackPanel>
-
-            <StackPanel Grid.Row="3" Spacing="6">
-              <TextBlock Text="Default model" />
-              <TextBox x:Name="DefaultModelTextBox"
-                        Watermark="gpt-4.1-mini" />
-            </StackPanel>
-
-            <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="14">
-              <StackPanel Spacing="6">
-                <TextBlock Text="OpenAI Project ID (optional)" />
-                <TextBox x:Name="ProjectIdTextBox"
-                        Watermark="proj_..." />
-              </StackPanel>
-
-              <StackPanel Grid.Column="1" Spacing="6">
-              <TextBlock Text="OpenAI Organization ID (optional)" />
-              <TextBox x:Name="OrganizationIdTextBox"
-                        Watermark="org_..." />
-              </StackPanel>
-            </Grid>
-
-            <Border Grid.Row="5"
-                    Background="{DynamicResource PaneBackgroundBrush}"
-                    BorderBrush="{DynamicResource BorderBrushBase}"
-                    BorderThickness="1"
-                    CornerRadius="1"
-                    Padding="12,10">
-              <StackPanel Spacing="6">
-                <TextBlock Text="Custom prompts folder" />
-              <TextBlock x:Name="PromptsFolderTextBlock"
-                         Classes="metaText"
-                         TextWrapping="Wrap" />
-              <TextBlock Classes="metaText"
-                         Text="Built-in prompts load from Assets. Add prompt JSON files to the custom prompts folder inside your notes directory."
-                         TextWrapping="Wrap" />
-              </StackPanel>
-            </Border>
-          </Grid>
-        </Border>
-      </StackPanel>
-    </ScrollViewer>
-
+    <!-- Actions -->
     <Border Grid.Row="2"
-            Margin="16"
-            Padding="0,14,0,4"
+            Padding="24,16"
             BorderBrush="{DynamicResource BorderBrushBase}"
             BorderThickness="0,1,0,0">
       <StackPanel Orientation="Horizontal"
                   HorizontalAlignment="Right"
-                  Spacing="8">
-        <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" />
-        <Button x:Name="SaveButton" Content="Save" Click="OnSaveClick" />
+                  Spacing="12">
+        <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" Width="100" />
+        <Button x:Name="SaveButton" Content="Save" Click="OnSaveClick" Width="100" />
       </StackPanel>
     </Border>
   </Grid>
