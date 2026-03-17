@@ -64,6 +64,22 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAllThemesAsync_SkipsThemeMissingEditorModeToken()
+    {
+        Directory.CreateDirectory(_themesDir);
+        var theme = JsonSerializer.Deserialize<Dictionary<string, object?>>(MakeValidThemeJson("Missing Token"))!;
+        theme.Remove("markdownLinkLabel");
+
+        await File.WriteAllTextAsync(
+            Path.Combine(_themesDir, "missing-token.json"),
+            JsonSerializer.Serialize(theme));
+
+        var themes = await _service.LoadAllThemesAsync();
+
+        Assert.Equal(AppTheme.BuiltInThemes.Count, themes.Count);
+    }
+
+    [Fact]
     public async Task LoadAllThemesAsync_SkipsBuiltInNameCollision()
     {
         WriteThemeFile("dark.json", MakeValidThemeJson("Dark"));
@@ -121,6 +137,15 @@ public sealed class ThemeLoaderServiceTests : IDisposable
             MarkdownHeading1 = "#005FB8",
             MarkdownHeading2 = "#7A5C00",
             MarkdownHeading3 = "#356859",
+            MarkdownLinkLabel = "#005FB8",
+            MarkdownLinkUrl = "#5A5A5A",
+            MarkdownTaskDone = "#356859",
+            MarkdownTaskPending = "#7A5C00",
+            MarkdownStrikethrough = "#757575",
+            MarkdownRule = "#B8C2CC",
+            MarkdownBlockquote = "#4C647A",
+            MarkdownFenceMarker = "#7F8B96",
+            MarkdownFenceInfo = "#356859",
             MarkdownInlineCodeForeground = "#004B91",
             MarkdownInlineCodeBackground = "#E7EEF5",
             MarkdownCodeBlockForeground = "#1E3A5F",
@@ -139,6 +164,9 @@ public sealed class ThemeLoaderServiceTests : IDisposable
         Assert.Equal(original.PrimaryText, loaded.PrimaryText);
         Assert.Equal(original.MarkdownHeading1, loaded.MarkdownHeading1);
         Assert.Equal(original.MarkdownHeading2, loaded.MarkdownHeading2);
+        Assert.Equal(original.MarkdownLinkLabel, loaded.MarkdownLinkLabel);
+        Assert.Equal(original.MarkdownTaskDone, loaded.MarkdownTaskDone);
+        Assert.Equal(original.MarkdownRule, loaded.MarkdownRule);
         Assert.Equal(original.MarkdownInlineCodeForeground, loaded.MarkdownInlineCodeForeground);
         Assert.Equal(original.MarkdownCodeBlockBackground, loaded.MarkdownCodeBlockBackground);
         Assert.Equal(original.TitleBarCloseHover, loaded.TitleBarCloseHover);
@@ -177,6 +205,15 @@ public sealed class ThemeLoaderServiceTests : IDisposable
             markdownHeading1 = "#4AA3FF",
             markdownHeading2 = "#6CB7A8",
             markdownHeading3 = "#8FB7A3",
+            markdownLinkLabel = "#67B7FF",
+            markdownLinkUrl = "#8899AA",
+            markdownTaskDone = "#7DAA88",
+            markdownTaskPending = "#D1B86F",
+            markdownStrikethrough = "#7E7E7E",
+            markdownRule = "#4C5662",
+            markdownBlockquote = "#A5B6C7",
+            markdownFenceMarker = "#5D7185",
+            markdownFenceInfo = "#7FB0D9",
             markdownInlineCodeForeground = "#7CC0FF",
             markdownInlineCodeBackground = "#1A2530",
             markdownCodeBlockForeground = "#A9D3FF",

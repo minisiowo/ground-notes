@@ -1212,31 +1212,55 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public void ApplySettingsPreview(SettingsDialogModel model)
     {
         IsSettingsPreviewActive = true;
-        ApplyThemeSelection(model.SelectedThemeName, persist: false);
+        if (!string.Equals(SelectedThemeName, model.SelectedThemeName, StringComparison.Ordinal))
+        {
+            ApplyThemeSelection(model.SelectedThemeName, persist: false);
+        }
 
         var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
             ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
             ?? _allFonts[0];
         var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
             ?? GetDefaultFontVariant(sidebarFontFamily);
-        ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
+        if (!string.Equals(SelectedSidebarFontFamilyName, sidebarFontFamily.DisplayName, StringComparison.Ordinal)
+            || !string.Equals(SelectedSidebarFontVariantName, sidebarVariant.DisplayName, StringComparison.Ordinal))
+        {
+            ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
+        }
 
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
             ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
             ?? _allFonts[0];
         var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
             ?? GetDefaultFontVariant(fontFamily);
-        ApplyFontSelection(fontFamily, variant, persist: false);
+        if (!string.Equals(SelectedFontFamilyName, fontFamily.DisplayName, StringComparison.Ordinal)
+            || !string.Equals(SelectedFontVariantName, variant.DisplayName, StringComparison.Ordinal))
+        {
+            ApplyFontSelection(fontFamily, variant, persist: false);
+        }
 
         var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
             ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
             ?? fontFamily;
         var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
             ?? GetDefaultFontVariant(codeFontFamily);
-        ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
+        if (!string.Equals(SelectedCodeFontFamilyName, codeFontFamily.DisplayName, StringComparison.Ordinal)
+            || !string.Equals(SelectedCodeFontVariantName, codeVariant.DisplayName, StringComparison.Ordinal))
+        {
+            ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
+        }
 
-        EditorFontSize = ClampEditorFontSize(model.EditorFontSize);
-        UiFontSize = ClampUiFontSize(model.UiFontSize);
+        var editorFontSize = ClampEditorFontSize(model.EditorFontSize);
+        if (!EditorFontSize.Equals(editorFontSize))
+        {
+            EditorFontSize = editorFontSize;
+        }
+
+        var uiFontSize = ClampUiFontSize(model.UiFontSize);
+        if (!UiFontSize.Equals(uiFontSize))
+        {
+            UiFontSize = uiFontSize;
+        }
     }
 
     private void ApplyThemeSelection(string themeName, bool persist)

@@ -23,9 +23,9 @@ public static class ThemeService
             return;
         }
 
-        app.Resources[ThemeKeys.SidebarFont] = fontFamily;
-        app.Resources[ThemeKeys.SidebarFontWeight] = fontWeight;
-        app.Resources[ThemeKeys.SidebarFontStyle] = fontStyle;
+        SetValue(app, ThemeKeys.SidebarFont, fontFamily);
+        SetValue(app, ThemeKeys.SidebarFontWeight, fontWeight);
+        SetValue(app, ThemeKeys.SidebarFontStyle, fontStyle);
     }
 
     public static void ApplyTerminalFont(FontFamily fontFamily)
@@ -42,9 +42,9 @@ public static class ThemeService
             return;
         }
 
-        app.Resources[ThemeKeys.CodeFont] = fontFamily;
-        app.Resources[ThemeKeys.CodeFontWeight] = fontWeight;
-        app.Resources[ThemeKeys.CodeFontStyle] = fontStyle;
+        SetValue(app, ThemeKeys.CodeFont, fontFamily);
+        SetValue(app, ThemeKeys.CodeFontWeight, fontWeight);
+        SetValue(app, ThemeKeys.CodeFontStyle, fontStyle);
     }
 
     public static void ApplyTerminalFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
@@ -55,9 +55,9 @@ public static class ThemeService
             return;
         }
 
-        app.Resources[ThemeKeys.TerminalFont] = fontFamily;
-        app.Resources[ThemeKeys.TerminalFontWeight] = fontWeight;
-        app.Resources[ThemeKeys.TerminalFontStyle] = fontStyle;
+        SetValue(app, ThemeKeys.TerminalFont, fontFamily);
+        SetValue(app, ThemeKeys.TerminalFontWeight, fontWeight);
+        SetValue(app, ThemeKeys.TerminalFontStyle, fontStyle);
     }
 
     public static void ApplyUiFontSize(double fontSize)
@@ -68,9 +68,9 @@ public static class ThemeService
             return;
         }
 
-        app.Resources[ThemeKeys.AppFontSize] = fontSize;
-        app.Resources[ThemeKeys.AppFontSizeSmall] = Math.Max(9d, fontSize - 1d);
-        app.Resources[ThemeKeys.AppFontSizeLarge] = fontSize + 2d;
+        SetValue(app, ThemeKeys.AppFontSize, fontSize);
+        SetValue(app, ThemeKeys.AppFontSizeSmall, Math.Max(9d, fontSize - 1d));
+        SetValue(app, ThemeKeys.AppFontSizeLarge, fontSize + 2d);
     }
 
     public static void Apply(AppTheme theme)
@@ -105,6 +105,15 @@ public static class ThemeService
         Set(app, ThemeKeys.MarkdownHeading1Brush, theme.MarkdownHeading1);
         Set(app, ThemeKeys.MarkdownHeading2Brush, theme.MarkdownHeading2);
         Set(app, ThemeKeys.MarkdownHeading3Brush, theme.MarkdownHeading3);
+        Set(app, ThemeKeys.MarkdownLinkLabelBrush, theme.MarkdownLinkLabel);
+        Set(app, ThemeKeys.MarkdownLinkUrlBrush, theme.MarkdownLinkUrl);
+        Set(app, ThemeKeys.MarkdownTaskDoneBrush, theme.MarkdownTaskDone);
+        Set(app, ThemeKeys.MarkdownTaskPendingBrush, theme.MarkdownTaskPending);
+        Set(app, ThemeKeys.MarkdownStrikethroughBrush, theme.MarkdownStrikethrough);
+        Set(app, ThemeKeys.MarkdownRuleBrush, theme.MarkdownRule);
+        Set(app, ThemeKeys.MarkdownBlockquoteBrush, theme.MarkdownBlockquote);
+        Set(app, ThemeKeys.MarkdownFenceMarkerBrush, theme.MarkdownFenceMarker);
+        Set(app, ThemeKeys.MarkdownFenceInfoBrush, theme.MarkdownFenceInfo);
         Set(app, ThemeKeys.MarkdownInlineCodeForegroundBrush, theme.MarkdownInlineCodeForeground);
         Set(app, ThemeKeys.MarkdownInlineCodeBackgroundBrush, theme.MarkdownInlineCodeBackground);
         Set(app, ThemeKeys.MarkdownCodeBlockForegroundBrush, theme.MarkdownCodeBlockForeground);
@@ -160,8 +169,8 @@ public static class ThemeService
         Set(app, ThemeKeys.ComboBoxDropDownBackground, theme.PaneBackground);
         Set(app, ThemeKeys.ComboBoxDropDownBorderBrush, theme.BorderBase);
         Set(app, ThemeKeys.ComboBoxDropDownForeground, theme.AppText);
-        app.Resources[ThemeKeys.ComboBoxDropdownBorderPadding] = new Avalonia.Thickness(0);
-        app.Resources[ThemeKeys.ComboBoxDropdownContentMargin] = new Avalonia.Thickness(0);
+        SetValue(app, ThemeKeys.ComboBoxDropdownBorderPadding, new Avalonia.Thickness(0));
+        SetValue(app, ThemeKeys.ComboBoxDropdownContentMargin, new Avalonia.Thickness(0));
         Set(app, ThemeKeys.ComboBoxItemForeground, theme.AppText);
         Set(app, ThemeKeys.ComboBoxItemForegroundSelected, theme.AppText);
         Set(app, ThemeKeys.ComboBoxItemForegroundPointerOver, theme.AppText);
@@ -194,12 +203,36 @@ public static class ThemeService
 
     private static void Set(Application app, string key, string hex)
     {
-        var brush = new SolidColorBrush(Color.Parse(hex));
+        var color = Color.Parse(hex);
+        if (app.Resources.TryGetValue(key, out var existing)
+            && existing is SolidColorBrush existingBrush
+            && existingBrush.Color.Equals(color))
+        {
+            return;
+        }
+
+        var brush = new SolidColorBrush(color);
         app.Resources[key] = brush;
     }
 
     private static void SetColor(Application app, string key, string hex)
     {
-        app.Resources[key] = Color.Parse(hex);
+        var color = Color.Parse(hex);
+        if (app.Resources.TryGetValue(key, out var existing) && existing is Color existingColor && existingColor.Equals(color))
+        {
+            return;
+        }
+
+        app.Resources[key] = color;
+    }
+
+    private static void SetValue<T>(Application app, string key, T value)
+    {
+        if (app.Resources.TryGetValue(key, out var existing) && existing is T typedExisting && EqualityComparer<T>.Default.Equals(typedExisting, value))
+        {
+            return;
+        }
+
+        app.Resources[key] = value;
     }
 }

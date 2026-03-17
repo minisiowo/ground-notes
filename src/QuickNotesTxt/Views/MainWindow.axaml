@@ -205,10 +205,10 @@
           </Grid>
         </Grid>
 
-        <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="8,0,14,14" BorderThickness="1">
-          <Grid>
-             <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="{DynamicResource AppFontSizeLarge}" Text="Choose a folder to start writing markdown notes." TextWrapping="Wrap" />
-            <ae:TextEditor Classes="editorTextBox"
+         <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="8,0,14,14" BorderThickness="1">
+           <Grid>
+              <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="{DynamicResource AppFontSizeLarge}" Text="Choose a folder to start writing markdown notes." TextWrapping="Wrap" />
+             <ae:TextEditor Classes="editorTextBox"
                            x:Name="EditorTextEditor"
                            Background="Transparent"
                            BorderThickness="0"
@@ -218,18 +218,63 @@
                            ShowLineNumbers="False"
                            HorizontalScrollBarVisibility="Disabled"
                            VerticalScrollBarVisibility="Auto"
-                           WordWrap="True" />
-            <TextBlock Margin="12"
-                       Classes="editorPlaceholderText"
-                       IsHitTestVisible="False"
+                            WordWrap="True" />
+             <TextBlock Margin="12"
+                        Classes="editorPlaceholderText"
+                        IsHitTestVisible="False"
                        IsVisible="{Binding ShowEditorWatermark}"
                        FontFamily="{DynamicResource TerminalFont}"
                        FontSize="{Binding EditorFontSize}"
-                       Foreground="{DynamicResource PlaceholderTextBrush}"
-                       Text="Start typing. A note will be created automatically on the first keystroke."
-                       TextWrapping="Wrap" />
-          </Grid>
-        </Border>
+                        Foreground="{DynamicResource PlaceholderTextBrush}"
+                        Text="Start typing. A note will be created automatically on the first keystroke."
+                        TextWrapping="Wrap" />
+             <Popup x:Name="SlashCommandPopup"
+                    IsOpen="False"
+                    IsLightDismissEnabled="False"
+                    TakesFocusFromNativeControl="False">
+                <Border x:Name="SlashCommandPopupContent"
+                        Classes="sectionSurface"
+                        Focusable="False"
+                        Padding="8"
+                        Width="300"
+                        BorderThickness="1">
+                 <Grid RowDefinitions="Auto,Auto">
+                   <TextBlock x:Name="SlashCommandHintText"
+                              Classes="sidebarFooterStatus"
+                              Margin="0,0,0,6"
+                              Text="Formatting commands" />
+                    <ListBox x:Name="SlashCommandListBox"
+                             Grid.Row="1"
+                             Focusable="False"
+                             MaxHeight="180"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             DoubleTapped="OnSlashCommandListBoxDoubleTapped">
+                     <ListBox.ItemTemplate>
+                       <DataTemplate>
+                         <Border Classes="fileRow"
+                                 HorizontalAlignment="Stretch"
+                                 Padding="8,6"
+                                 BorderThickness="1">
+                           <Grid RowDefinitions="Auto,Auto">
+                             <TextBlock Classes="fileRowText"
+                                        Text="{Binding Label}"
+                                        TextTrimming="CharacterEllipsis" />
+                             <TextBlock Grid.Row="1"
+                                        Classes="pickerPreviewText"
+                                        Margin="0,3,0,0"
+                                        Text="{Binding Description}"
+                                        TextTrimming="CharacterEllipsis"
+                                        TextWrapping="NoWrap" />
+                           </Grid>
+                         </Border>
+                       </DataTemplate>
+                     </ListBox.ItemTemplate>
+                   </ListBox>
+                 </Grid>
+               </Border>
+             </Popup>
+           </Grid>
+         </Border>
 
       </Grid>
     </Grid>

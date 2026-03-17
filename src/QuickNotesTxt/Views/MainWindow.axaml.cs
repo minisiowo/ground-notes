@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -10,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit;
 using AvaloniaEdit.Editing;
+using AvaloniaEdit.Document;
 using QuickNotesTxt.Editors;
 using QuickNotesTxt.Models;
 using QuickNotesTxt.Services;
@@ -25,6 +27,10 @@ public partial class MainWindow : Window
     private WindowEdge? _activeResizeEdge;
     private readonly MenuFlyout _editorContextFlyout = new();
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
+    private MarkdownSlashTrigger? _activeSlashTrigger;
+    private IReadOnlyList<MarkdownSlashCommand> _activeSlashCommands = [];
+    private bool _isSlashPopupRefreshQueued;
+    private bool _isSlashPopupPositionUpdateQueued;
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
 
@@ -39,7 +45,13 @@ public partial class MainWindow : Window
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         EditorTextEditor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        EditorTextEditor.ContextFlyout = _editorContextFlyout;
+        EditorTextEditor.PointerPressed += OnEditorPointerPressed;
+        EditorTextEditor.ContextRequested += OnEditorContextRequested;
+        EditorTextEditor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
+        EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
+        EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
+        SlashCommandPopup.PlacementTarget = EditorBorder;
+        SlashCommandPopup.Placement = PlacementMode.AnchorAndGravity;
         EditorTextEditor.Options.ConvertTabsToSpaces = false;
         EditorTextEditor.Options.EnableRectangularSelection = false;
         EditorTextEditor.Options.WordWrapIndentation = 0;
@@ -79,7 +91,11 @@ public partial class MainWindow : Window
                 _lastNormalX = e.Point.X;
                 _lastNormalY = e.Point.Y;
             }
+
+            ScheduleSlashCommandPopupPositionUpdate();
         };
+
+        SizeChanged += (_, _) => ScheduleSlashCommandPopupPositionUpdate();
     }
 
     public void SetSettingsService(ISettingsService settingsService)
@@ -291,8 +307,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.PropertyName == nameof(MainViewModel.SelectedThemeName))
+        if (e.PropertyName is nameof(MainViewModel.SelectedThemeName)
+            or nameof(MainViewModel.SelectedCodeFontFamilyName)
+            or nameof(MainViewModel.SelectedCodeFontVariantName))
         {
+            _markdownColorizer.InvalidateResourceCache();
             ApplyEditorSelectionTheme();
             EditorTextEditor.TextArea.TextView.InvalidateVisual();
             return;
@@ -559,6 +578,25 @@ public partial class MainWindow : Window
         _editorContextFlyout.Hide();
     }
 
+    private void OnEditorContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (sender is not Control control)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        RebuildEditorContextFlyout();
+
+        if (e.TryGetPosition(control, out _))
+        {
+            _editorContextFlyout.ShowAt(control, true);
+            return;
+        }
+
+        _editorContextFlyout.ShowAt(control);
+    }
+
     private void ApplyEditorSelectionTheme()
     {
         var resources = Application.Current?.Resources;
@@ -581,6 +619,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        var hadCurrentNote = vm.CurrentNote is not null;
+
         _isUpdatingViewModelFromEditor = true;
         try
         {
@@ -590,6 +630,16 @@ public partial class MainWindow : Window
         {
             _isUpdatingViewModelFromEditor = false;
         }
+
+        if (!hadCurrentNote && vm.CurrentNote is not null)
+        {
+            Dispatcher.UIThread.Post(
+                ScheduleSlashCommandPopupRefresh,
+                DispatcherPriority.Background);
+            return;
+        }
+
+        ScheduleSlashCommandPopupRefresh();
     }
 
     private void SyncEditorText(string text)
@@ -626,6 +676,8 @@ public partial class MainWindow : Window
         {
             _isUpdatingEditorFromViewModel = false;
         }
+
+        ScheduleSlashCommandPopupRefresh();
     }
 
     private async void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -776,8 +828,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        var vm = DataContext as MainViewModel;
+
+        if (HandleSlashCommandKeyDown(e))
+        {
+            return;
+        }
+
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
+            if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.D && vm is not null && !vm.IsNotePickerOpen)
+            {
+                e.Handled = true;
+                await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
+                return;
+            }
+
             if (e.Key == Key.C)
             {
                 e.Handled = true;
@@ -789,6 +855,82 @@ public partial class MainWindow : Window
             {
                 e.Handled = true;
                 await CutEditorSelectionAsync();
+                return;
+            }
+
+            if (e.Key == Key.B)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleWrap(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
+                return;
+            }
+
+            if (e.Key == Key.I)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleWrap(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
+                return;
+            }
+
+            if (e.Key == Key.K)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleWrap(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
+                return;
+            }
+
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.InsertLineBelow(GetEditorText(), textEditor.CaretOffset));
+                return;
+            }
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            if (e.Key == Key.D)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength));
+                return;
+            }
+
+            if (e.Key == Key.D7)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleTaskList(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength));
+                return;
+            }
+
+            if (e.Key == Key.D8)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleBulletList(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength));
+                return;
+            }
+        }
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            if (e.Key == Key.D1)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleHeading(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, 1));
+                return;
+            }
+
+            if (e.Key == Key.D2)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleHeading(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, 2));
+                return;
+            }
+
+            if (e.Key == Key.D3)
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.ToggleHeading(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, 3));
                 return;
             }
         }
@@ -1144,5 +1286,347 @@ public partial class MainWindow : Window
         }
 
         await vm.CommitRenameAsync(noteSummary);
+    }
+
+    private string GetEditorText() => EditorTextEditor.Document?.Text ?? string.Empty;
+
+    private void ApplyEditorEdit(MarkdownEditResult edit)
+    {
+        var document = EditorTextEditor.Document;
+        if (document is null)
+        {
+            return;
+        }
+
+        var start = Math.Clamp(edit.Start, 0, document.TextLength);
+        var length = Math.Clamp(edit.Length, 0, document.TextLength - start);
+
+        document.Replace(start, length, edit.Replacement);
+
+        var selectionStart = Math.Clamp(edit.SelectionStart, 0, document.TextLength);
+        var selectionLength = Math.Clamp(edit.SelectionLength, 0, document.TextLength - selectionStart);
+        EditorTextEditor.Select(selectionStart, selectionLength);
+        EditorTextEditor.CaretOffset = selectionStart + selectionLength;
+        EditorTextEditor.Focus();
+        ScheduleSlashCommandPopupRefresh();
+    }
+
+    private bool HandleSlashCommandKeyDown(KeyEventArgs e)
+    {
+        if (!SlashCommandPopup.IsOpen)
+        {
+            return false;
+        }
+
+        if (e.Key == Key.Down)
+        {
+            e.Handled = true;
+            MoveSlashCommandSelection(1);
+            return true;
+        }
+
+        if (e.Key == Key.Up)
+        {
+            e.Handled = true;
+            MoveSlashCommandSelection(-1);
+            return true;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            e.Handled = true;
+            ApplySelectedSlashCommand();
+            return true;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            CloseSlashCommandPopup();
+            return true;
+        }
+
+        return false;
+    }
+
+    private void UpdateSlashCommandPopup()
+    {
+        var trigger = MarkdownSlashCommandCatalog.TryGetTrigger(GetEditorText(), EditorTextEditor.CaretOffset);
+        if (trigger is null)
+        {
+            CloseSlashCommandPopup();
+            return;
+        }
+
+        var commands = MarkdownSlashCommandCatalog.Filter(trigger.Value.Query);
+        if (commands.Count == 0)
+        {
+            CloseSlashCommandPopup();
+            return;
+        }
+
+        var wasVisible = SlashCommandPopup.IsOpen;
+        _activeSlashTrigger = trigger;
+        _activeSlashCommands = commands;
+        SlashCommandPopup.IsOpen = true;
+        SlashCommandListBox.ItemsSource = commands;
+        SlashCommandListBox.SelectedItem = commands[0];
+        SlashCommandHintText.Text = string.IsNullOrWhiteSpace(trigger.Value.Query)
+            ? "Formatting commands"
+            : $"/{trigger.Value.Query}";
+        EditorTextEditor.Focus();
+        ScheduleSlashCommandPopupPositionUpdate(!wasVisible);
+    }
+
+    private void CloseSlashCommandPopup()
+    {
+        _activeSlashTrigger = null;
+        _activeSlashCommands = [];
+        SlashCommandPopup.IsOpen = false;
+        SlashCommandListBox.ItemsSource = null;
+        SlashCommandListBox.SelectedItem = null;
+        EditorTextEditor.Focus();
+    }
+
+    private void MoveSlashCommandSelection(int delta)
+    {
+        if (_activeSlashCommands.Count == 0)
+        {
+            return;
+        }
+
+        var currentIndex = SlashCommandListBox.SelectedIndex;
+        if (currentIndex < 0)
+        {
+            currentIndex = 0;
+        }
+
+        currentIndex = (currentIndex + delta + _activeSlashCommands.Count) % _activeSlashCommands.Count;
+        SlashCommandListBox.SelectedIndex = currentIndex;
+        if (SlashCommandListBox.SelectedItem is not null)
+        {
+            SlashCommandListBox.ScrollIntoView(SlashCommandListBox.SelectedItem);
+        }
+    }
+
+    private void ApplySelectedSlashCommand()
+    {
+        if (_activeSlashTrigger is not { } trigger || SlashCommandListBox.SelectedItem is not MarkdownSlashCommand command)
+        {
+            CloseSlashCommandPopup();
+            return;
+        }
+
+        var document = EditorTextEditor.Document;
+        if (document is null)
+        {
+            CloseSlashCommandPopup();
+            return;
+        }
+
+        document.Replace(trigger.Start, trigger.Length, string.Empty);
+        EditorTextEditor.CaretOffset = trigger.Start;
+        EditorTextEditor.Select(trigger.Start, 0);
+        var commandOffset = trigger.Start;
+
+        var edit = command.Action switch
+        {
+            SlashCommandAction.Bold => MarkdownEditingCommands.ToggleWrap(document.Text, commandOffset, 0, "**"),
+            SlashCommandAction.Italic => MarkdownEditingCommands.ToggleWrap(document.Text, commandOffset, 0, "*"),
+            SlashCommandAction.InlineCode => MarkdownEditingCommands.ToggleWrap(document.Text, commandOffset, 0, "`"),
+            SlashCommandAction.CodeBlock => MarkdownEditingCommands.ToggleCodeBlock(document.Text, commandOffset, 0),
+            SlashCommandAction.TaskList => MarkdownEditingCommands.ToggleTaskList(document.Text, commandOffset, 0),
+            SlashCommandAction.BulletList => MarkdownEditingCommands.ToggleBulletList(document.Text, commandOffset, 0),
+            SlashCommandAction.Heading1 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 1),
+            SlashCommandAction.Heading2 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 2),
+            SlashCommandAction.Heading3 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 3),
+            _ => default
+        };
+
+        CloseSlashCommandPopup();
+        ApplyEditorEdit(edit);
+    }
+
+    private void OnSlashCommandListBoxDoubleTapped(object? sender, RoutedEventArgs e)
+    {
+        ApplySelectedSlashCommand();
+    }
+
+    private void OnEditorPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        ScheduleSlashCommandPopupRefresh(DispatcherPriority.Input);
+    }
+
+    private void ScheduleSlashCommandPopupRefresh()
+    {
+        ScheduleSlashCommandPopupRefresh(DispatcherPriority.Render);
+    }
+
+    private void ScheduleSlashCommandPopupRefresh(DispatcherPriority priority)
+    {
+        if (_isSlashPopupRefreshQueued)
+        {
+            return;
+        }
+
+        _isSlashPopupRefreshQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isSlashPopupRefreshQueued = false;
+            UpdateSlashCommandPopup();
+        }, priority);
+    }
+
+    private void OnEditorCaretPositionChanged(object? sender, EventArgs e)
+    {
+        ScheduleSlashCommandPopupPositionUpdate();
+    }
+
+    private void OnEditorTextViewScrollOffsetChanged(object? sender, EventArgs e)
+    {
+        ScheduleSlashCommandPopupPositionUpdate();
+    }
+
+    private void OnEditorTextViewVisualLinesChanged(object? sender, EventArgs e)
+    {
+        ScheduleSlashCommandPopupPositionUpdate();
+    }
+
+    private void ScheduleSlashCommandPopupPositionUpdate(bool resetPlacement = false)
+    {
+        if (!SlashCommandPopup.IsOpen || _isSlashPopupPositionUpdateQueued)
+        {
+            return;
+        }
+
+        _isSlashPopupPositionUpdateQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isSlashPopupPositionUpdateQueued = false;
+            UpdateSlashCommandPopupPosition(resetPlacement);
+        }, DispatcherPriority.Render);
+    }
+
+    private void UpdateSlashCommandPopupPosition(bool resetPlacement)
+    {
+        if (!SlashCommandPopup.IsOpen)
+        {
+            return;
+        }
+
+        try
+        {
+            var caretRect = EditorTextEditor.TextArea.Caret.CalculateCaretRectangle();
+            var popupTopLeft = EditorTextEditor.TextArea.TextView.TranslatePoint(
+                new Point(caretRect.X, caretRect.Y),
+                EditorBorder);
+
+            if (popupTopLeft is null)
+            {
+                return;
+            }
+
+            if (EditorBorder.Bounds.Width <= 0 || EditorBorder.Bounds.Height <= 0)
+            {
+                return;
+            }
+
+            const double edgePadding = 12;
+            const double horizontalPadding = 4;
+            const double verticalPadding = 8;
+            const double preferredPopupWidth = 300;
+            const double minPopupWidth = 220;
+            const double preferredListHeight = 180;
+            const double minListHeight = 72;
+            const double popupChromeHeight = 44;
+
+            var availableWidth = Math.Max(minPopupWidth, EditorBorder.Bounds.Width - (edgePadding * 2));
+            var popupWidth = Math.Clamp(preferredPopupWidth, minPopupWidth, availableWidth);
+            SlashCommandPopupContent.Width = popupWidth;
+            SlashCommandPopupContent.MaxWidth = popupWidth;
+
+            var anchorLeft = popupTopLeft.Value.X;
+            var anchorRight = popupTopLeft.Value.X + Math.Max(1, caretRect.Width);
+            var anchorTop = popupTopLeft.Value.Y;
+            var anchorBottom = popupTopLeft.Value.Y + Math.Max(1, caretRect.Height);
+
+            var availableBelow = Math.Max(0, EditorBorder.Bounds.Height - anchorBottom - verticalPadding - edgePadding);
+            var availableAbove = Math.Max(0, anchorTop - verticalPadding - edgePadding);
+            var maxViewportHeight = Math.Max(minListHeight, Math.Max(availableBelow, availableAbove) - popupChromeHeight);
+            var listMaxHeight = Math.Min(preferredListHeight, maxViewportHeight);
+            SlashCommandListBox.MaxHeight = listMaxHeight;
+
+            SlashCommandPopupContent.Measure(new Size(popupWidth, Math.Max(60, EditorBorder.Bounds.Height - (edgePadding * 2))));
+            var popupHeight = Math.Min(EditorBorder.Bounds.Height - (edgePadding * 2), SlashCommandPopupContent.DesiredSize.Height);
+
+            var availableRight = Math.Max(0, EditorBorder.Bounds.Width - anchorRight - horizontalPadding - edgePadding);
+            var availableLeft = Math.Max(0, anchorLeft - horizontalPadding - edgePadding);
+
+            PopupAnchor anchor;
+            PopupGravity gravity;
+            var horizontalOffset = horizontalPadding;
+            var verticalOffset = verticalPadding;
+
+            if (availableBelow >= popupHeight && availableRight >= popupWidth)
+            {
+                anchor = PopupAnchor.BottomRight;
+                gravity = PopupGravity.BottomRight;
+            }
+            else if (availableBelow >= popupHeight && availableLeft >= popupWidth)
+            {
+                anchor = PopupAnchor.BottomLeft;
+                gravity = PopupGravity.BottomLeft;
+                horizontalOffset = -horizontalPadding;
+            }
+            else if (availableAbove >= popupHeight && availableRight >= popupWidth)
+            {
+                anchor = PopupAnchor.TopRight;
+                gravity = PopupGravity.TopRight;
+                verticalOffset = -verticalPadding;
+            }
+            else if (availableAbove >= popupHeight && availableLeft >= popupWidth)
+            {
+                anchor = PopupAnchor.TopLeft;
+                gravity = PopupGravity.TopLeft;
+                horizontalOffset = -horizontalPadding;
+                verticalOffset = -verticalPadding;
+            }
+            else if (availableBelow >= availableAbove)
+            {
+                if (availableRight >= availableLeft)
+                {
+                    anchor = PopupAnchor.BottomRight;
+                    gravity = PopupGravity.BottomRight;
+                }
+                else
+                {
+                    anchor = PopupAnchor.BottomLeft;
+                    gravity = PopupGravity.BottomLeft;
+                    horizontalOffset = -horizontalPadding;
+                }
+            }
+            else if (availableRight >= availableLeft)
+            {
+                anchor = PopupAnchor.TopRight;
+                gravity = PopupGravity.TopRight;
+                verticalOffset = -verticalPadding;
+            }
+            else
+            {
+                anchor = PopupAnchor.TopLeft;
+                gravity = PopupGravity.TopLeft;
+                horizontalOffset = -horizontalPadding;
+                verticalOffset = -verticalPadding;
+            }
+
+            SlashCommandPopup.PlacementAnchor = anchor;
+            SlashCommandPopup.PlacementGravity = gravity;
+            SlashCommandPopup.HorizontalOffset = horizontalOffset;
+            SlashCommandPopup.VerticalOffset = verticalOffset;
+            SlashCommandPopup.PlacementRect = new Rect(anchorLeft, anchorTop, Math.Max(1, caretRect.Width), Math.Max(1, caretRect.Height));
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 }

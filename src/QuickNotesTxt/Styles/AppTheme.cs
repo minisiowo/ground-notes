@@ -37,6 +37,15 @@ public sealed class AppTheme
     public required string MarkdownHeading1 { get; init; }
     public required string MarkdownHeading2 { get; init; }
     public required string MarkdownHeading3 { get; init; }
+    public required string MarkdownLinkLabel { get; init; }
+    public required string MarkdownLinkUrl { get; init; }
+    public required string MarkdownTaskDone { get; init; }
+    public required string MarkdownTaskPending { get; init; }
+    public required string MarkdownStrikethrough { get; init; }
+    public required string MarkdownRule { get; init; }
+    public required string MarkdownBlockquote { get; init; }
+    public required string MarkdownFenceMarker { get; init; }
+    public required string MarkdownFenceInfo { get; init; }
     public required string MarkdownInlineCodeForeground { get; init; }
     public required string MarkdownInlineCodeBackground { get; init; }
     public required string MarkdownCodeBlockForeground { get; init; }
@@ -73,6 +82,15 @@ public sealed class AppTheme
         MarkdownHeading1 = "#4AA3FF",
         MarkdownHeading2 = "#6CB7A8",
         MarkdownHeading3 = "#8FB7A3",
+        MarkdownLinkLabel = "#67B7FF",
+        MarkdownLinkUrl = "#8899AA",
+        MarkdownTaskDone = "#7DAA88",
+        MarkdownTaskPending = "#D1B86F",
+        MarkdownStrikethrough = "#7E7E7E",
+        MarkdownRule = "#4C5662",
+        MarkdownBlockquote = "#A5B6C7",
+        MarkdownFenceMarker = "#5D7185",
+        MarkdownFenceInfo = "#7FB0D9",
         MarkdownInlineCodeForeground = "#7CC0FF",
         MarkdownInlineCodeBackground = "#1A2530",
         MarkdownCodeBlockForeground = "#A9D3FF",
@@ -106,6 +124,15 @@ public sealed class AppTheme
         MarkdownHeading1 = "#005FB8",
         MarkdownHeading2 = "#7A5C00",
         MarkdownHeading3 = "#356859",
+        MarkdownLinkLabel = "#005FB8",
+        MarkdownLinkUrl = "#5A5A5A",
+        MarkdownTaskDone = "#356859",
+        MarkdownTaskPending = "#7A5C00",
+        MarkdownStrikethrough = "#757575",
+        MarkdownRule = "#B8C2CC",
+        MarkdownBlockquote = "#4C647A",
+        MarkdownFenceMarker = "#7F8B96",
+        MarkdownFenceInfo = "#356859",
         MarkdownInlineCodeForeground = "#004B91",
         MarkdownInlineCodeBackground = "#E7EEF5",
         MarkdownCodeBlockForeground = "#1E3A5F",
@@ -139,6 +166,15 @@ public sealed class AppTheme
         MarkdownHeading1 = "#E0A15C",
         MarkdownHeading2 = "#B88A52",
         MarkdownHeading3 = "#9FBF9F",
+        MarkdownLinkLabel = "#F0C68A",
+        MarkdownLinkUrl = "#8C8C8C",
+        MarkdownTaskDone = "#9FBF9F",
+        MarkdownTaskPending = "#D3A96B",
+        MarkdownStrikethrough = "#707070",
+        MarkdownRule = "#242424",
+        MarkdownBlockquote = "#BFB7A6",
+        MarkdownFenceMarker = "#6A625A",
+        MarkdownFenceInfo = "#D9B77D",
         MarkdownInlineCodeForeground = "#F0C68A",
         MarkdownInlineCodeBackground = "#111111",
         MarkdownCodeBlockForeground = "#F4D4A6",
@@ -172,6 +208,15 @@ public sealed class AppTheme
         MarkdownHeading1 = "#DA7756",
         MarkdownHeading2 = "#C9B07A",
         MarkdownHeading3 = "#C9B07A",
+        MarkdownLinkLabel = "#E3B980",
+        MarkdownLinkUrl = "#AFA79B",
+        MarkdownTaskDone = "#C9B07A",
+        MarkdownTaskPending = "#DA9A56",
+        MarkdownStrikethrough = "#9D9488",
+        MarkdownRule = "#4A433E",
+        MarkdownBlockquote = "#D3C6B4",
+        MarkdownFenceMarker = "#8B7C72",
+        MarkdownFenceInfo = "#E3B980",
         MarkdownInlineCodeForeground = "#E3B980",
         MarkdownInlineCodeBackground = "#3A312D",
         MarkdownCodeBlockForeground = "#E9CFA1",
@@ -205,6 +250,15 @@ public sealed class AppTheme
         MarkdownHeading1 = "#AF3029",
         MarkdownHeading2 = "#AD8301",
         MarkdownHeading3 = "#66800B",
+        MarkdownLinkLabel = "#205EA6",
+        MarkdownLinkUrl = "#6F6E69",
+        MarkdownTaskDone = "#66800B",
+        MarkdownTaskPending = "#AD8301",
+        MarkdownStrikethrough = "#878580",
+        MarkdownRule = "#DAD8CE",
+        MarkdownBlockquote = "#575653",
+        MarkdownFenceMarker = "#B7B5AC",
+        MarkdownFenceInfo = "#205EA6",
         MarkdownInlineCodeForeground = "#205EA6",
         MarkdownInlineCodeBackground = "#ECE8D8",
         MarkdownCodeBlockForeground = "#1C4E80",

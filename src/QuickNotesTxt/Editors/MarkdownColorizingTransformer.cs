@@ -1,4 +1,3 @@
-using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Media;
 using AvaloniaEdit.Document;
@@ -7,198 +6,251 @@ using QuickNotesTxt.Styles;
 
 namespace QuickNotesTxt.Editors;
 
-internal sealed partial class MarkdownColorizingTransformer : DocumentColorizingTransformer
+internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransformer, IDisposable
 {
-    private static readonly Regex s_headingRegex = HeadingRegex();
-    private static readonly Regex s_fenceRegex = FenceRegex();
-    private static readonly Regex s_blockquoteRegex = BlockquoteRegex();
-    private static readonly Regex s_listMarkerRegex = ListMarkerRegex();
-    private static readonly Regex s_inlineCodeRegex = InlineCodeRegex();
-    private static readonly Regex s_boldRegex = BoldRegex();
-    private static readonly Regex s_italicRegex = ItalicRegex();
+    private readonly MarkdownLineAnalysisCache _analysisCache = new();
+    private readonly MarkdownFenceStateTracker _fenceStateTracker = new();
+    private readonly MarkdownStyleSpanBuffer _spanBuffer = new();
+    private ResourceCache? _resourceCache;
 
     protected override void ColorizeLine(DocumentLine line)
     {
-        var lineText = CurrentContext.Document.GetText(line.Offset, line.Length);
+        _spanBuffer.Clear();
+
+        var document = CurrentContext.Document;
+        var lineText = document.GetText(line.Offset, line.Length);
         if (string.IsNullOrEmpty(lineText))
         {
             return;
         }
 
-        if (TryApplyFencedCodeBlock(line, lineText))
+        var fenceState = _fenceStateTracker.GetStateBeforeLine(document, line.LineNumber);
+        var analysis = _analysisCache.GetOrAdd(document, line.LineNumber, lineText, fenceState);
+        if (analysis.IsFencedCodeLine)
+        {
+            ApplyFencedCodeBlock(line, analysis);
+            FlushSpans();
+            return;
+        }
+
+        ApplyHeading(line, analysis.Heading);
+        if (ApplyHorizontalRule(line, analysis.HorizontalRule))
         {
             return;
         }
 
-        ApplyHeading(line, lineText);
-        ApplyBlockquote(line, lineText);
-        ApplyListMarker(line, lineText);
-        ApplyEmphasis(line, lineText);
-        ApplyInlineCode(line, lineText);
+        ApplyBlockquote(line, analysis.Blockquote);
+        ApplyTaskList(line, analysis.TaskList);
+        ApplyListMarker(line, analysis.ListMarker);
+        ApplyLinks(line, analysis.Links);
+        ApplyBareUrls(line, analysis.BareUrls);
+        var resources = GetResources();
+        ApplyDelimitedSpans(line, analysis.StrikethroughSpans, resources.MarkdownStrikethroughBrush, markerBrush: resources.MutedTextBrush, textDecorations: TextDecorations.Strikethrough);
+        ApplyDelimitedSpans(line, analysis.BoldSpans, resources.PrimaryTextBrush, markerBrush: resources.MutedTextBrush, fontWeight: FontWeight.SemiBold);
+        ApplyDelimitedSpans(line, analysis.ItalicSpans, resources.SecondaryTextBrush, markerBrush: resources.MutedTextBrush, fontStyle: FontStyle.Italic);
+        ApplyInlineCode(line, analysis.InlineCodeSpans);
+        FlushSpans();
     }
 
-    private void ApplyHeading(DocumentLine line, string lineText)
+    public void Dispose()
     {
-        var match = s_headingRegex.Match(lineText);
-        if (!match.Success)
-        {
-            return;
-        }
-
-        var markerBrush = GetBrush(ThemeKeys.MutedTextBrush);
-        var textBrush = match.Groups["marker"].Length switch
-        {
-            1 => GetBrush(ThemeKeys.MarkdownHeading1Brush),
-            2 => GetBrush(ThemeKeys.MarkdownHeading2Brush),
-            _ => GetBrush(ThemeKeys.MarkdownHeading3Brush)
-        };
-
-        ApplySpan(line.Offset + match.Groups["marker"].Index, line.Offset + match.Groups["marker"].Index + match.Groups["marker"].Length, markerBrush);
-        ApplySpan(line.Offset + match.Groups["text"].Index, line.Offset + match.Groups["text"].Index + match.Groups["text"].Length, textBrush, FontWeight.SemiBold);
+        _analysisCache.Dispose();
+        _fenceStateTracker.Dispose();
     }
 
-    private void ApplyBlockquote(DocumentLine line, string lineText)
+    public void InvalidateResourceCache()
     {
-        var match = s_blockquoteRegex.Match(lineText);
-        if (!match.Success)
-        {
-            return;
-        }
-
-        ApplySpan(line.Offset + match.Groups["marker"].Index, line.Offset + match.Groups["marker"].Index + match.Groups["marker"].Length, GetBrush(ThemeKeys.SecondaryTextBrush));
-        ApplySpan(line.Offset + match.Groups["text"].Index, line.Offset + match.Groups["text"].Index + match.Groups["text"].Length, GetBrush(ThemeKeys.PrimaryTextBrush));
+        _resourceCache = null;
     }
 
-    private void ApplyListMarker(DocumentLine line, string lineText)
+    private bool ApplyHorizontalRule(DocumentLine line, MarkdownRange? rule)
     {
-        var match = s_listMarkerRegex.Match(lineText);
-        if (!match.Success)
-        {
-            return;
-        }
-
-        ApplySpan(line.Offset + match.Groups["marker"].Index, line.Offset + match.Groups["marker"].Index + match.Groups["marker"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-    }
-
-    private void ApplyEmphasis(DocumentLine line, string lineText)
-    {
-        foreach (Match match in s_boldRegex.Matches(lineText))
-        {
-            if (!match.Success)
-            {
-                continue;
-            }
-
-            ApplySpan(line.Offset + match.Groups["markerStart"].Index, line.Offset + match.Groups["markerStart"].Index + match.Groups["markerStart"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-            ApplySpan(line.Offset + match.Groups["text"].Index, line.Offset + match.Groups["text"].Index + match.Groups["text"].Length, GetBrush(ThemeKeys.PrimaryTextBrush), FontWeight.SemiBold);
-            ApplySpan(line.Offset + match.Groups["markerEnd"].Index, line.Offset + match.Groups["markerEnd"].Index + match.Groups["markerEnd"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-        }
-
-        foreach (Match match in s_italicRegex.Matches(lineText))
-        {
-            if (!match.Success)
-            {
-                continue;
-            }
-
-            ApplySpan(line.Offset + match.Groups["markerStart"].Index, line.Offset + match.Groups["markerStart"].Index + match.Groups["markerStart"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-            ApplySpan(line.Offset + match.Groups["text"].Index, line.Offset + match.Groups["text"].Index + match.Groups["text"].Length, GetBrush(ThemeKeys.SecondaryTextBrush), fontStyle: FontStyle.Italic);
-            ApplySpan(line.Offset + match.Groups["markerEnd"].Index, line.Offset + match.Groups["markerEnd"].Index + match.Groups["markerEnd"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-        }
-    }
-
-    private void ApplyInlineCode(DocumentLine line, string lineText)
-    {
-        foreach (Match match in s_inlineCodeRegex.Matches(lineText))
-        {
-            if (!match.Success)
-            {
-                continue;
-            }
-
-            ApplySpan(line.Offset + match.Groups["markerStart"].Index, line.Offset + match.Groups["markerStart"].Index + match.Groups["markerStart"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-            ApplySpan(
-                line.Offset + match.Groups["code"].Index,
-                line.Offset + match.Groups["code"].Index + match.Groups["code"].Length,
-                GetBrush(ThemeKeys.MarkdownInlineCodeForegroundBrush),
-                backgroundBrush: GetBrush(ThemeKeys.MarkdownInlineCodeBackgroundBrush),
-                fontWeight: GetCodeFontWeight(),
-                fontStyle: GetCodeFontStyle(),
-                fontFamily: GetCodeFont());
-            ApplySpan(line.Offset + match.Groups["markerEnd"].Index, line.Offset + match.Groups["markerEnd"].Index + match.Groups["markerEnd"].Length, GetBrush(ThemeKeys.MutedTextBrush));
-        }
-    }
-
-    private bool TryApplyFencedCodeBlock(DocumentLine line, string lineText)
-    {
-        var isInsideFence = IsInsideFence(line);
-        var fenceMatch = s_fenceRegex.Match(lineText);
-        if (!isInsideFence && !fenceMatch.Success)
+        if (rule is null)
         {
             return false;
         }
 
-        ApplySpan(
-            line.Offset,
-            line.Offset + line.Length,
-            GetBrush(ThemeKeys.MarkdownCodeBlockForegroundBrush),
-            backgroundBrush: GetBrush(ThemeKeys.MarkdownCodeBlockBackgroundBrush),
-            fontWeight: GetCodeFontWeight(),
-            fontStyle: GetCodeFontStyle(),
-            fontFamily: GetCodeFont());
-
-        if (fenceMatch.Success)
-        {
-            ApplySpan(
-                line.Offset + fenceMatch.Groups["fence"].Index,
-                line.Offset + fenceMatch.Groups["fence"].Index + fenceMatch.Groups["fence"].Length,
-                GetBrush(ThemeKeys.MutedTextBrush),
-                backgroundBrush: GetBrush(ThemeKeys.MarkdownCodeBlockBackgroundBrush),
-                fontWeight: GetCodeFontWeight(),
-                fontStyle: GetCodeFontStyle(),
-                fontFamily: GetCodeFont());
-        }
-
+        var resources = GetResources();
+        QueueSpan(line.Offset + rule.Value.Start, line.Offset + rule.Value.End, resources.MarkdownRuleBrush, fontWeight: FontWeight.SemiBold);
         return true;
     }
 
-    private bool IsInsideFence(DocumentLine line)
+    private void ApplyHeading(DocumentLine line, MarkdownHeadingMatch? heading)
     {
-        var document = CurrentContext.Document;
-        var current = document.GetLineByNumber(1);
-        var isInsideFence = false;
-        char currentMarker = '\0';
-        var currentMarkerLength = 0;
-
-        while (current is not null && current.LineNumber < line.LineNumber)
+        if (heading is null)
         {
-            var text = document.GetText(current.Offset, current.Length);
-            var match = s_fenceRegex.Match(text);
-            if (match.Success)
-            {
-                var marker = match.Groups["fence"].ValueSpan[0];
-                var markerLength = match.Groups["fence"].Length;
-                if (!isInsideFence)
-                {
-                    isInsideFence = true;
-                    currentMarker = marker;
-                    currentMarkerLength = markerLength;
-                }
-                else if (marker == currentMarker && markerLength >= currentMarkerLength)
-                {
-                    isInsideFence = false;
-                    currentMarker = '\0';
-                    currentMarkerLength = 0;
-                }
-            }
-
-            current = current.NextLine;
+            return;
         }
 
-        return isInsideFence;
+        var resources = GetResources();
+        var markerBrush = resources.MutedTextBrush;
+        var textBrush = heading.Value.Level switch
+        {
+            1 => resources.MarkdownHeading1Brush,
+            2 => resources.MarkdownHeading2Brush,
+            _ => resources.MarkdownHeading3Brush
+        };
+        var fontWeight = heading.Value.Level switch
+        {
+            1 => FontWeight.Bold,
+            2 => FontWeight.SemiBold,
+            3 => FontWeight.Medium,
+            _ => FontWeight.Normal
+        };
+
+        QueueSpan(line.Offset + heading.Value.Marker.Start, line.Offset + heading.Value.Marker.End, markerBrush);
+        QueueSpan(line.Offset + heading.Value.Text.Start, line.Offset + heading.Value.Text.End, textBrush, fontWeight: fontWeight);
+
+        if (heading.Value.Closing is { } closing)
+        {
+            QueueSpan(line.Offset + closing.Start, line.Offset + closing.End, markerBrush);
+        }
     }
 
-    private void ApplySpan(int startOffset, int endOffset, IBrush? foregroundBrush, FontWeight? fontWeight = null, FontStyle? fontStyle = null, IBrush? backgroundBrush = null, FontFamily? fontFamily = null)
+    private void ApplyBlockquote(DocumentLine line, MarkdownBlockquoteMatch? blockquote)
+    {
+        if (blockquote is null)
+        {
+            return;
+        }
+
+        var resources = GetResources();
+        QueueSpan(line.Offset + blockquote.Value.Marker.Start, line.Offset + blockquote.Value.Marker.End, GetBlockquoteMarkerBrush(resources, blockquote.Value.Depth));
+        QueueSpan(line.Offset + blockquote.Value.Text.Start, line.Offset + blockquote.Value.Text.End, GetBlockquoteTextBrush(resources, blockquote.Value.Depth));
+    }
+
+    private void ApplyTaskList(DocumentLine line, MarkdownListMatch? taskList)
+    {
+        if (taskList is null || taskList.Value.Checkbox is null)
+        {
+            return;
+        }
+
+        var resources = GetResources();
+        var checkboxBrush = taskList.Value.IsChecked ? resources.MarkdownTaskDoneBrush : resources.MarkdownTaskPendingBrush;
+        QueueSpan(line.Offset + taskList.Value.Marker.Start, line.Offset + taskList.Value.Marker.End, GetListMarkerBrush(resources, taskList.Value.IndentLength), fontWeight: GetListMarkerWeight(taskList.Value.IndentLength));
+
+        var checkbox = taskList.Value.Checkbox.Value;
+        QueueSpan(line.Offset + checkbox.Start, line.Offset + checkbox.End, checkboxBrush, fontWeight: GetListMarkerWeight(taskList.Value.IndentLength));
+
+        if (taskList.Value.IsChecked && taskList.Value.Text is { } text)
+        {
+            QueueSpan(line.Offset + text.Start, line.Offset + text.End, resources.MarkdownTaskDoneBrush);
+        }
+    }
+
+    private void ApplyListMarker(DocumentLine line, MarkdownListMatch? listMarker)
+    {
+        if (listMarker is null)
+        {
+            return;
+        }
+
+        var resources = GetResources();
+        QueueSpan(line.Offset + listMarker.Value.Marker.Start, line.Offset + listMarker.Value.Marker.End, GetListMarkerBrush(resources, listMarker.Value.IndentLength), fontWeight: GetListMarkerWeight(listMarker.Value.IndentLength));
+    }
+
+    private void ApplyLinks(DocumentLine line, IReadOnlyList<MarkdownLinkMatch> links)
+    {
+        var resources = GetResources();
+
+        foreach (var link in links)
+        {
+            QueueSpan(line.Offset + link.OpenBracket.Start, line.Offset + link.OpenBracket.End, resources.MutedTextBrush);
+            QueueSpan(line.Offset + link.Label.Start, line.Offset + link.Label.End, resources.MarkdownLinkLabelBrush);
+            QueueSpan(line.Offset + link.CloseBracket.Start, line.Offset + link.CloseBracket.End, resources.MutedTextBrush);
+            QueueSpan(line.Offset + link.OpenParen.Start, line.Offset + link.OpenParen.End, resources.MutedTextBrush);
+            QueueSpan(line.Offset + link.Url.Start, line.Offset + link.Url.End, resources.MarkdownLinkUrlBrush);
+            QueueSpan(line.Offset + link.CloseParen.Start, line.Offset + link.CloseParen.End, resources.MutedTextBrush);
+        }
+    }
+
+    private void ApplyBareUrls(DocumentLine line, IReadOnlyList<MarkdownRange> bareUrls)
+    {
+        var resources = GetResources();
+
+        foreach (var bareUrl in bareUrls)
+        {
+            QueueSpan(line.Offset + bareUrl.Start, line.Offset + bareUrl.End, resources.MarkdownLinkUrlBrush);
+        }
+    }
+
+    private void ApplyDelimitedSpans(DocumentLine line, IReadOnlyList<MarkdownDelimitedSpan> spans, IBrush? textBrush, IBrush? markerBrush = null, FontWeight? fontWeight = null, FontStyle? fontStyle = null, TextDecorationCollection? textDecorations = null)
+    {
+        foreach (var span in spans)
+        {
+            QueueSpan(line.Offset + span.MarkerStart.Start, line.Offset + span.MarkerStart.End, markerBrush);
+            QueueSpan(line.Offset + span.Text.Start, line.Offset + span.Text.End, textBrush, fontWeight: fontWeight, fontStyle: fontStyle, textDecorations: textDecorations);
+            QueueSpan(line.Offset + span.MarkerEnd.Start, line.Offset + span.MarkerEnd.End, markerBrush);
+        }
+    }
+
+    private void ApplyInlineCode(DocumentLine line, IReadOnlyList<MarkdownDelimitedSpan> inlineCodeSpans)
+    {
+        var resources = GetResources();
+
+        foreach (var span in inlineCodeSpans)
+        {
+            QueueSpan(line.Offset + span.MarkerStart.Start, line.Offset + span.MarkerStart.End, resources.MutedTextBrush);
+            QueueSpan(
+                line.Offset + span.Text.Start,
+                line.Offset + span.Text.End,
+                resources.MarkdownInlineCodeForegroundBrush,
+                backgroundBrush: resources.MarkdownInlineCodeBackgroundBrush,
+                typeface: resources.CodeTypeface);
+            QueueSpan(line.Offset + span.MarkerEnd.Start, line.Offset + span.MarkerEnd.End, resources.MutedTextBrush);
+        }
+    }
+
+    private void ApplyFencedCodeBlock(DocumentLine line, MarkdownLineAnalysis analysis)
+    {
+        var resources = GetResources();
+        QueueSpan(
+            line.Offset,
+            line.Offset + line.Length,
+            resources.MarkdownCodeBlockForegroundBrush,
+            backgroundBrush: resources.MarkdownCodeBlockBackgroundBrush,
+            typeface: resources.CodeTypeface);
+
+        if (analysis.Fence is not { } fence)
+        {
+            return;
+        }
+
+        QueueSpan(
+            line.Offset + fence.Fence.Start,
+            line.Offset + fence.Fence.End,
+            resources.MarkdownFenceMarkerBrush,
+            backgroundBrush: resources.MarkdownCodeBlockBackgroundBrush,
+            typeface: resources.CodeTypeface);
+
+        if (fence.Info is { } info)
+        {
+            QueueSpan(
+                line.Offset + info.Start,
+                line.Offset + info.End,
+                resources.MarkdownFenceInfoBrush,
+                backgroundBrush: resources.MarkdownCodeBlockBackgroundBrush,
+                typeface: resources.CodeTypeface);
+        }
+    }
+
+    private void QueueSpan(int startOffset, int endOffset, IBrush? foregroundBrush, FontWeight? fontWeight = null, FontStyle? fontStyle = null, IBrush? backgroundBrush = null, FontFamily? fontFamily = null, TextDecorationCollection? textDecorations = null, Typeface? typeface = null)
+    {
+        _spanBuffer.Add(startOffset, endOffset, foregroundBrush, fontWeight, fontStyle, backgroundBrush, fontFamily, textDecorations, typeface);
+    }
+
+    private void FlushSpans()
+    {
+        _spanBuffer.Apply(ApplySpan);
+    }
+
+    private void ApplySpan(MarkdownStyleSpan span)
+    {
+        ApplySpan(span.StartOffset, span.EndOffset, span.ForegroundBrush, span.FontWeight, span.FontStyle, span.BackgroundBrush, span.FontFamily, span.TextDecorations, span.Typeface);
+    }
+
+    private void ApplySpan(int startOffset, int endOffset, IBrush? foregroundBrush, FontWeight? fontWeight = null, FontStyle? fontStyle = null, IBrush? backgroundBrush = null, FontFamily? fontFamily = null, TextDecorationCollection? textDecorations = null, Typeface? typeface = null)
     {
         if (endOffset <= startOffset)
         {
@@ -217,19 +269,31 @@ internal sealed partial class MarkdownColorizingTransformer : DocumentColorizing
                 element.BackgroundBrush = backgroundBrush;
             }
 
-            if (fontWeight is null && fontStyle is null && fontFamily is null)
+            if (textDecorations is not null)
+            {
+                element.TextRunProperties.SetTextDecorations(textDecorations);
+            }
+
+            if (fontWeight is null && fontStyle is null && fontFamily is null && typeface is null)
             {
                 return;
             }
 
-            var currentTypeface = element.TextRunProperties.Typeface;
-            var updatedTypeface = new Typeface(
-                fontFamily ?? currentTypeface.FontFamily,
-                fontStyle ?? currentTypeface.Style,
-                fontWeight ?? currentTypeface.Weight,
-                currentTypeface.Stretch);
+            var updatedTypeface = typeface;
+            if (updatedTypeface is null)
+            {
+                var currentTypeface = element.TextRunProperties.Typeface;
+                updatedTypeface = new Typeface(
+                    fontFamily ?? currentTypeface.FontFamily,
+                    fontStyle ?? currentTypeface.Style,
+                    fontWeight ?? currentTypeface.Weight,
+                    currentTypeface.Stretch);
+            }
 
-            element.TextRunProperties.SetTypeface(updatedTypeface);
+            if (updatedTypeface is Typeface resolvedTypeface)
+            {
+                element.TextRunProperties.SetTypeface(resolvedTypeface);
+            }
         });
     }
 
@@ -239,42 +303,103 @@ internal sealed partial class MarkdownColorizingTransformer : DocumentColorizing
         return app?.Resources[resourceKey] as IBrush;
     }
 
-    private static FontFamily? GetCodeFont()
+    private ResourceCache GetResources() => _resourceCache ??= ResourceCache.Create();
+
+    private static IBrush? GetBlockquoteMarkerBrush(ResourceCache resources, int depth) => depth switch
     {
-        var app = Application.Current;
-        return app?.Resources[ThemeKeys.CodeFont] as FontFamily;
-    }
+        <= 1 => resources.MarkdownBlockquoteBrush,
+        2 => resources.SecondaryTextBrush,
+        _ => resources.MutedTextBrush
+    };
 
-    private static FontWeight? GetCodeFontWeight()
+    private static IBrush? GetBlockquoteTextBrush(ResourceCache resources, int depth) => depth switch
     {
-        var app = Application.Current;
-        return app?.Resources[ThemeKeys.CodeFontWeight] is FontWeight fontWeight ? fontWeight : null;
-    }
+        <= 1 => resources.MarkdownBlockquoteBrush,
+        2 => resources.SecondaryTextBrush,
+        _ => resources.PrimaryTextBrush
+    };
 
-    private static FontStyle? GetCodeFontStyle()
+    private static IBrush? GetListMarkerBrush(ResourceCache resources, int indentLength) => GetListDepth(indentLength) switch
     {
-        var app = Application.Current;
-        return app?.Resources[ThemeKeys.CodeFontStyle] is FontStyle fontStyle ? fontStyle : null;
+        0 => resources.MutedTextBrush,
+        1 => resources.SecondaryTextBrush,
+        _ => resources.MarkdownBlockquoteBrush
+    };
+
+    private static FontWeight GetListMarkerWeight(int indentLength) => GetListDepth(indentLength) switch
+    {
+        0 => FontWeight.Normal,
+        1 => FontWeight.Medium,
+        _ => FontWeight.SemiBold
+    };
+
+    private static int GetListDepth(int indentLength) => indentLength switch
+    {
+        <= 0 => 0,
+        <= 3 => 1,
+        <= 7 => 2,
+        _ => 3
+    };
+
+    private sealed class ResourceCache
+    {
+        public required IBrush? MarkdownRuleBrush { get; init; }
+        public required IBrush? MutedTextBrush { get; init; }
+        public required IBrush? PrimaryTextBrush { get; init; }
+        public required IBrush? SecondaryTextBrush { get; init; }
+        public required IBrush? MarkdownHeading1Brush { get; init; }
+        public required IBrush? MarkdownHeading2Brush { get; init; }
+        public required IBrush? MarkdownHeading3Brush { get; init; }
+        public required IBrush? MarkdownBlockquoteBrush { get; init; }
+        public required IBrush? MarkdownTaskDoneBrush { get; init; }
+        public required IBrush? MarkdownTaskPendingBrush { get; init; }
+        public required IBrush? MarkdownLinkLabelBrush { get; init; }
+        public required IBrush? MarkdownLinkUrlBrush { get; init; }
+        public required IBrush? MarkdownStrikethroughBrush { get; init; }
+        public required IBrush? MarkdownInlineCodeForegroundBrush { get; init; }
+        public required IBrush? MarkdownInlineCodeBackgroundBrush { get; init; }
+        public required IBrush? MarkdownCodeBlockForegroundBrush { get; init; }
+        public required IBrush? MarkdownCodeBlockBackgroundBrush { get; init; }
+        public required IBrush? MarkdownFenceMarkerBrush { get; init; }
+        public required IBrush? MarkdownFenceInfoBrush { get; init; }
+        public required FontFamily? CodeFont { get; init; }
+        public required FontWeight? CodeFontWeight { get; init; }
+        public required FontStyle? CodeFontStyle { get; init; }
+        public required Typeface? CodeTypeface { get; init; }
+
+        public static ResourceCache Create()
+        {
+            var app = Application.Current;
+            var codeFont = app?.Resources[ThemeKeys.CodeFont] as FontFamily;
+            FontWeight? codeFontWeight = app?.Resources[ThemeKeys.CodeFontWeight] is FontWeight fontWeight ? fontWeight : null;
+            FontStyle? codeFontStyle = app?.Resources[ThemeKeys.CodeFontStyle] is FontStyle fontStyle ? fontStyle : null;
+
+            return new ResourceCache
+            {
+                MarkdownRuleBrush = app?.Resources[ThemeKeys.MarkdownRuleBrush] as IBrush,
+                MutedTextBrush = app?.Resources[ThemeKeys.MutedTextBrush] as IBrush,
+                PrimaryTextBrush = app?.Resources[ThemeKeys.PrimaryTextBrush] as IBrush,
+                SecondaryTextBrush = app?.Resources[ThemeKeys.SecondaryTextBrush] as IBrush,
+                MarkdownHeading1Brush = app?.Resources[ThemeKeys.MarkdownHeading1Brush] as IBrush,
+                MarkdownHeading2Brush = app?.Resources[ThemeKeys.MarkdownHeading2Brush] as IBrush,
+                MarkdownHeading3Brush = app?.Resources[ThemeKeys.MarkdownHeading3Brush] as IBrush,
+                MarkdownBlockquoteBrush = app?.Resources[ThemeKeys.MarkdownBlockquoteBrush] as IBrush,
+                MarkdownTaskDoneBrush = app?.Resources[ThemeKeys.MarkdownTaskDoneBrush] as IBrush,
+                MarkdownTaskPendingBrush = app?.Resources[ThemeKeys.MarkdownTaskPendingBrush] as IBrush,
+                MarkdownLinkLabelBrush = app?.Resources[ThemeKeys.MarkdownLinkLabelBrush] as IBrush,
+                MarkdownLinkUrlBrush = app?.Resources[ThemeKeys.MarkdownLinkUrlBrush] as IBrush,
+                MarkdownStrikethroughBrush = app?.Resources[ThemeKeys.MarkdownStrikethroughBrush] as IBrush,
+                MarkdownInlineCodeForegroundBrush = app?.Resources[ThemeKeys.MarkdownInlineCodeForegroundBrush] as IBrush,
+                MarkdownInlineCodeBackgroundBrush = app?.Resources[ThemeKeys.MarkdownInlineCodeBackgroundBrush] as IBrush,
+                MarkdownCodeBlockForegroundBrush = app?.Resources[ThemeKeys.MarkdownCodeBlockForegroundBrush] as IBrush,
+                MarkdownCodeBlockBackgroundBrush = app?.Resources[ThemeKeys.MarkdownCodeBlockBackgroundBrush] as IBrush,
+                MarkdownFenceMarkerBrush = app?.Resources[ThemeKeys.MarkdownFenceMarkerBrush] as IBrush,
+                MarkdownFenceInfoBrush = app?.Resources[ThemeKeys.MarkdownFenceInfoBrush] as IBrush,
+                CodeFont = codeFont,
+                CodeFontWeight = codeFontWeight,
+                CodeFontStyle = codeFontStyle,
+                CodeTypeface = codeFont is null || codeFontWeight is null || codeFontStyle is null ? null : new Typeface(codeFont, codeFontStyle.Value, codeFontWeight.Value),
+            };
+        }
     }
-
-    [GeneratedRegex("^(?<indent>\\s*)(?<fence>(?:`{3,}|~{3,})).*$", RegexOptions.Compiled)]
-    private static partial Regex FenceRegex();
-
-    [GeneratedRegex("^(?<indent>\\s*)(?<marker>#{1,6})(?<spacing>\\s+)(?<text>.+)$", RegexOptions.Compiled)]
-    private static partial Regex HeadingRegex();
-
-    [GeneratedRegex("^(?<indent>\\s*)(?<marker>>+)(?<spacing>\\s*)(?<text>.+)$", RegexOptions.Compiled)]
-    private static partial Regex BlockquoteRegex();
-
-    [GeneratedRegex("^(?<indent>\\s*)(?<marker>(?:[-+*]|\\d+[.)])(?:\\s+\\[(?: |x|X)\\])?)(?=\\s)", RegexOptions.Compiled)]
-    private static partial Regex ListMarkerRegex();
-
-    [GeneratedRegex("(?<markerStart>`)(?<code>[^`\\n]+)(?<markerEnd>`)", RegexOptions.Compiled)]
-    private static partial Regex InlineCodeRegex();
-
-    [GeneratedRegex("(?<markerStart>\\*\\*|__)(?<text>.+?)(?<markerEnd>\\*\\*|__)", RegexOptions.Compiled)]
-    private static partial Regex BoldRegex();
-
-    [GeneratedRegex("(?<!\\*|_)(?<markerStart>\\*|_)(?!\\1)(?<text>[^*_\\n]+)(?<markerEnd>\\*|_)(?!\\*|_)", RegexOptions.Compiled)]
-    private static partial Regex ItalicRegex();
 }

@@ -28,6 +28,15 @@ public static class ThemeKeys
     public const string MarkdownHeading1Brush = "MarkdownHeading1Brush";
     public const string MarkdownHeading2Brush = "MarkdownHeading2Brush";
     public const string MarkdownHeading3Brush = "MarkdownHeading3Brush";
+    public const string MarkdownLinkLabelBrush = "MarkdownLinkLabelBrush";
+    public const string MarkdownLinkUrlBrush = "MarkdownLinkUrlBrush";
+    public const string MarkdownTaskDoneBrush = "MarkdownTaskDoneBrush";
+    public const string MarkdownTaskPendingBrush = "MarkdownTaskPendingBrush";
+    public const string MarkdownStrikethroughBrush = "MarkdownStrikethroughBrush";
+    public const string MarkdownRuleBrush = "MarkdownRuleBrush";
+    public const string MarkdownBlockquoteBrush = "MarkdownBlockquoteBrush";
+    public const string MarkdownFenceMarkerBrush = "MarkdownFenceMarkerBrush";
+    public const string MarkdownFenceInfoBrush = "MarkdownFenceInfoBrush";
     public const string MarkdownInlineCodeForegroundBrush = "MarkdownInlineCodeForegroundBrush";
     public const string MarkdownInlineCodeBackgroundBrush = "MarkdownInlineCodeBackgroundBrush";
     public const string MarkdownCodeBlockForegroundBrush = "MarkdownCodeBlockForegroundBrush";

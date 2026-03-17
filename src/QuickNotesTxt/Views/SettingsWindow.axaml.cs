@@ -8,6 +8,8 @@ public partial class SettingsWindow : Window
 {
     private IReadOnlyList<BundledFontFamilyOption> _fontFamilies = [];
     private bool _isInitializing;
+    private bool _isUpdatingVariantSelection;
+    private SettingsDialogModel? _lastPreviewModel;
 
     public Func<SettingsDialogModel, Task>? PreviewSettingsAsync { get; set; }
 
@@ -64,8 +66,11 @@ public partial class SettingsWindow : Window
         }
 
         var selectedVariantName = SidebarFontVariantComboBox.SelectedItem as string;
-        PopulateVariants(SidebarFontVariantComboBox, selectedFamilyName, selectedVariantName);
-        await RequestPreviewAsync();
+        var variantChanged = PopulateVariants(SidebarFontVariantComboBox, selectedFamilyName, selectedVariantName);
+        if (!variantChanged)
+        {
+            await RequestPreviewAsync();
+        }
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -85,8 +90,11 @@ public partial class SettingsWindow : Window
         }
 
         var selectedVariantName = FontVariantComboBox.SelectedItem as string;
-        PopulateVariants(FontVariantComboBox, selectedFamilyName, selectedVariantName);
-        await RequestPreviewAsync();
+        var variantChanged = PopulateVariants(FontVariantComboBox, selectedFamilyName, selectedVariantName);
+        if (!variantChanged)
+        {
+            await RequestPreviewAsync();
+        }
     }
 
     private async void OnCodeFontFamilySelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -98,24 +106,44 @@ public partial class SettingsWindow : Window
         }
 
         var selectedVariantName = CodeFontVariantComboBox.SelectedItem as string;
-        PopulateVariants(CodeFontVariantComboBox, selectedFamilyName, selectedVariantName);
-        await RequestPreviewAsync();
+        var variantChanged = PopulateVariants(CodeFontVariantComboBox, selectedFamilyName, selectedVariantName);
+        if (!variantChanged)
+        {
+            await RequestPreviewAsync();
+        }
     }
 
     private async void OnAppearanceSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        if (_isUpdatingVariantSelection)
+        {
+            return;
+        }
+
         await RequestPreviewAsync();
     }
 
-    private void PopulateVariants(ComboBox variantComboBox, string familyName, string? selectedVariantName)
+    private bool PopulateVariants(ComboBox variantComboBox, string familyName, string? selectedVariantName)
     {
         var family = _fontFamilies.FirstOrDefault(font => string.Equals(font.DisplayName, familyName, StringComparison.Ordinal));
         var variants = family?.StandardVariants.Select(variant => variant.DisplayName).ToList() ?? [];
-
-        variantComboBox.ItemsSource = variants;
-        variantComboBox.SelectedItem = variants.Contains(selectedVariantName, StringComparer.Ordinal)
+        var nextSelection = variants.Contains(selectedVariantName, StringComparer.Ordinal)
             ? selectedVariantName
             : variants.FirstOrDefault();
+        var selectionChanged = !string.Equals(variantComboBox.SelectedItem as string, nextSelection, StringComparison.Ordinal);
+
+        _isUpdatingVariantSelection = true;
+        try
+        {
+            variantComboBox.ItemsSource = variants;
+            variantComboBox.SelectedItem = nextSelection;
+        }
+        finally
+        {
+            _isUpdatingVariantSelection = false;
+        }
+
+        return selectionChanged;
     }
 
     private void OnSaveClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -156,7 +184,14 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        await PreviewSettingsAsync(BuildCurrentModel());
+        var model = BuildCurrentModel();
+        if (model == _lastPreviewModel)
+        {
+            return;
+        }
+
+        _lastPreviewModel = model;
+        await PreviewSettingsAsync(model);
     }
 
     private static double ParseComboBoxDouble(ComboBox comboBox, double fallback)
