@@ -2,7 +2,7 @@ namespace QuickNotesTxt.Services;
 
 public interface IFileWatcherService : IDisposable
 {
-    event EventHandler? NotesChanged;
+    event EventHandler<NoteFileChangedEventArgs>? NoteChanged;
 
     void Watch(string folderPath);
 

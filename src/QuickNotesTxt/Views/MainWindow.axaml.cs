@@ -6,7 +6,6 @@ using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
-using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit;
@@ -21,13 +20,9 @@ namespace QuickNotesTxt.Views;
 
 public partial class MainWindow : Window
 {
-    private const double ChatWindowDefaultWidth = 700;
-    private const double ChatWindowMinWidth = 460;
-    private const double ChatWindowMaxWidth = 820;
-
     private const double WindowResizeBorderThickness = 6;
     private const double WindowCornerResizeThickness = 10;
-    private ISettingsService? _settingsService;
+    private IWindowLayoutService? _windowLayoutService;
     private WindowEdge? _activeResizeEdge;
     private readonly MenuFlyout _editorContextFlyout = new();
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
@@ -83,10 +78,6 @@ public partial class MainWindow : Window
         {
             if (DataContext is MainViewModel vm)
             {
-                vm.PickFolderAsync = PickFolderAsync;
-                vm.ConfirmDeleteAsync = ConfirmDeleteAsync;
-                vm.ShowSettingsAsync = ShowSettingsAsync;
-                vm.ShowChatAsync = ShowChatAsync;
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.FocusEditorRequested += OnFocusEditorRequested;
                 SyncEditorText(vm.EditorBody);
@@ -100,6 +91,12 @@ public partial class MainWindow : Window
 
         Closing += (_, e) =>
         {
+            if (DataContext is MainViewModel vm)
+            {
+                vm.PropertyChanged -= OnViewModelPropertyChanged;
+                vm.FocusEditorRequested -= OnFocusEditorRequested;
+            }
+
             SaveWindowLayout();
         };
 
@@ -117,9 +114,9 @@ public partial class MainWindow : Window
         SizeChanged += (_, _) => ScheduleSlashCommandPopupPositionUpdate();
     }
 
-    public void SetSettingsService(ISettingsService settingsService)
+    public void SetWindowLayoutService(IWindowLayoutService windowLayoutService)
     {
-        _settingsService = settingsService;
+        _windowLayoutService = windowLayoutService;
     }
 
     public void ApplyInitialWindowLayout(WindowLayout layout, bool isOnScreen)
@@ -159,9 +156,9 @@ public partial class MainWindow : Window
 
     private async Task RestoreWindowLayoutAsync()
     {
-        if (_settingsService is null) return;
+        if (_windowLayoutService is null) return;
 
-        var layout = await _settingsService.GetWindowLayoutAsync();
+        var layout = await _windowLayoutService.GetWindowLayoutAsync();
         if (layout is null) return;
 
         var isOnScreen = IsLayoutOnAnyScreen(layout, Screens);
@@ -187,18 +184,18 @@ public partial class MainWindow : Window
 
     private async Task SaveWindowLayoutAsync()
     {
-        if (_settingsService is null) return;
+        if (_windowLayoutService is null) return;
 
         var layout = BuildWindowLayout();
-        await _settingsService.SetWindowLayoutAsync(layout);
+        await _windowLayoutService.SaveWindowLayoutAsync(layout);
     }
 
     private void SaveWindowLayout()
     {
-        if (_settingsService is null) return;
+        if (_windowLayoutService is null) return;
 
         var layout = BuildWindowLayout();
-        _settingsService.SetWindowLayoutSync(layout);
+        _windowLayoutService.SaveWindowLayoutSync(layout);
     }
 
     private WindowLayout BuildWindowLayout()
@@ -458,55 +455,6 @@ public partial class MainWindow : Window
             _lastNormalWidth = Bounds.Width;
             _lastNormalHeight = Bounds.Height;
         }
-    }
-
-    private async Task<string?> PickFolderAsync()
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            AllowMultiple = false,
-            Title = "Choose notes folder"
-        });
-
-        return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
-    }
-
-    private async Task<bool> ConfirmDeleteAsync(string noteName)
-    {
-        var dialog = new ConfirmDeleteWindow(noteName);
-        return await dialog.ShowDialog<bool>(this);
-    }
-
-    private async Task ShowChatAsync(ChatViewModel model)
-    {
-        var targetWidth = Math.Clamp(Bounds.Width * 0.6, ChatWindowMinWidth, ChatWindowMaxWidth);
-        if (Bounds.Width <= 0)
-        {
-            targetWidth = ChatWindowDefaultWidth;
-        }
-
-        var dialog = new ChatWindow
-        {
-            DataContext = model,
-            Width = targetWidth
-        };
-        await dialog.ShowDialog(this);
-    }
-
-    private async Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model)
-    {
-        var dialog = new SettingsWindow(model);
-        dialog.PreviewSettingsAsync = previewModel =>
-        {
-            if (DataContext is MainViewModel vm)
-            {
-                vm.ApplySettingsPreview(previewModel);
-            }
-
-            return Task.CompletedTask;
-        };
-
-        return await dialog.ShowDialog<SettingsDialogModel?>(this);
     }
 
     private void RebuildEditorContextFlyout()

@@ -62,11 +62,12 @@ public sealed class OpenAiTextActionServiceTests
     {
         var service = new OpenAiTextActionService(new HttpClient(new FakeHttpMessageHandler(_ => throw new InvalidOperationException("Should not call HTTP"))));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RunPromptAsync(
+        var ex = await Assert.ThrowsAsync<AiServiceException>(() => service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "czesc",
             new AiSettings(string.Empty, "gpt-5.4", true)));
 
+        Assert.Equal(AiServiceErrorKind.MissingApiKey, ex.Kind);
         Assert.Equal("Set your OpenAI API key first.", ex.Message);
     }
 
@@ -107,11 +108,13 @@ public sealed class OpenAiTextActionServiceTests
 
         var service = new OpenAiTextActionService(new HttpClient(new FakeHttpMessageHandler(_ => response)));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RunPromptAsync(
+        var ex = await Assert.ThrowsAsync<AiServiceException>(() => service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "text",
             new AiSettings("secret", "gpt-5.4-mini", true)));
 
+        Assert.Equal(AiServiceErrorKind.QuotaExceeded, ex.Kind);
+        Assert.Equal("req_123", ex.RequestId);
         Assert.Contains("Check billing, Project ID, or model access", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Request ID: req_123", ex.Message, StringComparison.Ordinal);
     }

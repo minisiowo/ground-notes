@@ -1,69 +1,62 @@
 # AGENTS.md
 
-This document gives agentic coding assistants repository-specific instructions for working in `quick-notes-txt`.
+Repository guide for agentic coding assistants working in `quick-notes-txt`.
 
 ## Purpose
-- Build, test, and modify the codebase safely with minimal churn.
-- Follow existing architecture and conventions before introducing new patterns.
-- Keep behavior deterministic for filesystem, parsing, and settings flows.
+- Provide the command set and coding conventions for this repo.
+- Keep changes minimal, focused, and architecture-aligned.
+- Preserve deterministic filesystem and parsing behavior.
 
 ## Project Snapshot
-- App: desktop plain-text notes app.
-- Stack: .NET 10, Avalonia UI 11, CommunityToolkit.Mvvm, xUnit.
-- Notes format: `.txt` files with YAML-like frontmatter plus body.
+- Product: desktop plain-text notes app.
+- Stack: .NET 10, Avalonia UI 11, AvaloniaEdit, CommunityToolkit.Mvvm, xUnit.
+- Note format: `.txt` files with YAML-like frontmatter and body text.
+- AI features: OpenAI-backed text actions plus a dedicated chat window that can attach note context and persist conversations as notes.
 - Solution: `QuickNotesTxt.sln`.
-- App project: `src/QuickNotesTxt/QuickNotesTxt.csproj`.
-- Test project: `tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj`.
+- App: `src/QuickNotesTxt/QuickNotesTxt.csproj`.
+- Tests: `tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj`.
 
-## Repository Layout
-- `src/QuickNotesTxt/Models/`: note, theme, font, and AI models.
-- `src/QuickNotesTxt/Services/`: repository, watcher, settings, theme, font, prompt, and OpenAI services.
-- `src/QuickNotesTxt/ViewModels/`: MVVM state, commands, and save orchestration.
-- `src/QuickNotesTxt/Views/`: Avalonia XAML and code-behind.
-- `src/QuickNotesTxt/Styles/`: app themes and style resources.
-- `src/QuickNotesTxt/Assets/`: bundled fonts and prompt assets.
-- `tests/QuickNotesTxt.Tests/`: xUnit tests for services and models.
+## Layout
+- `src/QuickNotesTxt/Models/`: note/theme/font plus AI settings, prompts, and chat message models.
+- `src/QuickNotesTxt/Services/`: repository, watcher, settings, theme/font, AI prompt catalog, OpenAI text action, and OpenAI chat services.
+- `src/QuickNotesTxt/ViewModels/`: primary MVVM state and commands, including `MainViewModel` and `ChatViewModel`.
+- `src/QuickNotesTxt/Views/`: Avalonia XAML plus minimal code-behind, including `ChatWindow` and `SettingsWindow`.
+- `src/QuickNotesTxt/Styles/`: theme/style resources.
+- `src/QuickNotesTxt/Assets/`: bundled assets, including built-in AI prompt definitions in `Assets/AiPrompts/`.
+- `tests/QuickNotesTxt.Tests/`: xUnit tests.
 
-## Cursor/Copilot Rules Status
+## Cursor and Copilot Rules
 - `.cursorrules`: not present.
 - `.cursor/rules/`: not present.
 - `.github/copilot-instructions.md`: not present.
-- No editor-specific rule files were found in this repository.
+- No editor-specific rule files currently apply.
 
-## Toolchain and Environment
-- SDK pin: `.NET 10.0.103` via `global.json`.
-- `rollForward` is set to `latestFeature`.
-- `Directory.Build.props` enables nullable reference types and implicit usings.
+## Toolchain
+- SDK pinned in `global.json`: `10.0.103`.
+- `rollForward`: `latestFeature`.
+- `Directory.Build.props` enables nullable, implicit usings, latest language version.
 - No dedicated lint command is configured.
-
-## Setup Commands
-```bash
-dotnet restore QuickNotesTxt.sln
-```
-
-Optional local tooling setup:
-```bash
-mise install
-```
 
 ## Build Commands
 ```bash
+dotnet restore QuickNotesTxt.sln
 dotnet build QuickNotesTxt.sln
 dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
 dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release
 ```
 
-Notes:
-- Prefer solution-level build for full validation.
-- If Avalonia artifacts are locked by another process, stop conflicting process and rerun.
+Build guidance:
+- Prefer solution-level build for broad validation.
+- Use project-level build for tighter local iteration.
 
 ## Run Command
 ```bash
 dotnet run --project src/QuickNotesTxt
 ```
 
-Notes:
-- Requires a graphical desktop session.
+Run notes:
+- Requires graphical desktop session.
+- In headless shells, run build/tests only.
 
 ## Test Commands
 Run all tests:
@@ -72,7 +65,7 @@ dotnet test QuickNotesTxt.sln
 dotnet test QuickNotesTxt.sln --no-build
 ```
 
-Run project tests:
+Run test project only:
 ```bash
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build
@@ -84,102 +77,119 @@ dotnet test QuickNotesTxt.sln --no-build --list-tests
 ```
 
 ## Single-Test Commands (Important)
-Use `--filter` and prefer fully-qualified names:
+Preferred single-test pattern:
 ```bash
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~QuickNotesTxt.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
 ```
 
-Useful filters:
+Useful filter variants:
 ```bash
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~NotesRepositoryTests"
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~ThemeLoaderServiceTests"
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~ChatViewModelTests"
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~OpenAiTextActionServiceTests"
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~AiPromptCatalogServiceTests"
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "Name~SerializeAndParse"
 ```
 
-Single-test workflow:
-- Build once (`dotnet build`).
-- Iterate with `dotnet test --no-build --filter ...`.
-- Use `--list-tests` if exact names are unclear.
+Fast iteration loop:
+- Build once.
+- Run targeted tests with `--no-build --filter`.
+- Use `--list-tests` when exact names are unknown.
 
 ## Linting and Formatting
-- No linter command is defined in this repo.
-- No repo `.editorconfig` currently defines a formatting policy.
-- Do not invent mandatory lint/format steps in CI notes.
-- Match surrounding formatting and keep diffs small.
+- No lint script/tool is defined in this repository.
+- No mandatory format command is configured.
+- Match local formatting in touched files.
+- Avoid large style-only diffs.
 
-## Architecture Guidance
-- Use MVVM with CommunityToolkit.Mvvm patterns.
-- Keep business logic in `Services` and `ViewModels`, not view code-behind.
-- `MainViewModel` owns editor state, save scheduling, filtering, picker state, and commands.
-- `NotesRepository` owns frontmatter parse/serialize, file naming, filtering, and scoring logic.
-- `FileWatcherService` handles external file-change monitoring and refresh triggers.
-- `FolderSettingsService` persists folder/theme/font/window and related preferences.
+## Architecture Rules
+- Follow MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]`, `[RelayCommand]`).
+- Keep business logic in services/view models, not code-behind.
+- `MainViewModel` coordinates editor state, selection/filter/sort, save orchestration, AI prompt execution, settings persistence, and opening the chat window.
+- `NotesRepository` owns frontmatter parse/serialize and filesystem note operations.
+- `FileWatcherService` handles external change monitoring.
+- `FolderSettingsService` handles persisted folder/theme/font/window preferences plus AI settings (enable flag, API key, default model, project ID, organization ID).
+- `ChatViewModel` owns AI chat transcript state, attached note context, model selection, and saving conversations back through `NotesRepository`.
+- Keep prompt-style AI actions (`IAiTextActionService` / `OpenAiTextActionService`) separate from conversational chat (`IAiChatService` / `OpenAiChatService`).
+- `AiPromptCatalogService` loads built-in prompts from app assets and folder-specific prompts from `.quicknotestxt/ai-prompts` inside the current notes directory.
 
-## C# Style and Formatting
+## Code Style
 - Use file-scoped namespaces.
-- Use 4-space indentation.
-- Keep one top-level type per file.
-- Prefer guard clauses and early returns over deep nesting.
-- Keep methods focused; extract private helpers for repeated logic.
-- Use expression-bodied members only when they improve readability.
+- 4-space indentation.
+- One top-level type per file.
+- Prefer `sealed` concrete classes unless inheritance is required.
+- Prefer guard clauses and early returns.
+- Keep methods small and cohesive.
 
-## Imports and Dependencies
-- `using` order:
+## Imports
+- Order `using` directives as:
   1) `System.*`
   2) third-party namespaces
   3) `QuickNotesTxt.*`
-- Remove redundant imports.
-- Prefer existing .NET/Avalonia APIs over new dependencies.
-- Add packages only when clearly justified by requirements.
+- Remove unused imports.
+- Prefer existing platform APIs before introducing dependencies.
 
-## Types, Nullability, and Data Shapes
-- Treat nullable annotations as part of the contract.
-- Prefer explicit null checks over null-forgiving (`!`) where possible.
-- Use `var` when type is obvious from RHS; otherwise use explicit type.
-- Keep model and DTO shapes explicit and stable.
-- Preserve deterministic serialization/parsing behavior.
+## Types and Nullability
+- Nullable annotations are part of the type contract.
+- Avoid null-forgiving operator (`!`) unless unavoidable.
+- Use explicit null checks at boundaries.
+- Use `var` when RHS type is obvious, explicit type otherwise.
+- Keep DTO/model contracts stable.
 
-## Naming Conventions
+## Naming
 - `PascalCase`: types, methods, properties, enums, enum values.
 - `_camelCase`: private fields.
-- `I` prefix for interfaces.
-- Use descriptive method names based on behavior.
-- Keep boolean names readable and positive (`Is...`, `Has...`, `Can...`).
+- Interface names start with `I`.
+- Async methods end with `Async`.
+- Boolean members use readable positive names (`Is...`, `Has...`, `Can...`).
 
-## Error Handling and Control Flow
-- Fail fast with guard clauses.
-- Catch expected exceptions only (I/O, JSON, cancellation, HTTP, etc.).
+## Error Handling
+- Validate inputs early and fail fast.
+- Catch expected specific exceptions (I/O, JSON, cancellation, HTTP).
 - Avoid broad catch-all unless rethrowing with context.
-- Do not silently swallow exceptions without a clear benign reason.
+- Do not silently swallow exceptions.
 - Use `StringComparison.Ordinal`/`OrdinalIgnoreCase` for string and path comparisons.
 
-## Avalonia / MVVM Boundaries
-- Keep code-behind focused on UI concerns (windowing, focus, keyboard routing, clipboard).
-- Keep app/state logic in view models and services.
-- Follow CommunityToolkit attributes (`[ObservableProperty]`, `[RelayCommand]`) and partial hooks.
-- Reuse existing event/focus patterns before introducing new channels.
+## Avalonia Boundaries
+- Keep code-behind focused on UI-only concerns.
+- Keep state transitions and logic in VM/services.
+- Reuse established event and focus patterns.
+- `ChatWindow` code-behind is responsible for editor synchronization, auto-scroll behavior, mention popup interactions, and window chrome only; chat/history logic belongs in `ChatViewModel`.
 
 ## Filesystem and Data Safety
-- Preserve note frontmatter compatibility when editing parser/serializer behavior.
-- Keep file naming and sanitization deterministic.
-- Avoid destructive behavior changes in rename/delete flows without explicit requirement.
-- Never log or commit secrets (API keys, org/project IDs, credentials).
+- Preserve frontmatter compatibility.
+- Keep filename sanitization deterministic.
+- Be conservative around rename/delete behavior changes.
+- Preserve AI chat note persistence behavior: saved conversations are regular notes tagged with `AI`, and linked-note reference blocks should remain deterministic.
+- Keep custom AI prompts folder behavior stable at `.quicknotestxt/ai-prompts` under the selected notes folder.
+- Never commit secrets or local credentials.
 
 ## Testing Expectations
-- Update or add tests whenever behavior changes in repository/services/view model logic.
-- Prefer focused unit tests for parser/filter/ranking behavior.
-- Use temp directories in filesystem tests and clean up in `Dispose()`.
-- Relevant suites include repository, theme loader, font catalog, settings, AI prompt catalog, and AI text action tests.
+- Add or update tests for behavior changes.
+- Prefer focused unit tests near changed logic.
+- Use temporary directories in filesystem tests and clean up reliably.
+- For AI changes, prefer targeted coverage in `ChatViewModelTests`, `OpenAiTextActionServiceTests`, and `AiPromptCatalogServiceTests`.
+- Cover both unsaved chat sessions and persisted chat-note behavior when changing `ChatViewModel`.
 
-## Agent Working Rules
+## Agent Behavior
 - Read nearby code before editing.
-- Keep changes scoped to the user request.
-- Avoid unrelated refactors or broad formatting churn.
-- Validate touched behavior with targeted tests first, then broader suite as needed.
-- If a command cannot run (environment lock/UI requirement), report it clearly.
+- Keep edits scoped to the request.
+- Avoid unrelated refactors.
+- Validate with targeted tests first, then broader suite if needed.
+- If commands cannot run due to environment limits, state that clearly.
 
 ## Validation Baseline
-- `dotnet build QuickNotesTxt.sln` should succeed.
-- `dotnet test QuickNotesTxt.sln --no-build` should pass after successful build.
-- Single-test execution via `--filter` should work reliably.
-- Treat `artifacts/verify/` as generated output, not hand-edited source.
+- `dotnet build QuickNotesTxt.sln` succeeds.
+- `dotnet test QuickNotesTxt.sln --no-build` succeeds after build.
+- Single-test execution via `--filter` works reliably.
+
+## Quick Commands
+```bash
+dotnet restore QuickNotesTxt.sln
+dotnet build QuickNotesTxt.sln
+dotnet test QuickNotesTxt.sln --no-build
+dotnet test QuickNotesTxt.sln --no-build --list-tests
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~QuickNotesTxt.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~QuickNotesTxt.Tests.ChatViewModelTests"
+```

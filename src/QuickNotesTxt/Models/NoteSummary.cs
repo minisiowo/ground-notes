@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using QuickNotesTxt.Services;
 
 namespace QuickNotesTxt.Models;
 
@@ -51,4 +52,35 @@ public sealed partial class NoteSummary : ObservableObject
 
     [ObservableProperty]
     private string _renameText = string.Empty;
+
+    public static NoteSummary FromDocument(NoteDocument document, bool includeRenameText = false)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var summary = new NoteSummary
+        {
+            Id = document.Id,
+            FilePath = document.FilePath,
+            Title = document.Title,
+            Tags = [.. document.Tags],
+            CreatedAt = document.CreatedAt,
+            UpdatedAt = document.UpdatedAt,
+            Preview = NotePreviewFormatter.Build(document.Body),
+            SearchText = BuildSearchText(document)
+        };
+
+        if (includeRenameText)
+        {
+            summary.RenameText = Path.GetFileNameWithoutExtension(document.FilePath);
+        }
+
+        return summary;
+    }
+
+    public static string BuildSearchText(NoteDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        return string.Join(' ', new[] { document.Title, document.Body, string.Join(' ', document.Tags) });
+    }
 }

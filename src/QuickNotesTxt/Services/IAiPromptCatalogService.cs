@@ -8,5 +8,5 @@ public interface IAiPromptCatalogService
 
     string GetNotesFolderPromptsDirectory(string notesFolder);
 
-    Task<IReadOnlyList<AiPromptDefinition>> LoadPromptsAsync(string? notesFolder, CancellationToken cancellationToken = default);
+    Task<AiPromptCatalogLoadResult> LoadPromptsAsync(string? notesFolder, CancellationToken cancellationToken = default);
 }

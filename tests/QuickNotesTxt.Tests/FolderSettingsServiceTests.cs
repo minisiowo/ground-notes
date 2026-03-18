@@ -42,10 +42,13 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetFontNameAsync_RoundTripsThroughSettingsFile()
+    public async Task UpdateSettingsAsync_RoundTripsTerminalFontThroughSettingsFile()
     {
-        await _service.SetFontNameAsync("Iosevka");
-        await _service.SetFontVariantNameAsync("Bold");
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            FontName = "Iosevka",
+            FontVariantName = "Bold"
+        });
 
         var settings = await _service.GetSettingsAsync();
 
@@ -54,10 +57,13 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetSidebarFontNameAsync_RoundTripsThroughSettingsFile()
+    public async Task UpdateSettingsAsync_RoundTripsSidebarFontThroughSettingsFile()
     {
-        await _service.SetSidebarFontNameAsync("MonaspaceXenon");
-        await _service.SetSidebarFontVariantNameAsync("Medium");
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            SidebarFontName = "MonaspaceXenon",
+            SidebarFontVariantName = "Medium"
+        });
 
         var settings = await _service.GetSettingsAsync();
 
@@ -66,10 +72,13 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetCodeFontNameAsync_RoundTripsThroughSettingsFile()
+    public async Task UpdateSettingsAsync_RoundTripsCodeFontThroughSettingsFile()
     {
-        await _service.SetCodeFontNameAsync("JetBrainsMono");
-        await _service.SetCodeFontVariantNameAsync("SemiBold");
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            CodeFontName = "JetBrainsMono",
+            CodeFontVariantName = "SemiBold"
+        });
 
         var settings = await _service.GetSettingsAsync();
 
@@ -96,15 +105,39 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSettingsAsync_NormalizesWhitespaceAiFields()
+    {
+        var legacySettings = JsonSerializer.Serialize(new
+        {
+            notesFolder = "notes",
+            openAiApiKey = "  secret  ",
+            openAiModel = "  ",
+            aiEnabled = false,
+            openAiProjectId = "  proj_123  ",
+            openAiOrganizationId = "  org_456  "
+        });
+
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal("secret", settings.AiSettings.ApiKey);
+        Assert.Equal(AiSettings.Default.DefaultModel, settings.AiSettings.DefaultModel);
+        Assert.False(settings.AiSettings.IsEnabled);
+        Assert.Equal("proj_123", settings.AiSettings.ProjectId);
+        Assert.Equal("org_456", settings.AiSettings.OrganizationId);
+    }
+
+    [Fact]
     public async Task SetAiSettingsAsync_RoundTripsThroughSettingsFile()
     {
-        var expected = new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456");
+        var expected = new AiSettings("  secret  ", "  gpt-5.4-mini  ", true, "  proj_123  ", "  org_456  ");
 
         await _service.SetAiSettingsAsync(expected);
 
         var settings = await _service.GetAiSettingsAsync();
 
-        Assert.Equal(expected, settings);
+        Assert.Equal(new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456"), settings);
     }
 
     [Fact]
@@ -122,18 +155,19 @@ public sealed class FolderSettingsServiceTests : IDisposable
     public async Task GetSettingsSync_MatchesGetSettingsAsync_ForPersistedValues()
     {
         var ai = new AiSettings("secret", "gpt-5.4", false, "proj_sync", "org_sync");
-        await _service.SetNotesFolderAsync("notes-sync");
-        await _service.SetThemeNameAsync("Nord");
-        await _service.SetFontNameAsync("IosevkaSlab");
-        await _service.SetFontVariantNameAsync("Medium");
-        await _service.SetSidebarFontNameAsync("IosevkaSlab");
-        await _service.SetSidebarFontVariantNameAsync("Regular");
-        await _service.SetCodeFontNameAsync("JetBrainsMono");
-        await _service.SetCodeFontVariantNameAsync("Bold");
-        await _service.SetEditorFontSizeAsync(15);
-        await _service.SetUiFontSizeAsync(13);
-        await _service.SetAiSettingsAsync(ai);
-        _service.SetWindowLayoutSync(new WindowLayout(1200, 800, 50, 60, true, 320, false));
+        await _service.SaveSettingsAsync(new AppSettings(
+            "notes-sync",
+            15,
+            13,
+            "IosevkaSlab",
+            "Medium",
+            "IosevkaSlab",
+            "Regular",
+            "JetBrainsMono",
+            "Bold",
+            "Nord",
+            new WindowLayout(1200, 800, 50, 60, true, 320, false),
+            ai));
 
         var asyncSettings = await _service.GetSettingsAsync();
         var syncSettings = _service.GetSettingsSync();

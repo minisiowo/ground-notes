@@ -85,6 +85,15 @@ public partial class ChatWindow : Window
             ApplyEditorSelectionTheme();
             ChatTextEditor.TextArea.TextView.InvalidateVisual();
         };
+
+        Closed += (_, _) =>
+        {
+            if (_boundViewModel is not null)
+            {
+                _boundViewModel.PropertyChanged -= OnChatViewModelPropertyChanged;
+                _boundViewModel = null;
+            }
+        };
     }
 
     private void ApplyEditorSelectionTheme()
@@ -415,6 +424,16 @@ public partial class ChatWindow : Window
     private void OnInputKeyUp(object? sender, KeyEventArgs e)
     {
         if (DataContext is not ChatViewModel vm) return;
+
+        if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        {
+            if (vm.SaveConversationCommand.CanExecute(null))
+            {
+                vm.SaveConversationCommand.Execute(null);
+                e.Handled = true;
+            }
+            return;
+        }
 
         if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {

@@ -23,11 +23,12 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
     {
         WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
 
-        var prompts = await _service.LoadPromptsAsync(null);
+        var result = await _service.LoadPromptsAsync(null);
 
-        var prompt = Assert.Single(prompts);
+        var prompt = Assert.Single(result.Prompts);
         Assert.True(prompt.IsBuiltIn);
         Assert.Equal("translate", prompt.Id);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]
@@ -35,11 +36,12 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
     {
         WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "rewrite.json", "rewrite", "Rewrite", 200);
 
-        var prompts = await _service.LoadPromptsAsync(_notesDir);
+        var result = await _service.LoadPromptsAsync(_notesDir);
 
-        var prompt = Assert.Single(prompts);
+        var prompt = Assert.Single(result.Prompts);
         Assert.False(prompt.IsBuiltIn);
         Assert.Equal("rewrite", prompt.Id);
+        Assert.Empty(result.Warnings);
     }
 
     [Fact]
@@ -48,23 +50,34 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
         WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
         WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "translate.json", "translate", "My Translate", 5, model: "gpt-5.4");
 
-        var prompts = await _service.LoadPromptsAsync(_notesDir);
+        var result = await _service.LoadPromptsAsync(_notesDir);
 
-        var prompt = Assert.Single(prompts);
+        var prompt = Assert.Single(result.Prompts);
         Assert.Equal("My Translate", prompt.Name);
         Assert.False(prompt.IsBuiltIn);
         Assert.Equal("gpt-5.4", prompt.Model);
     }
 
     [Fact]
-    public async Task LoadPromptsAsync_SkipsMalformedJson()
+    public async Task LoadPromptsAsync_ReturnsWarningsForMalformedAndInvalidPrompts()
     {
         Directory.CreateDirectory(_builtInDir);
         await File.WriteAllTextAsync(Path.Combine(_builtInDir, "bad.json"), "{ no");
+        await File.WriteAllTextAsync(
+            Path.Combine(_builtInDir, "missing-template.json"),
+            """
+            {
+              "id": "missing-template",
+              "name": "Missing Template"
+            }
+            """);
 
-        var prompts = await _service.LoadPromptsAsync(_notesDir);
+        var result = await _service.LoadPromptsAsync(null);
 
-        Assert.Empty(prompts);
+        Assert.Empty(result.Prompts);
+        Assert.Equal(2, result.Warnings.Count);
+        Assert.Contains(result.Warnings, warning => warning.Contains("bad.json", StringComparison.Ordinal) && warning.Contains("malformed JSON", StringComparison.Ordinal));
+        Assert.Contains(result.Warnings, warning => warning.Contains("missing-template.json", StringComparison.Ordinal) && warning.Contains("missing required fields", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -72,34 +85,49 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
     {
         WritePrompt(_builtInDir, "advanced.json", "advanced", "Advanced", 1, model: "o1", temperature: 1.0, maxTokens: 500, reasoningEffort: "medium");
 
-        var prompts = await _service.LoadPromptsAsync(null);
+        var result = await _service.LoadPromptsAsync(null);
 
-        var prompt = Assert.Single(prompts);
+        var prompt = Assert.Single(result.Prompts);
         Assert.Equal(1.0, prompt.Temperature);
         Assert.Equal(500, prompt.MaxTokens);
         Assert.Equal("medium", prompt.ReasoningEffort);
     }
-[Fact]
-public async Task LoadPromptsAsync_DeserializesAdvancedParametersFromSnakeCase()
-{
-    Directory.CreateDirectory(_builtInDir);
-    var payload = """
+
+    [Fact]
+    public async Task LoadPromptsAsync_DeserializesAdvancedParametersFromSnakeCase()
     {
-        "id": "snake",
-        "name": "Snake",
-        "promptTemplate": "test",
-        "max_tokens": 123,
-        "reasoning_effort": "low"
+        Directory.CreateDirectory(_builtInDir);
+        var payload = """
+        {
+            "id": "snake",
+            "name": "Snake",
+            "promptTemplate": "test",
+            "max_tokens": 123,
+            "reasoning_effort": "low"
+        }
+        """;
+        await File.WriteAllTextAsync(Path.Combine(_builtInDir, "snake.json"), payload);
+
+        var result = await _service.LoadPromptsAsync(null);
+
+        var prompt = Assert.Single(result.Prompts);
+        Assert.Equal(123, prompt.MaxTokens);
+        Assert.Equal("low", prompt.ReasoningEffort);
     }
-    """;
-    await File.WriteAllTextAsync(Path.Combine(_builtInDir, "snake.json"), payload);
 
-    var prompts = await _service.LoadPromptsAsync(null);
+    [Fact]
+    public async Task LoadPromptsAsync_CachesBuiltInPromptsAcrossCalls()
+    {
+        WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
 
-    var prompt = Assert.Single(prompts);
-    Assert.Equal(123, prompt.MaxTokens);
-    Assert.Equal("low", prompt.ReasoningEffort);
-}
+        var first = await _service.LoadPromptsAsync(null);
+        Assert.Equal("Translate With AI", Assert.Single(first.Prompts).Name);
+
+        WritePrompt(_builtInDir, "translate.json", "translate", "Changed Title", 100);
+
+        var second = await _service.LoadPromptsAsync(null);
+        Assert.Equal("Translate With AI", Assert.Single(second.Prompts).Name);
+    }
 
     private static void WritePrompt(string directory, string fileName, string id, string name, int order, string? model = null, double? temperature = null, int? maxTokens = null, string? reasoningEffort = null)
     {

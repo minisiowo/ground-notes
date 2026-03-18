@@ -26,7 +26,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IFontCatalogService _fontCatalogService;
     private readonly IAiPromptCatalogService _aiPromptCatalogService;
     private readonly IAiTextActionService _aiTextActionService;
-    private readonly IAiChatService _aiChatService;
+    private readonly INoteMutationService _noteMutationService;
+    private readonly IWorkspaceDialogService _workspaceDialogService;
+    private readonly IAppAppearanceService _appearanceService;
+    private readonly IChatViewModelFactory _chatViewModelFactory;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontFamilyOption> _allFonts =
@@ -172,7 +175,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IFontCatalogService fontCatalogService,
         IAiPromptCatalogService aiPromptCatalogService,
         IAiTextActionService aiTextActionService,
-        IAiChatService aiChatService)
+        INoteMutationService noteMutationService,
+        IWorkspaceDialogService workspaceDialogService,
+        IAppAppearanceService appearanceService,
+        IChatViewModelFactory chatViewModelFactory)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
@@ -181,8 +187,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _fontCatalogService = fontCatalogService;
         _aiPromptCatalogService = aiPromptCatalogService;
         _aiTextActionService = aiTextActionService;
-        _aiChatService = aiChatService;
-        _fileWatcherService.NotesChanged += OnNotesChanged;
+        _noteMutationService = noteMutationService;
+        _workspaceDialogService = workspaceDialogService;
+        _appearanceService = appearanceService;
+        _chatViewModelFactory = chatViewModelFactory;
+        _fileWatcherService.NoteChanged += OnNoteChanged;
+        _noteMutationService.NoteMutated += OnNoteMutated;
 
         SortOptions = Enum.GetValues<SortOption>();
         _ = InitializeAsync();
@@ -191,14 +201,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public event EventHandler? FocusEditorRequested;
 
     public bool IsSettingsPreviewActive { get; private set; }
-
-    public Func<Task<string?>>? PickFolderAsync { get; set; }
-
-    public Func<string, Task<bool>>? ConfirmDeleteAsync { get; set; }
-
-    public Func<SettingsDialogModel, Task<SettingsDialogModel?>>? ShowSettingsAsync { get; set; }
-
-    public Func<ChatViewModel, Task>? ShowChatAsync { get; set; }
 
     public IReadOnlyList<SortOption> SortOptions { get; }
 
@@ -274,10 +276,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var theme = _allThemes.FirstOrDefault(t => t.Name == value);
         if (theme is not null)
         {
-            ThemeService.Apply(theme);
+            _appearanceService.ApplyTheme(theme);
+
             if (!_isApplyingSelection && !IsSettingsPreviewActive)
             {
-                _ = _settingsService.SetThemeNameAsync(value);
+                _ = PersistSettingsAsync(settings => settings with { ThemeName = value });
             }
         }
     }
@@ -433,7 +436,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _isApplyingSelection = false;
         }
 
-        ThemeService.ApplyTerminalFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+        _appearanceService.ApplyTerminalFont(fontFamily, variant);
 
         if (persist)
         {
@@ -443,14 +446,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task PersistFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
     {
-        await _settingsService.SetFontNameAsync(fontFamilyKey);
-        await _settingsService.SetFontVariantNameAsync(fontVariantKey);
+        await PersistSettingsAsync(settings => settings with
+        {
+            FontName = fontFamilyKey,
+            FontVariantName = fontVariantKey
+        });
     }
 
     private async Task PersistSidebarFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
     {
-        await _settingsService.SetSidebarFontNameAsync(fontFamilyKey);
-        await _settingsService.SetSidebarFontVariantNameAsync(fontVariantKey);
+        await PersistSettingsAsync(settings => settings with
+        {
+            SidebarFontName = fontFamilyKey,
+            SidebarFontVariantName = fontVariantKey
+        });
     }
 
     private void ApplySidebarFontSelection(
@@ -480,7 +489,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _isApplyingSelection = false;
         }
 
-        ThemeService.ApplySidebarFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+        _appearanceService.ApplySidebarFont(fontFamily, variant);
 
         if (persist)
         {
@@ -490,8 +499,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task PersistCodeFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
     {
-        await _settingsService.SetCodeFontNameAsync(fontFamilyKey);
-        await _settingsService.SetCodeFontVariantNameAsync(fontVariantKey);
+        await PersistSettingsAsync(settings => settings with
+        {
+            CodeFontName = fontFamilyKey,
+            CodeFontVariantName = fontVariantKey
+        });
     }
 
     private void ApplyCodeFontSelection(
@@ -521,7 +533,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _isApplyingSelection = false;
         }
 
-        ThemeService.ApplyCodeFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+        _appearanceService.ApplyCodeFont(fontFamily, variant);
 
         if (persist)
         {
@@ -531,7 +543,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnUiFontSizeChanged(double value)
     {
-        ThemeService.ApplyUiFontSize(value);
+        _appearanceService.ApplyUiFontSize(value);
     }
 
     partial void OnNotesFolderChanged(string value)
@@ -626,13 +638,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task ChooseFolderAsync()
     {
-        if (PickFolderAsync is null)
-        {
-            StatusMessage = "Folder picker is unavailable.";
-            return;
-        }
-
-        var chosenFolder = await PickFolderAsync();
+        var chosenFolder = await _workspaceDialogService.PickFolderAsync();
         if (string.IsNullOrWhiteSpace(chosenFolder))
         {
             return;
@@ -836,7 +842,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         CancelInlineRename();
 
         var displayName = noteSummary.DisplayName;
-        var shouldDelete = ConfirmDeleteAsync is null || await ConfirmDeleteAsync(displayName);
+        var shouldDelete = await _workspaceDialogService.ConfirmDeleteAsync(displayName);
         if (!shouldDelete)
         {
             StatusMessage = "Delete canceled.";
@@ -845,7 +851,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         CancelScheduledSave();
         SuppressWatcher();
-        await _notesRepository.DeleteNoteIfExistsAsync(noteSummary.FilePath);
+        await _noteMutationService.DeleteIfExistsAsync(noteSummary.FilePath);
         RemoveSummary(noteSummary.FilePath);
 
         var deletedOpenNote = CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteSummary.FilePath, StringComparison.OrdinalIgnoreCase);
@@ -897,57 +903,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task OpenChatAsync()
     {
-        if (!HasSelectedFolder || ShowChatAsync is null) return;
-
-        // 1. Determine the specific AI note for this session
-        var timestamp = DateTimeOffset.Now;
-        var baseName = timestamp.ToString("yyyy-MM-dd-HHmm") + "-AI";
-        var expectedPath = Path.Combine(NotesFolder, baseName + ".md");
-
-        NoteDocument chatNote;
-        if (File.Exists(expectedPath))
+        if (!HasSelectedFolder)
         {
-            var loaded = await _notesRepository.LoadNoteAsync(expectedPath);
-            chatNote = loaded ?? _notesRepository.CreateDraftNote(NotesFolder, timestamp);
-        }
-        else
-        {
-            chatNote = _notesRepository.CreateDraftNote(NotesFolder, timestamp);
-            chatNote = chatNote with 
-            { 
-                Title = $"AI Chat ({timestamp:yyyy-MM-dd HH:mm})",
-                Tags = ["AI"] 
-            };
-            // Save immediately to establish the file
-            chatNote = await _notesRepository.SaveNoteAsync(NotesFolder, chatNote);
+            StatusMessage = "Choose a folder first.";
+            return;
         }
 
         var initialNotes = SelectedNoteSummary is not null ? new[] { SelectedNoteSummary } : null;
-        
-        var chatVm = new ChatViewModel(
-            _aiChatService,
-            _notesRepository,
-            _settingsService,
-            chatNote,
-            initialNotes)
-        {
-            SearchAllNotesFunc = query => _notesRepository.QueryNotesForPicker(_allNotes, query, 10)
-        };
+        var chatVm = _chatViewModelFactory.Create(
+            NotesFolder,
+            SelectedAiModel,
+            () => _allNotes,
+            SelectedNoteSummary,
+            initialNotes);
 
-        await ShowChatAsync(chatVm);
+        await _workspaceDialogService.ShowChatAsync(chatVm);
     }
 
     [RelayCommand]
     private async Task OpenSettingsAsync()
     {
-        if (ShowSettingsAsync is null)
-        {
-            StatusMessage = "Settings are unavailable.";
-            return;
-        }
-
         var original = BuildSettingsDialogModel();
-        var updated = await ShowSettingsAsync(original);
+        var updated = await _workspaceDialogService.ShowSettingsAsync(original, ApplySettingsPreview);
         if (updated is null)
         {
             ApplySettingsPreview(original);
@@ -963,10 +940,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task ReloadAiPromptsAsync()
     {
-        await LoadAiPromptsAsync();
-        StatusMessage = HasAiPrompts
-            ? $"Loaded {AiPrompts.Count} AI prompts."
-            : "No AI prompts were found.";
+        var promptLoad = await LoadAiPromptsAsync();
+        StatusMessage = BuildPromptLoadStatus(promptLoad);
     }
 
     public async Task<string?> RunAiPromptAsync(AiPromptDefinition prompt, string selectedText, CancellationToken cancellationToken = default)
@@ -1053,7 +1028,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         SuppressWatcher();
-        var renamed = await _notesRepository.RenameNoteAsync(NotesFolder, document, newName, CancellationToken.None);
+        document.Title = newName;
+        var renamed = await _noteMutationService.SaveAsync(NotesFolder, document, CancellationToken.None);
         CancelInlineRename();
 
         if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteSummary.FilePath, StringComparison.OrdinalIgnoreCase))
@@ -1110,7 +1086,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         ApplyAiSettings(settings.AiSettings);
-        await LoadAiPromptsAsync();
+        var promptLoad = await LoadAiPromptsAsync();
+        if (promptLoad.Warnings.Count > 0 && !HasSelectedFolder)
+        {
+            StatusMessage = BuildPromptLoadStatus(promptLoad);
+        }
 
         var initialFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.FontName, StringComparison.Ordinal))
             ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
@@ -1145,13 +1125,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         Directory.CreateDirectory(folderPath);
         NotesFolder = folderPath;
-        await _settingsService.SetNotesFolderAsync(folderPath);
+        await PersistSettingsAsync(settings => settings with { NotesFolder = folderPath });
         _fileWatcherService.Watch(folderPath);
         ClearEditor();
         LastSavedText = "QuickNotes";
         await RefreshFromDiskAsync();
-        await LoadAiPromptsAsync();
-        StatusMessage = "Ready.";
+        var promptLoad = await LoadAiPromptsAsync();
+        StatusMessage = promptLoad.Warnings.Count > 0
+            ? BuildPromptLoadStatus(promptLoad)
+            : "Ready.";
 
         if (focusEditorWhenReady)
         {
@@ -1168,7 +1150,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         EditorFontSize = clamped;
-        await _settingsService.SetEditorFontSizeAsync(clamped);
+        await PersistSettingsAsync(settings => settings with { EditorFontSize = clamped });
         StatusMessage = $"Editor font size: {clamped:0}";
     }
 
@@ -1181,7 +1163,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         UiFontSize = clamped;
-        await _settingsService.SetUiFontSizeAsync(clamped);
+        await PersistSettingsAsync(settings => settings with { UiFontSize = clamped });
         StatusMessage = $"UI font size: {clamped:0}";
     }
 
@@ -1245,16 +1227,38 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
         await PersistCodeFontSelectionAsync(codeFontFamily.Key, codeVariant.Key);
 
-        await SetEditorFontSizeAsync(model.EditorFontSize);
-        await SetUiFontSizeAsync(model.UiFontSize);
-
         ApplyAiSettings(new AiSettings(
             model.ApiKey,
             model.DefaultModel,
             model.IsAiEnabled,
             model.ProjectId,
             model.OrganizationId));
-        await _settingsService.SetAiSettingsAsync(BuildAiSettings());
+
+        var persistedEditorFontSize = ClampEditorFontSize(model.EditorFontSize);
+        var persistedUiFontSize = ClampUiFontSize(model.UiFontSize);
+        if (!EditorFontSize.Equals(persistedEditorFontSize))
+        {
+            EditorFontSize = persistedEditorFontSize;
+        }
+
+        if (!UiFontSize.Equals(persistedUiFontSize))
+        {
+            UiFontSize = persistedUiFontSize;
+        }
+
+        await PersistSettingsAsync(settings => settings with
+        {
+            ThemeName = model.SelectedThemeName,
+            SidebarFontName = sidebarFontFamily.Key,
+            SidebarFontVariantName = sidebarVariant.Key,
+            FontName = fontFamily.Key,
+            FontVariantName = variant.Key,
+            CodeFontName = codeFontFamily.Key,
+            CodeFontVariantName = codeVariant.Key,
+            EditorFontSize = persistedEditorFontSize,
+            UiFontSize = persistedUiFontSize,
+            AiSettings = BuildAiSettings()
+        });
     }
 
     public void ApplySettingsPreview(SettingsDialogModel model)
@@ -1329,11 +1333,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _isApplyingSelection = false;
         }
 
-        ThemeService.Apply(theme);
-
         if (persist)
         {
-            _ = _settingsService.SetThemeNameAsync(theme.Name);
+            _ = PersistSettingsAsync(settings => settings with { ThemeName = theme.Name });
         }
     }
 
@@ -1577,7 +1579,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         var previousPath = document.FilePath;
         SuppressWatcher();
-        var saved = await _notesRepository.SaveNoteAsync(NotesFolder, document, cancellationToken);
+        var saved = await _noteMutationService.SaveAsync(NotesFolder, document, cancellationToken);
         ReplaceSummary(previousPath, BuildSummary(saved));
         RefreshAvailableTags();
         RefreshVisibleNotes();
@@ -1717,18 +1719,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private static NoteSummary BuildSummary(NoteDocument document)
     {
-        return new NoteSummary
-        {
-            Id = document.FilePath,
-            FilePath = document.FilePath,
-            Title = document.Title,
-            Tags = [.. document.Tags],
-            CreatedAt = document.CreatedAt,
-            UpdatedAt = document.UpdatedAt,
-            Preview = NotePreviewFormatter.Build(document.Body),
-            SearchText = string.Join(' ', new[] { document.Title, document.Body, string.Join(' ', document.Tags) }),
-            RenameText = Path.GetFileNameWithoutExtension(document.FilePath)
-        };
+        return NoteSummary.FromDocument(document, includeRenameText: true);
     }
 
     private void SuppressWatcher()
@@ -1749,7 +1740,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return $"Last saved: {updatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
     }
 
-    private void OnNotesChanged(object? sender, EventArgs e)
+    private void OnNoteChanged(object? sender, NoteFileChangedEventArgs e)
     {
         if (DateTimeOffset.UtcNow < _suppressWatcherUntil)
         {
@@ -1761,33 +1752,99 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _fileWatcherService.NotesChanged -= OnNotesChanged;
+        _fileWatcherService.NoteChanged -= OnNoteChanged;
+        _noteMutationService.NoteMutated -= OnNoteMutated;
         _fileWatcherService.Dispose();
         CancelScheduledSave();
     }
 
+    private Task PersistSettingsAsync(Func<AppSettings, AppSettings> update)
+    {
+        return _settingsService.UpdateSettingsAsync(update);
+    }
+
+    private void OnNoteMutated(object? sender, NoteMutationEventArgs e)
+    {
+        if (!HasSelectedFolder)
+        {
+            return;
+        }
+
+        if (e.Kind == NoteMutationKind.Deleted)
+        {
+            RemoveSummary(e.PreviousPath);
+            RefreshAvailableTags();
+            RefreshVisibleNotes();
+            return;
+        }
+
+        if (e.Document is null)
+        {
+            return;
+        }
+
+        ReplaceSummary(e.PreviousPath, BuildSummary(e.Document));
+        RefreshAvailableTags();
+        RefreshVisibleNotes();
+
+        if (CurrentNote is null)
+        {
+            return;
+        }
+
+        var touchesCurrentNote = string.Equals(CurrentNote.FilePath, e.PreviousPath, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(CurrentNote.FilePath, e.Document.FilePath, StringComparison.OrdinalIgnoreCase);
+        if (!touchesCurrentNote)
+        {
+            return;
+        }
+
+        if (HasUnsavedChanges)
+        {
+            HasConflict = true;
+            StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+            return;
+        }
+
+        ApplyDocumentToEditor(e.Document);
+        SelectSummaryByPath(e.Document.FilePath);
+    }
+
     private void ApplyAiSettings(AiSettings settings)
     {
-        OpenAiApiKey = settings.ApiKey;
-        SelectedAiModel = string.IsNullOrWhiteSpace(settings.DefaultModel)
-            ? AiSettings.Default.DefaultModel
-            : settings.DefaultModel.Trim();
-        OpenAiProjectId = settings.ProjectId;
-        OpenAiOrganizationId = settings.OrganizationId;
-        IsAiEnabled = settings.IsEnabled;
+        var normalized = AiSettings.Normalize(settings);
+        OpenAiApiKey = normalized.ApiKey;
+        SelectedAiModel = normalized.DefaultModel;
+        OpenAiProjectId = normalized.ProjectId;
+        OpenAiOrganizationId = normalized.OrganizationId;
+        IsAiEnabled = normalized.IsEnabled;
     }
 
     private AiSettings BuildAiSettings()
     {
-        var model = string.IsNullOrWhiteSpace(SelectedAiModel)
-            ? AiSettings.Default.DefaultModel
-            : SelectedAiModel.Trim();
-
-        return new AiSettings(OpenAiApiKey.Trim(), model, IsAiEnabled, OpenAiProjectId.Trim(), OpenAiOrganizationId.Trim());
+        return AiSettings.Normalize(OpenAiApiKey, SelectedAiModel, IsAiEnabled, OpenAiProjectId, OpenAiOrganizationId);
     }
 
-    private async Task LoadAiPromptsAsync()
+    private static string BuildPromptLoadStatus(AiPromptCatalogLoadResult promptLoad, string defaultMessage = "No AI prompts were found.")
     {
-        AiPrompts = await _aiPromptCatalogService.LoadPromptsAsync(HasSelectedFolder ? NotesFolder : null);
+        if (promptLoad.Warnings.Count > 0)
+        {
+            var promptMessage = promptLoad.Prompts.Count > 0
+                ? $"Loaded {promptLoad.Prompts.Count} AI prompts."
+                : defaultMessage;
+
+            return $"{promptMessage} {promptLoad.Warnings.Count} warning(s).";
+        }
+
+        return promptLoad.Prompts.Count > 0
+            ? $"Loaded {promptLoad.Prompts.Count} AI prompts."
+            : defaultMessage;
+    }
+
+    private async Task<AiPromptCatalogLoadResult> LoadAiPromptsAsync()
+    {
+        var result = await _aiPromptCatalogService.LoadPromptsAsync(HasSelectedFolder ? NotesFolder : null);
+        AiPrompts = result.Prompts;
+        return result;
     }
 }

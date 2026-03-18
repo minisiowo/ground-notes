@@ -60,6 +60,22 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadNoteAsync_UsesFileMetadataFromDisk()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var filePath = Path.Combine(_tempRoot, "metadata.txt");
+        await File.WriteAllTextAsync(filePath, "body");
+
+        var updatedAt = new DateTime(2026, 3, 3, 12, 13, 0, DateTimeKind.Local);
+        File.SetLastWriteTime(filePath, updatedAt);
+
+        var loaded = await _repository.LoadNoteAsync(filePath);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(updatedAt, loaded.UpdatedAt);
+    }
+
+    [Fact]
     public async Task SaveNoteAsync_RenamesWhenTitleChanges()
     {
         var draft = _repository.CreateDraftNote(_tempRoot, DateTimeOffset.Now);

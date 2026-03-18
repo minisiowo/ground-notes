@@ -10,6 +10,9 @@ public sealed class AiPromptCatalogService : IAiPromptCatalogService
         PropertyNameCaseInsensitive = true
     };
 
+    private readonly SemaphoreSlim _builtInCacheLock = new(1, 1);
+    private AiPromptCatalogLoadResult? _cachedBuiltInPrompts;
+
     public string BuiltInPromptsDirectory { get; }
 
     public AiPromptCatalogService()
@@ -28,11 +31,13 @@ public sealed class AiPromptCatalogService : IAiPromptCatalogService
         return Path.Combine(notesFolder, ".quicknotestxt", "ai-prompts");
     }
 
-    public async Task<IReadOnlyList<AiPromptDefinition>> LoadPromptsAsync(string? notesFolder, CancellationToken cancellationToken = default)
+    public async Task<AiPromptCatalogLoadResult> LoadPromptsAsync(string? notesFolder, CancellationToken cancellationToken = default)
     {
+        var builtInCatalog = await LoadBuiltInPromptsAsync(cancellationToken);
         var promptsById = new Dictionary<string, AiPromptDefinition>(StringComparer.OrdinalIgnoreCase);
+        var warnings = new List<string>(builtInCatalog.Warnings);
 
-        foreach (var prompt in await LoadPromptsFromDirectoryAsync(BuiltInPromptsDirectory, isBuiltIn: true, cancellationToken))
+        foreach (var prompt in builtInCatalog.Prompts)
         {
             promptsById[prompt.Id] = prompt;
         }
@@ -40,26 +45,56 @@ public sealed class AiPromptCatalogService : IAiPromptCatalogService
         if (!string.IsNullOrWhiteSpace(notesFolder))
         {
             var customDirectory = GetNotesFolderPromptsDirectory(notesFolder);
-            foreach (var prompt in await LoadPromptsFromDirectoryAsync(customDirectory, isBuiltIn: false, cancellationToken))
+            var customCatalog = await LoadPromptsFromDirectoryAsync(customDirectory, isBuiltIn: false, cancellationToken);
+            warnings.AddRange(customCatalog.Warnings);
+
+            foreach (var prompt in customCatalog.Prompts)
             {
                 promptsById[prompt.Id] = prompt;
             }
         }
 
-        return promptsById.Values
+        return new AiPromptCatalogLoadResult(
+            promptsById.Values
             .OrderBy(prompt => prompt.Order)
             .ThenBy(prompt => prompt.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+            .ToList(),
+            warnings);
     }
 
-    private static async Task<IReadOnlyList<AiPromptDefinition>> LoadPromptsFromDirectoryAsync(string directory, bool isBuiltIn, CancellationToken cancellationToken)
+    private async Task<AiPromptCatalogLoadResult> LoadBuiltInPromptsAsync(CancellationToken cancellationToken)
+    {
+        if (_cachedBuiltInPrompts is not null)
+        {
+            return _cachedBuiltInPrompts;
+        }
+
+        await _builtInCacheLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_cachedBuiltInPrompts is not null)
+            {
+                return _cachedBuiltInPrompts;
+            }
+
+            _cachedBuiltInPrompts = await LoadPromptsFromDirectoryAsync(BuiltInPromptsDirectory, isBuiltIn: true, cancellationToken);
+            return _cachedBuiltInPrompts;
+        }
+        finally
+        {
+            _builtInCacheLock.Release();
+        }
+    }
+
+    private static async Task<AiPromptCatalogLoadResult> LoadPromptsFromDirectoryAsync(string directory, bool isBuiltIn, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(directory))
         {
-            return [];
+            return AiPromptCatalogLoadResult.Empty;
         }
 
         var prompts = new List<AiPromptDefinition>();
+        var warnings = new List<string>();
         foreach (var file in Directory.EnumerateFiles(directory, "*.json", SearchOption.TopDirectoryOnly)
                      .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
         {
@@ -69,6 +104,7 @@ public sealed class AiPromptCatalogService : IAiPromptCatalogService
                 var prompt = await JsonSerializer.DeserializeAsync<AiPromptDefinition>(stream, s_jsonOptions, cancellationToken);
                 if (!IsValid(prompt))
                 {
+                    warnings.Add(BuildWarning(file, "missing required fields."));
                     continue;
                 }
 
@@ -76,15 +112,20 @@ public sealed class AiPromptCatalogService : IAiPromptCatalogService
             }
             catch (IOException)
             {
-                // Skip unreadable files.
+                warnings.Add(BuildWarning(file, "could not be read."));
             }
             catch (JsonException)
             {
-                // Skip malformed files.
+                warnings.Add(BuildWarning(file, "malformed JSON."));
             }
         }
 
-        return prompts;
+        return new AiPromptCatalogLoadResult(prompts, warnings);
+    }
+
+    private static string BuildWarning(string filePath, string reason)
+    {
+        return $"Skipped prompt file '{filePath}': {reason}";
     }
 
     private static bool IsValid(AiPromptDefinition? prompt)

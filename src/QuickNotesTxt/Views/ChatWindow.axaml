@@ -45,7 +45,7 @@
 
     <!-- Header / Model Selector -->
     <Border Grid.Row="1" Padding="12,8" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource BorderBrushBase}">
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
         <StackPanel Spacing="2">
           <TextBlock Text="AI Chat Journal" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
@@ -100,18 +100,25 @@
 
     <!-- Input Area -->
     <Border Grid.Row="4" Padding="12" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrushBase}">
-      <Grid ColumnDefinitions="*,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
         <TextBox x:Name="InputTextBox" 
                  Grid.Column="0" 
-                 Watermark="Ask a question... Use @ to reference other notes. (CTRL+SHIFT+ENTER to send)" 
+                 Watermark="Ask a question... Use @ to reference notes. Ctrl+Shift+Enter sends." 
                  Text="{Binding InputText}" 
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
                  MaxHeight="150"
                  VerticalContentAlignment="Top"
                  KeyUp="OnInputKeyUp" />
-        <Button Grid.Column="1" 
-                Margin="8,0,0,0" 
+        <Button Grid.Column="1"
+                VerticalAlignment="Bottom"
+                Content="Save As New"
+                Command="{Binding SaveConversationCommand}" />
+        <Button Grid.Column="2"
+                VerticalAlignment="Bottom"
+                Content="Append To File"
+                Command="{Binding AppendToFileCommand}" />
+        <Button Grid.Column="3"
                 VerticalAlignment="Bottom"
                 Content="Send" 
                 Command="{Binding SendMessageCommand}" />

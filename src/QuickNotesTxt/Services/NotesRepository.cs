@@ -23,7 +23,7 @@ public sealed class NotesRepository : INotesRepository
             var document = await LoadNoteAsync(filePath, cancellationToken);
             if (document is not null)
             {
-                notes.Add(ToSummary(document));
+                notes.Add(NoteSummary.FromDocument(document));
             }
         }
 
@@ -37,8 +37,9 @@ public sealed class NotesRepository : INotesRepository
             return null;
         }
 
+        var metadata = GetFileMetadata(filePath);
         var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
-        return ParseDocument(filePath, content);
+        return ParseDocument(filePath, content, metadata.CreatedAt, metadata.UpdatedAt);
     }
 
     public NoteDocument CreateDraftNote(string folderPath, DateTimeOffset timestamp)
@@ -185,11 +186,15 @@ public sealed class NotesRepository : INotesRepository
 
     public static NoteDocument ParseDocument(string filePath, string content)
     {
+        var metadata = GetFileMetadata(filePath);
+        return ParseDocument(filePath, content, metadata.CreatedAt, metadata.UpdatedAt);
+    }
+
+    private static NoteDocument ParseDocument(string filePath, string content, DateTime createdAt, DateTime updatedAt)
+    {
         var normalized = content.Replace("\r\n", "\n");
         var title = Path.GetFileNameWithoutExtension(filePath);
         var tags = new List<string>();
-        var createdAt = File.Exists(filePath) ? File.GetCreationTime(filePath) : DateTime.Now;
-        var updatedAt = File.Exists(filePath) ? File.GetLastWriteTime(filePath) : createdAt;
         var body = normalized;
 
         if (TryReadFrontMatter(normalized, ref title, ref tags, ref createdAt, ref updatedAt, out var parsedBody))
@@ -208,21 +213,6 @@ public sealed class NotesRepository : INotesRepository
             CreatedAt = createdAt,
             UpdatedAt = updatedAt,
             IsAutoCreated = false
-        };
-    }
-
-    private static NoteSummary ToSummary(NoteDocument document)
-    {
-        return new NoteSummary
-        {
-            Id = document.Id,
-            FilePath = document.FilePath,
-            Title = document.Title,
-            Tags = [.. document.Tags],
-            CreatedAt = document.CreatedAt,
-            UpdatedAt = document.UpdatedAt,
-            Preview = NotePreviewFormatter.Build(document.Body),
-            SearchText = string.Join(' ', new[] { document.Title, document.Body, string.Join(' ', document.Tags) })
         };
     }
 
@@ -262,6 +252,17 @@ public sealed class NotesRepository : INotesRepository
                 .OrderBy(path => string.Equals(Path.GetExtension(path), MarkdownExtension, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
                 .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
                 .First());
+    }
+
+    private static FileMetadata GetFileMetadata(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            var now = DateTime.Now;
+            return new FileMetadata(now, now);
+        }
+
+        return new FileMetadata(File.GetCreationTime(filePath), File.GetLastWriteTime(filePath));
     }
 
     private static bool IsSupportedNotePath(string filePath)
@@ -551,4 +552,6 @@ public sealed class NotesRepository : INotesRepository
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    private readonly record struct FileMetadata(DateTime CreatedAt, DateTime UpdatedAt);
 }
