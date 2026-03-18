@@ -116,6 +116,25 @@ public sealed class OpenAiTextActionServiceTests
         Assert.Contains("Request ID: req_123", ex.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RunPromptAsync_IncludesAdvancedParametersInPayload()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}", Encoding.UTF8, "application/json")
+        });
+        var service = new OpenAiTextActionService(new HttpClient(handler));
+
+        await service.RunPromptAsync(
+            new AiPromptDefinition("test", "Test", "{selected}", null, "o1", true, 0, false, 0.7, 100, "high"),
+            "text",
+            new AiSettings("secret", "gpt-5.4-mini", true));
+
+        Assert.Contains("\"temperature\":0.7", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("\"max_tokens\":100", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("\"reasoning_effort\":\"high\"", handler.RequestBody, StringComparison.Ordinal);
+    }
+
     private sealed class FakeHttpMessageHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;

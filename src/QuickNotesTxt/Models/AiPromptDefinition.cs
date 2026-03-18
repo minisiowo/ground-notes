@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace QuickNotesTxt.Models;
 
 public sealed record AiPromptDefinition(
@@ -8,4 +10,7 @@ public sealed record AiPromptDefinition(
     string? Model = null,
     bool ReplaceSelection = true,
     int Order = 0,
-    bool IsBuiltIn = false);
+    bool IsBuiltIn = false,
+    [property: JsonPropertyName("temperature")] double? Temperature = null,
+    [property: JsonPropertyName("max_tokens")] int? MaxTokens = null,
+    [property: JsonPropertyName("reasoning_effort")] string? ReasoningEffort = null);

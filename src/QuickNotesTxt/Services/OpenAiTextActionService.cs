@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using QuickNotesTxt.Models;
 
 namespace QuickNotesTxt.Services;
@@ -9,7 +10,8 @@ public sealed class OpenAiTextActionService : IAiTextActionService
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     private readonly HttpClient _httpClient;
@@ -45,7 +47,10 @@ public sealed class OpenAiTextActionService : IAiTextActionService
         var renderedPrompt = prompt.PromptTemplate.Replace("{selected}", selectedText, StringComparison.Ordinal);
         var payload = new ChatCompletionsRequest(
             model,
-            [new ChatMessage("user", renderedPrompt)]);
+            [new ChatMessage("user", renderedPrompt)],
+            prompt.Temperature,
+            prompt.MaxTokens,
+            prompt.ReasoningEffort);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions")
         {
@@ -84,7 +89,12 @@ public sealed class OpenAiTextActionService : IAiTextActionService
         return content.Trim();
     }
 
-    private sealed record ChatCompletionsRequest(string Model, IReadOnlyList<ChatMessage> Messages);
+    private sealed record ChatCompletionsRequest(
+        string Model,
+        IReadOnlyList<ChatMessage> Messages,
+        [property: JsonPropertyName("temperature")] double? Temperature = null,
+        [property: JsonPropertyName("max_tokens")] int? MaxTokens = null,
+        [property: JsonPropertyName("reasoning_effort")] string? ReasoningEffort = null);
 
     private sealed record ChatMessage(string Role, string Content);
 

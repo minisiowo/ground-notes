@@ -3,7 +3,8 @@
   "name": "Translate With AI",
   "description": "Translate selected EN/PL text",
   "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
   "replaceSelection": true,
   "order": 100,
-  "promptTemplate": "Jestes wyspecializowanym tlumaczem jezykow EN/PL - PL/EN. Twoje odpowiedzi sa konkretne i nie zawieraja zbednych komentarzy.\n\n- Jesli ktos wysyla Ci tekst w jezyku EN, tlumaczysz go na PL.\n- Jesli ktos wysyla Ci tekst w jezyku PL, tlumaczysz go na EN.\n- Jesli dostajesz tekst zawierajacy elementy jezyka EN i PL, robisz z tego spojna calosc w jezyku EN, dbajac o to, zeby tekst byl logiczny i prosty do zrozumienia.\n\nTekst do przetlumaczenia:\n\n{selected}"
+  "promptTemplate": "Jesteś wyspecjalizowanym tłumaczem EN↔PL. Zasady: Zwracaj WYŁĄCZNIE przetłumaczony tekst. Popraw składnię, gramatykę i logiczny przepływ zdań. Zachowaj oryginalny sens wypowiedzi. Upraszczaj i porządkuj chaotyczne fragmenty. Nie dodawaj nowych informacji. Logika: EN → PL, PL → EN, mixed → spójny EN. Tekst: {selected}"
 }

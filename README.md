@@ -205,11 +205,22 @@ The built-in prompt format looks like this:
   "name": "Translate With AI",
   "description": "Translate selected EN/PL text",
   "model": "gpt-5.4-mini",
+  "temperature": 0.7,
+  "max_tokens": 500,
+  "reasoning_effort": "medium",
   "replaceSelection": true,
   "order": 100,
-  "promptTemplate": "... {selected}"
+  "promptTemplate": "Jestes wyspecializowanym tlumaczem... {selected}"
 }
 ```
+
+### Advanced Parameters
+
+You can fine-tune AI behavior per prompt using these optional fields:
+- `temperature`: Controls randomness (0.0 to 2.0).
+- `max_tokens`: Limits the length of the AI response.
+- `reasoning_effort`: For reasoning models (e.g., `o1`), set to `low`, `medium`, or `high`.
+
 
 ## Run the tests
 

@@ -67,18 +67,55 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
         Assert.Empty(prompts);
     }
 
-    private static void WritePrompt(string directory, string fileName, string id, string name, int order, string? model = null)
+    [Fact]
+    public async Task LoadPromptsAsync_DeserializesAdvancedParameters()
+    {
+        WritePrompt(_builtInDir, "advanced.json", "advanced", "Advanced", 1, model: "o1", temperature: 1.0, maxTokens: 500, reasoningEffort: "medium");
+
+        var prompts = await _service.LoadPromptsAsync(null);
+
+        var prompt = Assert.Single(prompts);
+        Assert.Equal(1.0, prompt.Temperature);
+        Assert.Equal(500, prompt.MaxTokens);
+        Assert.Equal("medium", prompt.ReasoningEffort);
+    }
+[Fact]
+public async Task LoadPromptsAsync_DeserializesAdvancedParametersFromSnakeCase()
+{
+    Directory.CreateDirectory(_builtInDir);
+    var payload = """
+    {
+        "id": "snake",
+        "name": "Snake",
+        "promptTemplate": "test",
+        "max_tokens": 123,
+        "reasoning_effort": "low"
+    }
+    """;
+    await File.WriteAllTextAsync(Path.Combine(_builtInDir, "snake.json"), payload);
+
+    var prompts = await _service.LoadPromptsAsync(null);
+
+    var prompt = Assert.Single(prompts);
+    Assert.Equal(123, prompt.MaxTokens);
+    Assert.Equal("low", prompt.ReasoningEffort);
+}
+
+    private static void WritePrompt(string directory, string fileName, string id, string name, int order, string? model = null, double? temperature = null, int? maxTokens = null, string? reasoningEffort = null)
     {
         Directory.CreateDirectory(directory);
-        var payload = new
+        var payload = new Dictionary<string, object?>
         {
-            id,
-            name,
-            description = "test",
-            promptTemplate = "Prompt {selected}",
-            model,
-            replaceSelection = true,
-            order
+            ["id"] = id,
+            ["name"] = name,
+            ["description"] = "test",
+            ["promptTemplate"] = "Prompt {selected}",
+            ["model"] = model,
+            ["replaceSelection"] = true,
+            ["order"] = order,
+            ["temperature"] = temperature,
+            ["max_tokens"] = maxTokens,
+            ["reasoning_effort"] = reasoningEffort
         };
 
         File.WriteAllText(Path.Combine(directory, fileName), JsonSerializer.Serialize(payload));
