@@ -171,7 +171,7 @@ public partial class SettingsWindow : Window
             ParseComboBoxDouble(UiFontSizeComboBox, 12),
             AiEnabledToggle.IsChecked ?? true,
             ApiKeyTextBox.Text?.Trim() ?? string.Empty,
-            string.IsNullOrWhiteSpace(DefaultModelTextBox.Text) ? "gpt-4.1-mini" : DefaultModelTextBox.Text.Trim(),
+            string.IsNullOrWhiteSpace(DefaultModelTextBox.Text) ? "gpt-5.4-mini" : DefaultModelTextBox.Text.Trim(),
             ProjectIdTextBox.Text?.Trim() ?? string.Empty,
             OrganizationIdTextBox.Text?.Trim() ?? string.Empty,
             PromptsFolderTextBlock.Text ?? string.Empty);

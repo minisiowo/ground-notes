@@ -41,8 +41,8 @@ public sealed class FontCatalogServiceTests : IDisposable
         var fonts = _service.LoadBundledFonts();
 
         Assert.Collection(fonts,
-            font => Assert.Equal("Iosevka Slab", font.DisplayName),
-            font => Assert.Equal("Iosevka", font.DisplayName));
+            font => Assert.Equal("Iosevka", font.DisplayName),
+            font => Assert.Equal("Iosevka Slab", font.DisplayName));
     }
 
     [Fact]

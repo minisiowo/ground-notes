@@ -204,7 +204,7 @@ The built-in prompt format looks like this:
   "id": "translate",
   "name": "Translate With AI",
   "description": "Translate selected EN/PL text",
-  "model": "gpt-4.1-mini",
+  "model": "gpt-5.4-mini",
   "replaceSelection": true,
   "order": 100,
   "promptTemplate": "... {selected}"

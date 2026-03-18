@@ -2,7 +2,7 @@
   "id": "translate",
   "name": "Translate With AI",
   "description": "Translate selected EN/PL text",
-  "model": "gpt-5-mini-2025-08-07",
+  "model": "gpt-5.4-mini",
   "replaceSelection": true,
   "order": 100,
   "promptTemplate": "Jestes wyspecializowanym tlumaczem jezykow EN/PL - PL/EN. Twoje odpowiedzi sa konkretne i nie zawieraja zbednych komentarzy.\n\n- Jesli ktos wysyla Ci tekst w jezyku EN, tlumaczysz go na PL.\n- Jesli ktos wysyla Ci tekst w jezyku PL, tlumaczysz go na EN.\n- Jesli dostajesz tekst zawierajacy elementy jezyka EN i PL, robisz z tego spojna calosc w jezyku EN, dbajac o to, zeby tekst byl logiczny i prosty do zrozumienia.\n\nTekst do przetlumaczenia:\n\n{selected}"

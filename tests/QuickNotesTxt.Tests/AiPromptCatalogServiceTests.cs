@@ -46,14 +46,14 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
     public async Task LoadPromptsAsync_CustomPromptOverridesBuiltInById()
     {
         WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
-        WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "translate.json", "translate", "My Translate", 5, model: "gpt-4.1");
+        WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "translate.json", "translate", "My Translate", 5, model: "gpt-5.4");
 
         var prompts = await _service.LoadPromptsAsync(_notesDir);
 
         var prompt = Assert.Single(prompts);
         Assert.Equal("My Translate", prompt.Name);
         Assert.False(prompt.IsBuiltIn);
-        Assert.Equal("gpt-4.1", prompt.Model);
+        Assert.Equal("gpt-5.4", prompt.Model);
     }
 
     [Fact]

@@ -23,6 +23,9 @@ shortcut_windows_path="${start_menu_windows_path}\\QuickNotesTxt.lnk"
 exe_windows_path="C:\\Apps\\QuickNotes\\QuickNotesTxt.exe"
 working_dir_windows_path="C:\\Apps\\QuickNotes"
 
+echo "Cleaning previous build artifacts..."
+rm -rf "$repo_root/src/QuickNotesTxt/bin" "$repo_root/src/QuickNotesTxt/obj"
+
 echo "Publishing QuickNotesTxt for $runtime..."
 dotnet publish "$project_path" -c "$configuration" -r "$runtime" --self-contained true
 

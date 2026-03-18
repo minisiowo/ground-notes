@@ -146,9 +146,9 @@
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Model ID" />
-                    <TextBlock Classes="settingsDescription" Text="E.g., gpt-4o-mini" />
+                    <TextBlock Classes="settingsDescription" Text="E.g., gpt-5.4-mini" />
                   </StackPanel>
-                  <TextBox Grid.Column="1" x:Name="DefaultModelTextBox" Watermark="gpt-4.1-mini" TextChanged="OnAppearanceSelectionChanged" />
+                  <TextBox Grid.Column="1" x:Name="DefaultModelTextBox" Watermark="gpt-5.4-mini" TextChanged="OnAppearanceSelectionChanged" />
                 </Grid>
               </Border>
 

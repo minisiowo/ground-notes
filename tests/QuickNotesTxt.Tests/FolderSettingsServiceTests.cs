@@ -98,7 +98,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
     [Fact]
     public async Task SetAiSettingsAsync_RoundTripsThroughSettingsFile()
     {
-        var expected = new AiSettings("secret", "gpt-4.1-mini", true, "proj_123", "org_456");
+        var expected = new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456");
 
         await _service.SetAiSettingsAsync(expected);
 

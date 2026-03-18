@@ -29,12 +29,12 @@ public sealed class OpenAiTextActionServiceTests
         var service = new OpenAiTextActionService(httpClient);
 
         var result = await service.RunPromptAsync(
-            new AiPromptDefinition("translate", "Translate", "Text: {selected}", null, "gpt-4.1-mini"),
+            new AiPromptDefinition("translate", "Translate", "Text: {selected}", null, "gpt-5.4-mini"),
             "hello",
-            new AiSettings("secret", "gpt-4.1-nano", true));
+            new AiSettings("secret", "gpt-5.4-nano", true));
 
         Assert.Equal("Translated text", result);
-        Assert.Contains("gpt-4.1-mini", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("gpt-5.4-mini", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("Text: hello", handler.RequestBody, StringComparison.Ordinal);
         Assert.Equal("Bearer", handler.AuthorizationScheme);
         Assert.Equal("secret", handler.AuthorizationParameter);
@@ -52,9 +52,9 @@ public sealed class OpenAiTextActionServiceTests
         await service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "czesc",
-            new AiSettings("secret", "gpt-4.1", true));
+            new AiSettings("secret", "gpt-5.4", true));
 
-        Assert.Contains("gpt-4.1", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("gpt-5.4", handler.RequestBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class OpenAiTextActionServiceTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "czesc",
-            new AiSettings(string.Empty, "gpt-4.1", true)));
+            new AiSettings(string.Empty, "gpt-5.4", true)));
 
         Assert.Equal("Set your OpenAI API key first.", ex.Message);
     }
@@ -82,7 +82,7 @@ public sealed class OpenAiTextActionServiceTests
         await service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "text",
-            new AiSettings("secret", "gpt-4.1-mini", true, "proj_123", "org_456"));
+            new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456"));
 
         Assert.Equal("proj_123", handler.ProjectId);
         Assert.Equal("org_456", handler.OrganizationId);
@@ -110,7 +110,7 @@ public sealed class OpenAiTextActionServiceTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "text",
-            new AiSettings("secret", "gpt-4.1-mini", true)));
+            new AiSettings("secret", "gpt-5.4-mini", true)));
 
         Assert.Contains("Check billing, Project ID, or model access", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Request ID: req_123", ex.Message, StringComparison.Ordinal);
