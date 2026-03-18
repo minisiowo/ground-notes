@@ -14,6 +14,10 @@ $shortcutPath = Join-Path $startMenuDir "QuickNotesTxt.lnk"
 $exePath = Join-Path $installDir "QuickNotesTxt.exe"
 $shortcutScriptPath = Join-Path $PSScriptRoot "create-start-menu-shortcut.ps1"
 
+Write-Host "Cleaning previous build artifacts..."
+if (Test-Path -Path "src/QuickNotesTxt/bin") { Remove-Item -Path "src/QuickNotesTxt/bin" -Recurse -Force }
+if (Test-Path -Path "src/QuickNotesTxt/obj") { Remove-Item -Path "src/QuickNotesTxt/obj" -Recurse -Force }
+
 Write-Host "Publishing QuickNotesTxt for $Runtime..."
 dotnet publish $projectPath -c $Configuration -r $Runtime --self-contained true
 

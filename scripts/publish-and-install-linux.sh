@@ -13,10 +13,8 @@ project_path="$repo_root/src/QuickNotesTxt/QuickNotesTxt.csproj"
 publish_dir="$repo_root/src/QuickNotesTxt/bin/$configuration/net10.0/$runtime/publish"
 install_dir="$HOME/.local/opt/QuickNotesTxt"
 
-echo "Building and publishing QuickNotesTxt for $runtime ($configuration)..."
-
-# Ensure a fresh build by cleaning previous artifacts
-dotnet clean "$repo_root/QuickNotesTxt.sln" -c "$configuration"
+echo "Cleaning previous build artifacts..."
+rm -rf "$repo_root/src/QuickNotesTxt/bin" "$repo_root/src/QuickNotesTxt/obj"
 dotnet publish "$project_path" -c "$configuration" -r "$runtime" --self-contained true
 
 if [[ ! -d "$publish_dir" ]]; then
