@@ -107,6 +107,40 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal(expected, settings);
     }
 
+    [Fact]
+    public void GetSettingsSync_ReturnsDefaultsWhenSettingsFileDoesNotExist()
+    {
+        var settings = _service.GetSettingsSync();
+
+        Assert.Null(settings.NotesFolder);
+        Assert.Null(settings.ThemeName);
+        Assert.Null(settings.WindowLayout);
+        Assert.Equal(AiSettings.Default, settings.AiSettings);
+    }
+
+    [Fact]
+    public async Task GetSettingsSync_MatchesGetSettingsAsync_ForPersistedValues()
+    {
+        var ai = new AiSettings("secret", "gpt-5.4", false, "proj_sync", "org_sync");
+        await _service.SetNotesFolderAsync("notes-sync");
+        await _service.SetThemeNameAsync("Nord");
+        await _service.SetFontNameAsync("IosevkaSlab");
+        await _service.SetFontVariantNameAsync("Medium");
+        await _service.SetSidebarFontNameAsync("IosevkaSlab");
+        await _service.SetSidebarFontVariantNameAsync("Regular");
+        await _service.SetCodeFontNameAsync("JetBrainsMono");
+        await _service.SetCodeFontVariantNameAsync("Bold");
+        await _service.SetEditorFontSizeAsync(15);
+        await _service.SetUiFontSizeAsync(13);
+        await _service.SetAiSettingsAsync(ai);
+        _service.SetWindowLayoutSync(new WindowLayout(1200, 800, 50, 60, true, 320, false));
+
+        var asyncSettings = await _service.GetSettingsAsync();
+        var syncSettings = _service.GetSettingsSync();
+
+        Assert.Equal(asyncSettings, syncSettings);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))

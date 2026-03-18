@@ -4,6 +4,8 @@ namespace QuickNotesTxt.Services;
 
 public interface ISettingsService
 {
+    AppSettings GetSettingsSync();
+
     Task<AppSettings> GetSettingsAsync(CancellationToken cancellationToken = default);
 
     Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default);

@@ -1,6 +1,6 @@
 namespace QuickNotesTxt.Models;
 
-public sealed class NoteDocument
+public sealed record NoteDocument
 {
     public string Id { get; set; } = string.Empty;
 
@@ -14,9 +14,9 @@ public sealed class NoteDocument
 
     public List<string> Tags { get; set; } = [];
 
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAt { get; init; }
 
     public DateTime UpdatedAt { get; set; }
 
-    public bool IsAutoCreated { get; set; }
+    public bool IsAutoCreated { get; init; }
 }

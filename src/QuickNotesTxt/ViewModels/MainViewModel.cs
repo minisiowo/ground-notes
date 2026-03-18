@@ -26,6 +26,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IFontCatalogService _fontCatalogService;
     private readonly IAiPromptCatalogService _aiPromptCatalogService;
     private readonly IAiTextActionService _aiTextActionService;
+    private readonly IAiChatService _aiChatService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontFamilyOption> _allFonts =
@@ -170,7 +171,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IThemeLoaderService themeLoaderService,
         IFontCatalogService fontCatalogService,
         IAiPromptCatalogService aiPromptCatalogService,
-        IAiTextActionService aiTextActionService)
+        IAiTextActionService aiTextActionService,
+        IAiChatService aiChatService)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
@@ -179,6 +181,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _fontCatalogService = fontCatalogService;
         _aiPromptCatalogService = aiPromptCatalogService;
         _aiTextActionService = aiTextActionService;
+        _aiChatService = aiChatService;
         _fileWatcherService.NotesChanged += OnNotesChanged;
 
         SortOptions = Enum.GetValues<SortOption>();
@@ -194,6 +197,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public Func<string, Task<bool>>? ConfirmDeleteAsync { get; set; }
 
     public Func<SettingsDialogModel, Task<SettingsDialogModel?>>? ShowSettingsAsync { get; set; }
+
+    public Func<ChatViewModel, Task>? ShowChatAsync { get; set; }
 
     public IReadOnlyList<SortOption> SortOptions { get; }
 
@@ -890,6 +895,49 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private async Task OpenChatAsync()
+    {
+        if (!HasSelectedFolder || ShowChatAsync is null) return;
+
+        // 1. Determine the specific AI note for this session
+        var timestamp = DateTimeOffset.Now;
+        var baseName = timestamp.ToString("yyyy-MM-dd-HHmm") + "-AI";
+        var expectedPath = Path.Combine(NotesFolder, baseName + ".md");
+
+        NoteDocument chatNote;
+        if (File.Exists(expectedPath))
+        {
+            var loaded = await _notesRepository.LoadNoteAsync(expectedPath);
+            chatNote = loaded ?? _notesRepository.CreateDraftNote(NotesFolder, timestamp);
+        }
+        else
+        {
+            chatNote = _notesRepository.CreateDraftNote(NotesFolder, timestamp);
+            chatNote = chatNote with 
+            { 
+                Title = $"AI Chat ({timestamp:yyyy-MM-dd HH:mm})",
+                Tags = ["AI"] 
+            };
+            // Save immediately to establish the file
+            chatNote = await _notesRepository.SaveNoteAsync(NotesFolder, chatNote);
+        }
+
+        var initialNotes = SelectedNoteSummary is not null ? new[] { SelectedNoteSummary } : null;
+        
+        var chatVm = new ChatViewModel(
+            _aiChatService,
+            _notesRepository,
+            _settingsService,
+            chatNote,
+            initialNotes)
+        {
+            SearchAllNotesFunc = query => _notesRepository.QueryNotesForPicker(_allNotes, query, 10)
+        };
+
+        await ShowChatAsync(chatVm);
+    }
+
+    [RelayCommand]
     private async Task OpenSettingsAsync()
     {
         if (ShowSettingsAsync is null)
@@ -1043,6 +1091,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         _allThemes = await _themeLoaderService.LoadAllThemesAsync();
         ThemeNames = _allThemes.Select(t => t.Name).ToList();
+
+        if (!string.IsNullOrWhiteSpace(settings.ThemeName))
+        {
+            var theme = _allThemes.FirstOrDefault(t => t.Name == settings.ThemeName);
+            if (theme is not null)
+            {
+                _isApplyingSelection = true;
+                try
+                {
+                    SelectedThemeName = theme.Name;
+                }
+                finally
+                {
+                    _isApplyingSelection = false;
+                }
+            }
+        }
+
         ApplyAiSettings(settings.AiSettings);
         await LoadAiPromptsAsync();
 
@@ -1068,24 +1134,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var initialCodeVariant = ResolveFontVariant(initialCodeFont, settings.CodeFontVariantName ?? string.Empty)
             ?? GetDefaultFontVariant(initialCodeFont);
         ApplyCodeFontSelection(initialCodeFont, initialCodeVariant, persist: false);
-
-        if (!string.IsNullOrWhiteSpace(settings.ThemeName))
-        {
-            var theme = _allThemes.FirstOrDefault(t => t.Name == settings.ThemeName);
-            if (theme is not null)
-            {
-                _isApplyingSelection = true;
-                try
-                {
-                    SelectedThemeName = theme.Name;
-                }
-                finally
-                {
-                    _isApplyingSelection = false;
-                }
-                ThemeService.Apply(theme);
-            }
-        }
 
         if (!string.IsNullOrWhiteSpace(settings.NotesFolder))
         {

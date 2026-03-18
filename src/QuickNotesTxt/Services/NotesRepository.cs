@@ -228,18 +228,7 @@ public sealed class NotesRepository : INotesRepository
 
     private static NoteDocument Clone(NoteDocument document)
     {
-        return new NoteDocument
-        {
-            Id = document.Id,
-            FilePath = document.FilePath,
-            Title = document.Title,
-            OriginalTitle = document.OriginalTitle,
-            Body = document.Body,
-            Tags = [.. document.Tags],
-            CreatedAt = document.CreatedAt,
-            UpdatedAt = document.UpdatedAt,
-            IsAutoCreated = document.IsAutoCreated
-        };
+        return document with { Tags = [.. document.Tags] };
     }
 
     private static string SanitizeTitle(string? title)

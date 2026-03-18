@@ -29,38 +29,22 @@ public sealed class FolderSettingsService : ISettingsService
         await _settingsLock.WaitAsync(cancellationToken);
         try
         {
-            if (!File.Exists(_settingsFilePath))
-            {
-                return new AppSettings(null, null, null, null, null, null, null, null, null, null, null, AiSettings.Default);
-            }
+            var settings = await LoadRecordAsync(cancellationToken);
+            return MapToAppSettings(settings);
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
 
-            await using var stream = File.OpenRead(_settingsFilePath);
-            var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
-
-            WindowLayout? layout = settings?.WindowWidth is not null && settings.WindowHeight is not null
-                ? new WindowLayout(settings.WindowWidth.Value, settings.WindowHeight.Value,
-                    settings.WindowX ?? 0, settings.WindowY ?? 0, settings.IsMaximized ?? false,
-                    settings.SidebarWidth, settings.SidebarCollapsed)
-                : null;
-
-            return new AppSettings(
-                settings?.NotesFolder,
-                settings?.EditorFontSize,
-                settings?.UiFontSize,
-                settings?.FontName,
-                settings?.FontVariantName,
-                settings?.SidebarFontName,
-                settings?.SidebarFontVariantName,
-                settings?.CodeFontName,
-                settings?.CodeFontVariantName,
-                settings?.ThemeName,
-                layout,
-                new AiSettings(
-                    settings?.OpenAiApiKey ?? string.Empty,
-                    settings?.OpenAiModel ?? AiSettings.Default.DefaultModel,
-                    settings?.AiEnabled ?? AiSettings.Default.IsEnabled,
-                    settings?.OpenAiProjectId ?? string.Empty,
-                    settings?.OpenAiOrganizationId ?? string.Empty));
+    public AppSettings GetSettingsSync()
+    {
+        _settingsLock.Wait();
+        try
+        {
+            var settings = LoadRecordSync();
+            return MapToAppSettings(settings);
         }
         finally
         {
@@ -306,17 +290,7 @@ public sealed class FolderSettingsService : ISettingsService
         _settingsLock.Wait();
         try
         {
-            var record = LoadRecordSync();
-            if (record.WindowWidth is not null && record.WindowHeight is not null)
-            {
-                return new WindowLayout(
-                    record.WindowWidth.Value, record.WindowHeight.Value,
-                    record.WindowX ?? 0, record.WindowY ?? 0,
-                    record.IsMaximized ?? false,
-                    record.SidebarWidth, record.SidebarCollapsed);
-            }
-
-            return null;
+            return MapToAppSettings(LoadRecordSync()).WindowLayout;
         }
         finally
         {
@@ -374,24 +348,62 @@ public sealed class FolderSettingsService : ISettingsService
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            return CreateDefaultRecord();
         }
 
         await using var stream = File.OpenRead(_settingsFilePath);
         return await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+               ?? CreateDefaultRecord();
     }
 
     private SettingsRecord LoadRecordSync()
     {
         if (!File.Exists(_settingsFilePath))
         {
-            return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            return CreateDefaultRecord();
         }
 
         var json = File.ReadAllText(_settingsFilePath);
         return JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions)
-               ?? new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+               ?? CreateDefaultRecord();
+    }
+
+    private static AppSettings MapToAppSettings(SettingsRecord settings)
+    {
+        WindowLayout? layout = settings.WindowWidth is not null && settings.WindowHeight is not null
+            ? new WindowLayout(
+                settings.WindowWidth.Value,
+                settings.WindowHeight.Value,
+                settings.WindowX ?? 0,
+                settings.WindowY ?? 0,
+                settings.IsMaximized ?? false,
+                settings.SidebarWidth,
+                settings.SidebarCollapsed)
+            : null;
+
+        return new AppSettings(
+            settings.NotesFolder,
+            settings.EditorFontSize,
+            settings.UiFontSize,
+            settings.FontName,
+            settings.FontVariantName,
+            settings.SidebarFontName,
+            settings.SidebarFontVariantName,
+            settings.CodeFontName,
+            settings.CodeFontVariantName,
+            settings.ThemeName,
+            layout,
+            new AiSettings(
+                settings.OpenAiApiKey ?? string.Empty,
+                settings.OpenAiModel ?? AiSettings.Default.DefaultModel,
+                settings.AiEnabled ?? AiSettings.Default.IsEnabled,
+                settings.OpenAiProjectId ?? string.Empty,
+                settings.OpenAiOrganizationId ?? string.Empty));
+    }
+
+    private static SettingsRecord CreateDefaultRecord()
+    {
+        return new SettingsRecord(null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     private async Task SaveAsync(SettingsRecord settings, CancellationToken cancellationToken)

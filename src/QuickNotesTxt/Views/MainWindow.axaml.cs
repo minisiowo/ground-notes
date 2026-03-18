@@ -21,6 +21,10 @@ namespace QuickNotesTxt.Views;
 
 public partial class MainWindow : Window
 {
+    private const double ChatWindowDefaultWidth = 700;
+    private const double ChatWindowMinWidth = 460;
+    private const double ChatWindowMaxWidth = 820;
+
     private const double WindowResizeBorderThickness = 6;
     private const double WindowCornerResizeThickness = 10;
     private ISettingsService? _settingsService;
@@ -82,6 +86,7 @@ public partial class MainWindow : Window
                 vm.PickFolderAsync = PickFolderAsync;
                 vm.ConfirmDeleteAsync = ConfirmDeleteAsync;
                 vm.ShowSettingsAsync = ShowSettingsAsync;
+                vm.ShowChatAsync = ShowChatAsync;
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.FocusEditorRequested += OnFocusEditorRequested;
                 SyncEditorText(vm.EditorBody);
@@ -470,6 +475,22 @@ public partial class MainWindow : Window
     {
         var dialog = new ConfirmDeleteWindow(noteName);
         return await dialog.ShowDialog<bool>(this);
+    }
+
+    private async Task ShowChatAsync(ChatViewModel model)
+    {
+        var targetWidth = Math.Clamp(Bounds.Width * 0.6, ChatWindowMinWidth, ChatWindowMaxWidth);
+        if (Bounds.Width <= 0)
+        {
+            targetWidth = ChatWindowDefaultWidth;
+        }
+
+        var dialog = new ChatWindow
+        {
+            DataContext = model,
+            Width = targetWidth
+        };
+        await dialog.ShowDialog(this);
     }
 
     private async Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model)
