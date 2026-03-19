@@ -1,4 +1,5 @@
 using QuickNotesTxt.Models;
+using QuickNotesTxt.ViewModels;
 using Xunit;
 
 namespace QuickNotesTxt.Tests;
@@ -74,20 +75,20 @@ public sealed class NoteSummaryTests
         Assert.Equal(document.UpdatedAt, summary.UpdatedAt);
         Assert.Equal("first line second line", summary.Preview);
         Assert.Equal("sample-note first line\nsecond line alpha beta", summary.SearchText);
-        Assert.Equal(string.Empty, summary.RenameText);
     }
 
     [Fact]
-    public void FromDocument_CanPopulateRenameText()
+    public void NoteListItemViewModel_UsesDisplayNameAsInitialRenameText()
     {
-        var document = new NoteDocument
+        var summary = new NoteSummary
         {
             FilePath = "/tmp/renamed-note.txt",
             Title = "renamed-note"
         };
 
-        var summary = NoteSummary.FromDocument(document, includeRenameText: true);
+        var item = new NoteListItemViewModel(summary);
 
-        Assert.Equal("renamed-note", summary.RenameText);
+        Assert.Equal("renamed-note", item.RenameText);
+        Assert.False(item.IsRenaming);
     }
 }

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:models="using:QuickNotesTxt.Models"
+        xmlns:viewModels="using:QuickNotesTxt.ViewModels"
         xmlns:converters="using:QuickNotesTxt.Converters"
         xmlns:views="using:QuickNotesTxt.Views"
         xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
@@ -114,9 +115,9 @@
             <ListBox HorizontalAlignment="Stretch"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ItemsSource="{Binding VisibleNotes}"
-                     SelectedItem="{Binding SelectedNoteSummary}">
+                     SelectedItem="{Binding SelectedVisibleNote}">
               <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="models:NoteSummary">
+                <DataTemplate x:DataType="viewModels:NoteListItemViewModel">
                   <Grid HorizontalAlignment="Stretch">
                     <Border Classes="fileRow"
                             HorizontalAlignment="Stretch"

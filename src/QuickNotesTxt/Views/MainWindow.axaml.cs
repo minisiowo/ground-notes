@@ -2,7 +2,6 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -25,12 +24,9 @@ public partial class MainWindow : Window
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
     private readonly EditorHostController _editorHost;
     private readonly WindowChromeController _windowChrome;
-    private MarkdownSlashTrigger? _activeSlashTrigger;
-    private IReadOnlyList<MarkdownSlashCommand> _activeSlashCommands = [];
-    private bool _isSlashPopupRefreshQueued;
-    private bool _isSlashPopupPositionUpdateQueued;
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
+    private readonly SlashCommandPopupController _slashCommandPopup;
 
     public MainWindow()
     {
@@ -45,6 +41,13 @@ public partial class MainWindow : Window
                 ShouldSuppressTitleBarDoubleTap = e => e.Source is Control control && control.FindAncestorOfType<Button>() is not null
             });
         _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer);
+        _slashCommandPopup = new SlashCommandPopupController(
+            EditorTextEditor,
+            EditorBorder,
+            SlashCommandPopup,
+            SlashCommandPopupContent,
+            SlashCommandListBox,
+            SlashCommandHintText);
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -97,10 +100,10 @@ public partial class MainWindow : Window
                 _lastNormalY = e.Point.Y;
             }
 
-            ScheduleSlashCommandPopupPositionUpdate();
+            _slashCommandPopup.SchedulePositionUpdate();
         };
 
-        SizeChanged += (_, _) => ScheduleSlashCommandPopupPositionUpdate();
+        SizeChanged += (_, _) => _slashCommandPopup.SchedulePositionUpdate();
     }
 
     public void SetWindowLayoutService(IWindowLayoutService windowLayoutService)
@@ -622,12 +625,12 @@ public partial class MainWindow : Window
         if (!hadCurrentNote && vm.CurrentNote is not null)
         {
             Dispatcher.UIThread.Post(
-                ScheduleSlashCommandPopupRefresh,
+                () => _slashCommandPopup.ScheduleRefresh(),
                 DispatcherPriority.Background);
             return;
         }
 
-        ScheduleSlashCommandPopupRefresh();
+        _slashCommandPopup.ScheduleRefresh();
     }
 
     private void SyncEditorText(string text)
@@ -639,7 +642,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        ScheduleSlashCommandPopupRefresh();
+        _slashCommandPopup.ScheduleRefresh();
     }
 
     private async void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -792,7 +795,7 @@ public partial class MainWindow : Window
 
         var vm = DataContext as MainViewModel;
 
-        if (HandleSlashCommandKeyDown(e))
+        if (_slashCommandPopup.HandleKeyDown(e, ApplyEditorEdit))
         {
             return;
         }
@@ -1040,7 +1043,7 @@ public partial class MainWindow : Window
 
     private async void OnRenameTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
-        if (DataContext is not MainViewModel vm || sender is not TextBox textBox || textBox.DataContext is not NoteSummary noteSummary)
+        if (DataContext is not MainViewModel vm || sender is not TextBox textBox || textBox.DataContext is not NoteListItemViewModel noteItem)
         {
             return;
         }
@@ -1048,25 +1051,25 @@ public partial class MainWindow : Window
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
-            await vm.CommitRenameAsync(noteSummary);
+            await vm.CommitRenameAsync(noteItem);
             Focus();
         }
         else if (e.Key == Key.Escape)
         {
             e.Handled = true;
-            vm.CancelRename(noteSummary);
+            vm.CancelRename(noteItem);
             Focus();
         }
     }
 
     private async void OnRenameTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm || sender is not TextBox textBox || textBox.DataContext is not NoteSummary noteSummary || !noteSummary.IsRenaming)
+        if (DataContext is not MainViewModel vm || sender is not TextBox textBox || textBox.DataContext is not NoteListItemViewModel noteItem || !noteItem.IsRenaming)
         {
             return;
         }
 
-        await vm.CommitRenameAsync(noteSummary);
+        await vm.CommitRenameAsync(noteItem);
     }
 
     private string GetEditorText() => _editorHost.GetText();
@@ -1089,351 +1092,31 @@ public partial class MainWindow : Window
         EditorTextEditor.Select(selectionStart, selectionLength);
         EditorTextEditor.CaretOffset = selectionStart + selectionLength;
         EditorTextEditor.Focus();
-        ScheduleSlashCommandPopupRefresh();
-    }
-
-    private bool HandleSlashCommandKeyDown(KeyEventArgs e)
-    {
-        if (!SlashCommandPopup.IsOpen)
-        {
-            return false;
-        }
-
-        if (e.Key == Key.Down)
-        {
-            e.Handled = true;
-            MoveSlashCommandSelection(1);
-            return true;
-        }
-
-        if (e.Key == Key.Up)
-        {
-            e.Handled = true;
-            MoveSlashCommandSelection(-1);
-            return true;
-        }
-
-        if (e.Key == Key.Enter)
-        {
-            e.Handled = true;
-            ApplySelectedSlashCommand();
-            return true;
-        }
-
-        if (e.Key == Key.Escape)
-        {
-            e.Handled = true;
-            CloseSlashCommandPopup();
-            return true;
-        }
-
-        return false;
-    }
-
-    private void UpdateSlashCommandPopup()
-    {
-        var trigger = MarkdownSlashCommandCatalog.TryGetTrigger(GetEditorText(), EditorTextEditor.CaretOffset);
-        if (trigger is null)
-        {
-            CloseSlashCommandPopup();
-            return;
-        }
-
-        var commands = MarkdownSlashCommandCatalog.Filter(trigger.Value.Query);
-        if (commands.Count == 0)
-        {
-            CloseSlashCommandPopup();
-            return;
-        }
-
-        var wasVisible = SlashCommandPopup.IsOpen;
-        
-        // Skip updating if commands are exactly the same to reduce flicker
-        if (wasVisible && _activeSlashCommands.Count == commands.Count && 
-            _activeSlashCommands.Zip(commands, (a, b) => a.Id == b.Id).All(x => x))
-        {
-            _activeSlashTrigger = trigger;
-            SlashCommandHintText.Text = string.IsNullOrWhiteSpace(trigger.Value.Query)
-                ? "Formatting commands"
-                : $"/{trigger.Value.Query}";
-            ScheduleSlashCommandPopupPositionUpdate();
-            return;
-        }
-
-        _activeSlashTrigger = trigger;
-        _activeSlashCommands = commands;
-        SlashCommandPopup.IsOpen = true;
-        SlashCommandListBox.ItemsSource = commands;
-        SlashCommandListBox.SelectedItem = commands[0];
-        SlashCommandHintText.Text = string.IsNullOrWhiteSpace(trigger.Value.Query)
-            ? "Formatting commands"
-            : $"/{trigger.Value.Query}";
-        EditorTextEditor.Focus();
-        ScheduleSlashCommandPopupPositionUpdate(!wasVisible);
-    }
-
-    private void CloseSlashCommandPopup()
-    {
-        _activeSlashTrigger = null;
-        _activeSlashCommands = [];
-        SlashCommandPopup.IsOpen = false;
-        SlashCommandListBox.ItemsSource = null;
-        SlashCommandListBox.SelectedItem = null;
-        EditorTextEditor.Focus();
-    }
-
-    private void MoveSlashCommandSelection(int delta)
-    {
-        if (_activeSlashCommands.Count == 0)
-        {
-            return;
-        }
-
-        var currentIndex = SlashCommandListBox.SelectedIndex;
-        if (currentIndex < 0)
-        {
-            currentIndex = 0;
-        }
-
-        currentIndex = (currentIndex + delta + _activeSlashCommands.Count) % _activeSlashCommands.Count;
-        SlashCommandListBox.SelectedIndex = currentIndex;
-        if (SlashCommandListBox.SelectedItem is not null)
-        {
-            SlashCommandListBox.ScrollIntoView(SlashCommandListBox.SelectedItem);
-        }
-    }
-
-    private void ApplySelectedSlashCommand()
-    {
-        if (_activeSlashTrigger is not { } trigger || SlashCommandListBox.SelectedItem is not MarkdownSlashCommand command)
-        {
-            CloseSlashCommandPopup();
-            return;
-        }
-
-        var document = EditorTextEditor.Document;
-        if (document is null)
-        {
-            CloseSlashCommandPopup();
-            return;
-        }
-
-        document.Replace(trigger.Start, trigger.Length, string.Empty);
-        EditorTextEditor.CaretOffset = trigger.Start;
-        EditorTextEditor.Select(trigger.Start, 0);
-        var commandOffset = trigger.Start;
-
-        var edit = command.Action switch
-        {
-            SlashCommandAction.Bold => MarkdownEditingCommands.ToggleWrap(document.Text, commandOffset, 0, "**"),
-            SlashCommandAction.Italic => MarkdownEditingCommands.ToggleWrap(document.Text, commandOffset, 0, "*"),
-            SlashCommandAction.InlineCode => MarkdownEditingCommands.ToggleWrap(document.Text, commandOffset, 0, "`"),
-            SlashCommandAction.CodeBlock => MarkdownEditingCommands.ToggleCodeBlock(document.Text, commandOffset, 0),
-            SlashCommandAction.TaskList => MarkdownEditingCommands.ToggleTaskList(document.Text, commandOffset, 0),
-            SlashCommandAction.BulletList => MarkdownEditingCommands.ToggleBulletList(document.Text, commandOffset, 0),
-            SlashCommandAction.Heading1 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 1),
-            SlashCommandAction.Heading2 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 2),
-            SlashCommandAction.Heading3 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 3),
-            _ => default
-        };
-
-        CloseSlashCommandPopup();
-        ApplyEditorEdit(edit);
+        _slashCommandPopup.ScheduleRefresh();
     }
 
     private void OnSlashCommandListBoxDoubleTapped(object? sender, RoutedEventArgs e)
     {
-        ApplySelectedSlashCommand();
+        _slashCommandPopup.ApplySelectedCommand(ApplyEditorEdit);
     }
 
     private void OnEditorPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        ScheduleSlashCommandPopupRefresh(DispatcherPriority.Input);
-    }
-
-    private void ScheduleSlashCommandPopupRefresh()
-    {
-        ScheduleSlashCommandPopupRefresh(DispatcherPriority.Render);
-    }
-
-    private void ScheduleSlashCommandPopupRefresh(DispatcherPriority priority)
-    {
-        if (_isSlashPopupRefreshQueued)
-        {
-            return;
-        }
-
-        _isSlashPopupRefreshQueued = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            _isSlashPopupRefreshQueued = false;
-            UpdateSlashCommandPopup();
-        }, priority);
+        _slashCommandPopup.ScheduleRefresh(DispatcherPriority.Input);
     }
 
     private void OnEditorCaretPositionChanged(object? sender, EventArgs e)
     {
-        ScheduleSlashCommandPopupPositionUpdate();
+        _slashCommandPopup.SchedulePositionUpdate();
     }
 
     private void OnEditorTextViewScrollOffsetChanged(object? sender, EventArgs e)
     {
-        ScheduleSlashCommandPopupPositionUpdate();
+        _slashCommandPopup.SchedulePositionUpdate();
     }
 
     private void OnEditorTextViewVisualLinesChanged(object? sender, EventArgs e)
     {
-        ScheduleSlashCommandPopupPositionUpdate();
-    }
-
-    private void ScheduleSlashCommandPopupPositionUpdate(bool resetPlacement = false)
-    {
-        if (!SlashCommandPopup.IsOpen || _isSlashPopupPositionUpdateQueued)
-        {
-            return;
-        }
-
-        _isSlashPopupPositionUpdateQueued = true;
-        Dispatcher.UIThread.Post(() =>
-        {
-            _isSlashPopupPositionUpdateQueued = false;
-            UpdateSlashCommandPopupPosition(resetPlacement);
-        }, DispatcherPriority.Render);
-    }
-
-    private void UpdateSlashCommandPopupPosition(bool resetPlacement)
-    {
-        if (!SlashCommandPopup.IsOpen)
-        {
-            return;
-        }
-
-        try
-        {
-            var caretRect = EditorTextEditor.TextArea.Caret.CalculateCaretRectangle();
-            var popupTopLeft = EditorTextEditor.TextArea.TextView.TranslatePoint(
-                new Point(caretRect.X, caretRect.Y),
-                EditorBorder);
-
-            if (popupTopLeft is null)
-            {
-                return;
-            }
-
-            if (EditorBorder.Bounds.Width <= 0 || EditorBorder.Bounds.Height <= 0)
-            {
-                return;
-            }
-
-            const double edgePadding = 12;
-            const double horizontalPadding = 4;
-            const double verticalPadding = 8;
-            const double preferredPopupWidth = 400;
-            const double minPopupWidth = 120;
-            const double preferredListHeight = 220;
-            const double minListHeight = 80;
-            const double popupChromeHeight = 54;
-
-            var availableWidth = Math.Max(minPopupWidth, EditorBorder.Bounds.Width - (edgePadding * 2));
-            var maxPopupWidth = Math.Clamp(preferredPopupWidth, minPopupWidth, availableWidth);
-
-            var anchorLeft = popupTopLeft.Value.X;
-            var anchorRight = popupTopLeft.Value.X + Math.Max(1, caretRect.Width);
-            var anchorTop = popupTopLeft.Value.Y;
-            var anchorBottom = popupTopLeft.Value.Y + Math.Max(1, caretRect.Height);
-
-            var availableBelow = Math.Max(0, EditorBorder.Bounds.Height - anchorBottom - verticalPadding - edgePadding);
-            var availableAbove = Math.Max(0, anchorTop - verticalPadding - edgePadding);
-            var maxViewportHeight = Math.Max(minListHeight, Math.Max(availableBelow, availableAbove) - popupChromeHeight);
-            var listMaxHeight = Math.Min(preferredListHeight, maxViewportHeight);
-            SlashCommandListBox.MaxHeight = listMaxHeight;
-
-            // Reset width/height to let them be recalculated naturally during measure
-            SlashCommandPopupContent.Width = double.NaN;
-            SlashCommandPopupContent.Height = double.NaN;
-
-            // Force layout update to ensure DesiredSize is accurate after items change
-            SlashCommandPopupContent.InvalidateMeasure();
-            SlashCommandPopupContent.UpdateLayout();
-
-            // Measure it with UNRESTRICTED dimensions to see how much room it naturally wants
-            SlashCommandPopupContent.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            
-            var targetWidth = Math.Clamp(SlashCommandPopupContent.DesiredSize.Width + 2, minPopupWidth, maxPopupWidth);
-            var targetHeight = Math.Min(maxViewportHeight + popupChromeHeight, SlashCommandPopupContent.DesiredSize.Height);
-
-            // Animate both! 
-            SlashCommandPopupContent.Width = targetWidth;
-            SlashCommandPopupContent.Height = targetHeight;
-
-            var availableRight = Math.Max(0, EditorBorder.Bounds.Width - anchorRight - horizontalPadding - edgePadding);
-            var availableLeft = Math.Max(0, anchorLeft - horizontalPadding - edgePadding);
-
-            PopupAnchor anchor;
-            PopupGravity gravity;
-            var horizontalOffset = horizontalPadding;
-            var verticalOffset = verticalPadding;
-
-            if (availableBelow >= targetHeight && availableRight >= targetWidth)
-            {
-                anchor = PopupAnchor.BottomRight;
-                gravity = PopupGravity.BottomRight;
-            }
-            else if (availableBelow >= targetHeight && availableLeft >= targetWidth)
-            {
-                anchor = PopupAnchor.BottomLeft;
-                gravity = PopupGravity.BottomLeft;
-                horizontalOffset = -horizontalPadding;
-            }
-            else if (availableAbove >= targetHeight && availableRight >= targetWidth)
-            {
-                anchor = PopupAnchor.TopRight;
-                gravity = PopupGravity.TopRight;
-                verticalOffset = -verticalPadding;
-            }
-            else if (availableAbove >= targetHeight && availableLeft >= targetWidth)
-            {
-                anchor = PopupAnchor.TopLeft;
-                gravity = PopupGravity.TopLeft;
-                horizontalOffset = -horizontalPadding;
-                verticalOffset = -verticalPadding;
-            }
-            else if (availableBelow >= availableAbove)
-            {
-                if (availableRight >= availableLeft)
-                {
-                    anchor = PopupAnchor.BottomRight;
-                    gravity = PopupGravity.BottomRight;
-                }
-                else
-                {
-                    anchor = PopupAnchor.BottomLeft;
-                    gravity = PopupGravity.BottomLeft;
-                    horizontalOffset = -horizontalPadding;
-                }
-            }
-            else if (availableRight >= availableLeft)
-            {
-                anchor = PopupAnchor.TopRight;
-                gravity = PopupGravity.TopRight;
-                verticalOffset = -verticalPadding;
-            }
-            else
-            {
-                anchor = PopupAnchor.TopLeft;
-                gravity = PopupGravity.TopLeft;
-                horizontalOffset = -horizontalPadding;
-                verticalOffset = -verticalPadding;
-            }
-
-            SlashCommandPopup.PlacementAnchor = anchor;
-            SlashCommandPopup.PlacementGravity = gravity;
-            SlashCommandPopup.HorizontalOffset = horizontalOffset;
-            SlashCommandPopup.VerticalOffset = verticalOffset;
-            SlashCommandPopup.PlacementRect = new Rect(anchorLeft, anchorTop, Math.Max(1, caretRect.Width), Math.Max(1, caretRect.Height));
-        }
-        catch (InvalidOperationException)
-        {
-        }
+        _slashCommandPopup.SchedulePositionUpdate();
     }
 }

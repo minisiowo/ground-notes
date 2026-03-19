@@ -1,31 +1,29 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using QuickNotesTxt.ViewModels;
 
 namespace QuickNotesTxt.Views;
 
 public partial class ConfirmDeleteWindow : Window
 {
+    private readonly DialogWindowController _dialogController;
+
     public ConfirmDeleteWindow()
     {
         InitializeComponent();
-        DataContext = new ConfirmDeleteViewModel();
-        Opened += (_, _) => this.FindControl<Button>("DeleteButton")?.Focus();
+        DataContext = new ConfirmationDialogViewModel("Delete note", string.Empty);
+        _dialogController = new DialogWindowController(this, () => Close(false), () => this.FindControl<Button>("DeleteButton"));
+        _dialogController.Attach();
+        Closed += (_, _) => _dialogController.Detach();
     }
 
     public ConfirmDeleteWindow(string noteName) : this()
     {
-        DataContext = new ConfirmDeleteViewModel
-        {
-            Message = $"Delete '{noteName}' permanently?"
-        };
+        DataContext = new ConfirmationDialogViewModel("Delete note", $"Delete '{noteName}' permanently?");
     }
 
-    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-            BeginMoveDrag(e);
-    }
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e) => _dialogController.OnTitleBarPointerPressed(e);
 
     private void OnDeleteClick(object? sender, RoutedEventArgs e)
     {
@@ -34,25 +32,20 @@ public partial class ConfirmDeleteWindow : Window
 
     private void OnCancelClick(object? sender, RoutedEventArgs e)
     {
-        Close(false);
+        _dialogController.OnCloseRequested();
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_dialogController.HandleEscape(e))
+        {
+            return;
+        }
+
         if (e.Key == Key.Enter)
         {
             e.Handled = true;
             Close(true);
         }
-        else if (e.Key == Key.Escape)
-        {
-            e.Handled = true;
-            Close(false);
-        }
-    }
-
-    private sealed class ConfirmDeleteViewModel
-    {
-        public string Message { get; init; } = string.Empty;
     }
 }

@@ -43,7 +43,8 @@ public sealed class MainViewModelTests : IDisposable
 
         using var vm = await CreateViewModelAsync(dialogService: dialogService, chatViewModelFactory: chatFactory);
         await vm.ChooseFolderCommand.ExecuteAsync(null);
-        vm.SelectedNoteSummary = Assert.Single(vm.VisibleNotes);
+        var selectedNote = Assert.Single(vm.VisibleNotes);
+        vm.SelectedVisibleNote = selectedNote;
 
         await vm.OpenChatCommand.ExecuteAsync(null);
 
@@ -94,7 +95,7 @@ public sealed class MainViewModelTests : IDisposable
         await vm.ChooseFolderCommand.ExecuteAsync(null);
 
         var note = Assert.Single(vm.VisibleNotes);
-        vm.SelectedNoteSummary = note;
+        vm.SelectedVisibleNote = note;
         await WaitForConditionAsync(() => vm.CurrentNote is not null);
 
         vm.StartRenameNoteCommand.Execute(note);

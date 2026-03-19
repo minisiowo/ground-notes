@@ -47,10 +47,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
 
     [ObservableProperty]
-    private ObservableCollection<NoteSummary> _visibleNotes = [];
+    private ObservableCollection<NoteListItemViewModel> _visibleNotes = [];
 
     [ObservableProperty]
     private NoteSummary? _selectedNoteSummary;
+
+    [ObservableProperty]
+    private NoteListItemViewModel? _selectedVisibleNote;
 
     [ObservableProperty]
     private string _editorTitle = string.Empty;
@@ -558,7 +561,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(FooterStatusText));
     }
 
-    partial void OnVisibleNotesChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotes));
+    partial void OnVisibleNotesChanged(ObservableCollection<NoteListItemViewModel> value) => OnPropertyChanged(nameof(HasNotes));
 
     partial void OnNotePickerResultsChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotePickerResults));
 
@@ -579,9 +582,57 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnLastSavedTextChanged(string value) => OnPropertyChanged(nameof(FooterStatusText));
 
+    partial void OnSelectedVisibleNoteChanged(NoteListItemViewModel? value)
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        var nextSummary = value?.Summary;
+        if (ReferenceEquals(SelectedNoteSummary, nextSummary))
+        {
+            return;
+        }
+
+        _isApplyingSelection = true;
+        try
+        {
+            SelectedNoteSummary = nextSummary;
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        if (nextSummary is null || value?.IsRenaming != false)
+        {
+            return;
+        }
+
+        _ = LoadSelectedNoteAsync(nextSummary.FilePath);
+    }
+
     partial void OnSelectedNoteSummaryChanged(NoteSummary? value)
     {
-        if (_isApplyingSelection || value is null || value.IsRenaming)
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        _isApplyingSelection = true;
+        try
+        {
+            SelectedVisibleNote = value is null
+                ? null
+                : VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, value.FilePath, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        if (value is null || SelectedVisibleNote?.IsRenaming == true)
         {
             return;
         }
@@ -810,21 +861,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private void StartRenameNote(NoteSummary? noteSummary)
+    private void StartRenameNote(NoteListItemViewModel? noteItem)
     {
-        if (noteSummary is null)
+        if (noteItem is null)
         {
             return;
         }
 
         CancelInlineRename();
-        noteSummary.RenameText = noteSummary.DisplayName;
-        noteSummary.IsRenaming = true;
+        noteItem.RenameText = noteItem.DisplayName;
+        noteItem.IsRenaming = true;
 
         _isApplyingSelection = true;
         try
         {
-            SelectedNoteSummary = noteSummary;
+            SelectedVisibleNote = noteItem;
+            SelectedNoteSummary = noteItem.Summary;
         }
         finally
         {
@@ -833,16 +885,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private async Task DeleteNoteAsync(NoteSummary? noteSummary)
+    private async Task DeleteNoteAsync(NoteListItemViewModel? noteItem)
     {
-        if (noteSummary is null)
+        if (noteItem is null)
         {
             return;
         }
 
         CancelInlineRename();
 
-        var displayName = noteSummary.DisplayName;
+        var displayName = noteItem.DisplayName;
         var shouldDelete = await _workspaceDialogService.ConfirmDeleteAsync(displayName);
         if (!shouldDelete)
         {
@@ -854,7 +906,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SuppressWatcher();
         using (BeginMutationScope())
         {
-            await _noteMutationService.DeleteIfExistsAsync(noteSummary.FilePath);
+            await _noteMutationService.DeleteIfExistsAsync(noteItem.FilePath);
         }
         StatusMessage = $"Deleted {displayName}";
     }
@@ -862,24 +914,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task DeleteCurrentNoteAsync()
     {
-        NoteSummary? noteSummary = null;
+        NoteListItemViewModel? noteItem = null;
 
         if (CurrentNote is not null)
         {
-            noteSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase))
-                ?? BuildSummary(CurrentNote);
+            noteItem = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase))
+                ?? new NoteListItemViewModel(BuildSummary(CurrentNote));
         }
-        else if (SelectedNoteSummary is not null)
+        else if (SelectedVisibleNote is not null)
         {
-            noteSummary = SelectedNoteSummary;
+            noteItem = SelectedVisibleNote;
         }
 
-        if (noteSummary is null)
+        if (noteItem is null)
         {
             return;
         }
 
-        await DeleteNoteAsync(noteSummary);
+        await DeleteNoteAsync(noteItem);
     }
 
     [RelayCommand]
@@ -975,36 +1027,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    public async Task CommitRenameAsync(NoteSummary? noteSummary)
+    public async Task CommitRenameAsync(NoteListItemViewModel? noteItem)
     {
-        if (noteSummary is null || !noteSummary.IsRenaming || !HasSelectedFolder)
+        if (noteItem is null || !noteItem.IsRenaming || !HasSelectedFolder)
         {
             return;
         }
 
-        var newName = noteSummary.RenameText.Trim();
-        if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, noteSummary.DisplayName, StringComparison.Ordinal))
+        var newName = noteItem.RenameText.Trim();
+        if (string.IsNullOrWhiteSpace(newName) || string.Equals(newName, noteItem.DisplayName, StringComparison.Ordinal))
         {
-            CancelInlineRename();
+            CancelRename(noteItem);
             return;
         }
 
         CancelScheduledSave();
 
         NoteDocument? document;
-        if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteSummary.FilePath, StringComparison.OrdinalIgnoreCase))
+        if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteItem.FilePath, StringComparison.OrdinalIgnoreCase))
         {
             UpdateCurrentNoteFromEditor();
             document = CurrentNote;
         }
         else
         {
-            document = await _notesRepository.LoadNoteAsync(noteSummary.FilePath);
+            document = await _notesRepository.LoadNoteAsync(noteItem.FilePath);
         }
 
         if (document is null)
         {
-            CancelInlineRename();
+            CancelRename(noteItem);
             await RefreshFromDiskAsync();
             return;
         }
@@ -1016,19 +1068,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             renamed = await _noteMutationService.SaveAsync(NotesFolder, document, CancellationToken.None);
         }
-        CancelInlineRename();
+        CancelRename(noteItem);
         StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
     }
 
-    public void CancelRename(NoteSummary? noteSummary)
+    public void CancelRename(NoteListItemViewModel? noteItem)
     {
-        if (noteSummary is null)
+        if (noteItem is null)
         {
             return;
         }
 
-        noteSummary.IsRenaming = false;
-        noteSummary.RenameText = noteSummary.DisplayName;
+        noteItem.IsRenaming = false;
+        noteItem.RenameText = noteItem.DisplayName;
     }
 
     public Task InitializeAsync()
@@ -1330,7 +1382,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _allNotes.Clear();
         foreach (var summary in summaries)
         {
-            summary.RenameText = summary.DisplayName;
             _allNotes.Add(summary);
         }
 
@@ -1407,6 +1458,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             CurrentNote = null;
             SelectedNoteSummary = null;
+            SelectedVisibleNote = null;
             EditorTitle = string.Empty;
             EditorTags = string.Empty;
             EditorBody = string.Empty;
@@ -1586,7 +1638,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void CancelInlineRename()
     {
-        foreach (var note in _allNotes.Where(note => note.IsRenaming))
+        foreach (var note in VisibleNotes.Where(note => note.IsRenaming))
         {
             note.IsRenaming = false;
             note.RenameText = note.DisplayName;
@@ -1601,7 +1653,29 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private void RefreshVisibleNotes()
     {
         var effectiveTag = string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal) ? null : SelectedTag;
-        VisibleNotes = new ObservableCollection<NoteSummary>(_notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedSortOption));
+        var currentItems = VisibleNotes.ToDictionary(note => note.FilePath, StringComparer.OrdinalIgnoreCase);
+        var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedSortOption);
+        var nextItems = nextNotes.Select(note =>
+        {
+            if (!currentItems.TryGetValue(note.FilePath, out var existing))
+            {
+                return new NoteListItemViewModel(note);
+            }
+
+            if (!string.Equals(existing.DisplayName, note.DisplayName, StringComparison.Ordinal))
+            {
+                existing.RenameText = note.DisplayName;
+            }
+
+            return existing;
+        });
+
+        VisibleNotes = new ObservableCollection<NoteListItemViewModel>(nextItems);
+
+        if (SelectedNoteSummary is not null)
+        {
+            SelectedVisibleNote = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, SelectedNoteSummary.FilePath, StringComparison.OrdinalIgnoreCase));
+        }
 
         if (IsNotePickerOpen)
         {
@@ -1689,6 +1763,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try
         {
             SelectedNoteSummary = matching;
+            SelectedVisibleNote = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -1698,7 +1773,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private static NoteSummary BuildSummary(NoteDocument document)
     {
-        return NoteSummary.FromDocument(document, includeRenameText: true);
+        return NoteSummary.FromDocument(document);
     }
 
     private void SuppressWatcher()
@@ -1920,6 +1995,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             try
             {
                 SelectedNoteSummary = null;
+                SelectedVisibleNote = null;
             }
             finally
             {

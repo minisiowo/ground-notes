@@ -49,7 +49,7 @@
                     <TextBlock Classes="settingsLabel" Text="App Theme" />
                     <TextBlock Classes="settingsDescription" Text="Choose between Light and Dark mode." />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="ThemeComboBox" Width="140" SelectionChanged="OnAppearanceSelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="ThemeComboBox" Width="140" ItemsSource="{Binding ThemeNames}" SelectedItem="{Binding SelectedThemeName}" />
                 </Grid>
               </Border>
 
@@ -59,7 +59,7 @@
                     <TextBlock Classes="settingsLabel" Text="UI Font Size" />
                     <TextBlock Classes="settingsDescription" Text="Scaling for menus and sidebar." />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="UiFontSizeComboBox" Width="140" SelectionChanged="OnAppearanceSelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="UiFontSizeComboBox" Width="140" ItemsSource="{Binding UiFontSizes}" SelectedItem="{Binding SelectedUiFontSize}" />
                 </Grid>
               </Border>
 
@@ -69,7 +69,7 @@
                     <TextBlock Classes="settingsLabel" Text="Editor Font Size" />
                     <TextBlock Classes="settingsDescription" Text="Size for the markdown text editor." />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="EditorFontSizeComboBox" Width="140" SelectionChanged="OnAppearanceSelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="EditorFontSizeComboBox" Width="140" ItemsSource="{Binding EditorFontSizes}" SelectedItem="{Binding SelectedEditorFontSize}" />
                 </Grid>
               </Border>
             </StackPanel>
@@ -84,8 +84,8 @@
                     <TextBlock Classes="settingsLabel" Text="Sidebar Font" />
                     <TextBlock Classes="settingsDescription" Text="Font used in the notes list." />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="SidebarFontFamilyComboBox" Width="180" Margin="12,0,0,0" SelectionChanged="OnSidebarFontFamilySelectionChanged" />
-                  <ComboBox Grid.Column="2" x:Name="SidebarFontVariantComboBox" Width="140" Margin="8,0,0,0" SelectionChanged="OnAppearanceSelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="SidebarFontFamilyComboBox" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedSidebarFontFamilyName}" />
+                  <ComboBox Grid.Column="2" x:Name="SidebarFontVariantComboBox" Width="140" Margin="8,0,0,0" ItemsSource="{Binding SidebarFontVariantNames}" SelectedItem="{Binding SelectedSidebarFontVariantName}" />
                 </Grid>
               </Border>
 
@@ -95,8 +95,8 @@
                     <TextBlock Classes="settingsLabel" Text="Editor Font" />
                     <TextBlock Classes="settingsDescription" Text="Main writing font." />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="FontFamilyComboBox" Width="180" Margin="12,0,0,0" SelectionChanged="OnFontFamilySelectionChanged" />
-                  <ComboBox Grid.Column="2" x:Name="FontVariantComboBox" Width="140" Margin="8,0,0,0" SelectionChanged="OnAppearanceSelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="FontFamilyComboBox" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedFontFamilyName}" />
+                  <ComboBox Grid.Column="2" x:Name="FontVariantComboBox" Width="140" Margin="8,0,0,0" ItemsSource="{Binding FontVariantNames}" SelectedItem="{Binding SelectedFontVariantName}" />
                 </Grid>
               </Border>
 
@@ -106,8 +106,8 @@
                     <TextBlock Classes="settingsLabel" Text="Code Block Font" />
                     <TextBlock Classes="settingsDescription" Text="Monospaced font for code blocks." />
                   </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="CodeFontFamilyComboBox" Width="180" Margin="12,0,0,0" SelectionChanged="OnCodeFontFamilySelectionChanged" />
-                  <ComboBox Grid.Column="2" x:Name="CodeFontVariantComboBox" Width="140" Margin="8,0,0,0" SelectionChanged="OnAppearanceSelectionChanged" />
+                  <ComboBox Grid.Column="1" x:Name="CodeFontFamilyComboBox" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedCodeFontFamilyName}" />
+                  <ComboBox Grid.Column="2" x:Name="CodeFontVariantComboBox" Width="140" Margin="8,0,0,0" ItemsSource="{Binding CodeFontVariantNames}" SelectedItem="{Binding SelectedCodeFontVariantName}" />
                 </Grid>
               </Border>
             </StackPanel>
@@ -128,54 +128,54 @@
                     <TextBlock Classes="settingsLabel" Text="Enable AI features" />
                     <TextBlock Classes="settingsDescription" Text="Unlock context actions like summarization and translation." />
                   </StackPanel>
-                  <ToggleSwitch Grid.Column="1" x:Name="AiEnabledToggle" IsChecked="True" OnContent="" OffContent="" IsCheckedChanged="OnAppearanceSelectionChanged" />
+                  <ToggleSwitch Grid.Column="1" x:Name="AiEnabledToggle" IsChecked="{Binding IsAiEnabled}" OnContent="" OffContent="" />
                 </Grid>
               </Border>
 
-              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="OpenAI API Key" />
                     <TextBlock Classes="settingsDescription" Text="Keys are stored locally and never shared." />
                   </StackPanel>
-                  <TextBox Grid.Column="1" x:Name="ApiKeyTextBox" PasswordChar="*" Watermark="sk-..." TextChanged="OnAppearanceSelectionChanged" />
+                  <TextBox Grid.Column="1" x:Name="ApiKeyTextBox" PasswordChar="*" Watermark="sk-..." Text="{Binding ApiKey}" />
                 </Grid>
               </Border>
 
-              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Model ID" />
                     <TextBlock Classes="settingsDescription" Text="E.g., gpt-5.4-mini" />
                   </StackPanel>
-                  <TextBox Grid.Column="1" x:Name="DefaultModelTextBox" Watermark="gpt-5.4-mini" TextChanged="OnAppearanceSelectionChanged" />
+                  <TextBox Grid.Column="1" x:Name="DefaultModelTextBox" Watermark="gpt-5.4-mini" Text="{Binding DefaultModel}" />
                 </Grid>
               </Border>
 
-              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Project ID" />
                     <TextBlock Classes="settingsDescription" Text="Optional OpenAI project identifier." />
                   </StackPanel>
-                  <TextBox Grid.Column="1" x:Name="ProjectIdTextBox" Watermark="proj_..." TextChanged="OnAppearanceSelectionChanged" />
+                  <TextBox Grid.Column="1" x:Name="ProjectIdTextBox" Watermark="proj_..." Text="{Binding ProjectId}" />
                 </Grid>
               </Border>
 
-              <Border IsEnabled="{Binding #AiEnabledToggle.IsChecked}" Classes="settingsCard">
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Organization ID" />
                     <TextBlock Classes="settingsDescription" Text="Optional OpenAI organization identifier." />
                   </StackPanel>
-                  <TextBox Grid.Column="1" x:Name="OrganizationIdTextBox" Watermark="org_..." TextChanged="OnAppearanceSelectionChanged" />
+                  <TextBox Grid.Column="1" x:Name="OrganizationIdTextBox" Watermark="org_..." Text="{Binding OrganizationId}" />
                 </Grid>
               </Border>
 
               <Border Classes="settingsCard" Margin="0,12,0,0">
                 <StackPanel Spacing="8">
                   <TextBlock Classes="settingsLabel" Text="Custom Prompts Folder" />
-                  <TextBlock x:Name="PromptsFolderTextBlock" Classes="metaText" TextWrapping="Wrap" />
+                  <TextBlock x:Name="PromptsFolderTextBlock" Classes="metaText" Text="{Binding PromptsDirectory}" TextWrapping="Wrap" />
                   <TextBlock Classes="settingsDescription" Text="Add .json files here to define your own AI actions. Folder is located inside your current notes directory." />
                 </StackPanel>
               </Border>
