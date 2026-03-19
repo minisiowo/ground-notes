@@ -113,7 +113,8 @@ public sealed class MainViewModelTests : IDisposable
     public async Task ApplySettingsPreview_AppliesCodeFontImmediately()
     {
         var appearanceService = new FakeAppAppearanceService();
-        using var vm = await CreateViewModelAsync(appearanceService: appearanceService);
+        var editorLayoutState = new FakeEditorLayoutState();
+        using var vm = await CreateViewModelAsync(appearanceService: appearanceService, editorLayoutState: editorLayoutState);
 
         var model = new SettingsDialogModel(
             ["Default"],
@@ -141,18 +142,20 @@ public sealed class MainViewModelTests : IDisposable
         Assert.Equal(1, appearanceService.ApplyCodeFontCallCount);
         Assert.Equal("JetBrains Mono", appearanceService.LastCodeFontFamilyName);
         Assert.Equal(FontCatalogService.DefaultVariantKey, appearanceService.LastCodeFontVariantName);
-        Assert.Equal(2, appearanceService.LastEditorIndentSize);
-        Assert.Equal(1.3, appearanceService.LastEditorLineHeightFactor);
+        Assert.Equal(2, editorLayoutState.CurrentSettings.IndentationSize);
+        Assert.Equal(1.3, editorLayoutState.CurrentSettings.LineHeightFactor);
     }
 
     private async Task<MainViewModel> CreateViewModelAsync(
         FakeWorkspaceDialogService? dialogService = null,
         FakeChatViewModelFactory? chatViewModelFactory = null,
-        FakeAppAppearanceService? appearanceService = null)
+        FakeAppAppearanceService? appearanceService = null,
+        FakeEditorLayoutState? editorLayoutState = null)
     {
         dialogService ??= new FakeWorkspaceDialogService();
         chatViewModelFactory ??= new FakeChatViewModelFactory();
         appearanceService ??= new FakeAppAppearanceService();
+        editorLayoutState ??= new FakeEditorLayoutState();
 
         var repository = new NotesRepository();
         var settingsService = new FakeSettingsService();
@@ -169,6 +172,7 @@ public sealed class MainViewModelTests : IDisposable
             noteMutationService,
             dialogService,
             appearanceService,
+            editorLayoutState,
             chatViewModelFactory);
 
         await vm.InitializeAsync();
@@ -281,26 +285,12 @@ public sealed class MainViewModelTests : IDisposable
 
         public string? LastCodeFontVariantName { get; private set; }
 
-        public int? LastEditorIndentSize { get; private set; }
-
-        public double? LastEditorLineHeightFactor { get; private set; }
-
         public void ApplyTheme(QuickNotesTxt.Styles.AppTheme theme)
         {
         }
 
         public void ApplyUiFontSize(double fontSize)
         {
-        }
-
-        public void ApplyEditorIndentSize(int indentSize)
-        {
-            LastEditorIndentSize = indentSize;
-        }
-
-        public void ApplyEditorLineHeight(double lineHeightFactor)
-        {
-            LastEditorLineHeightFactor = lineHeightFactor;
         }
 
         public void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
@@ -316,6 +306,21 @@ public sealed class MainViewModelTests : IDisposable
             ApplyCodeFontCallCount++;
             LastCodeFontFamilyName = fontFamily.DisplayName;
             LastCodeFontVariantName = fontVariant.DisplayName;
+        }
+    }
+
+    private sealed class FakeEditorLayoutState : IEditorLayoutState
+    {
+        public EditorLayoutSettings CurrentSettings { get; private set; } = new(
+            EditorDisplaySettings.DefaultIndentSize,
+            EditorDisplaySettings.DefaultLineHeightFactor);
+
+        public event EventHandler<EditorLayoutSettings>? SettingsChanged;
+
+        public void Set(EditorLayoutSettings settings)
+        {
+            CurrentSettings = EditorLayoutSettings.Normalize(settings);
+            SettingsChanged?.Invoke(this, CurrentSettings);
         }
     }
 

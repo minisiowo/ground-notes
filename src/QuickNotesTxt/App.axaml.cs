@@ -32,8 +32,6 @@ public partial class App : Application
     {
         _appearanceService.ApplyTheme(startup.Theme);
         _appearanceService.ApplyUiFontSize(startup.UiFontSize);
-        _appearanceService.ApplyEditorIndentSize(EditorDisplaySettings.NormalizeIndentSize(startup.Settings.EditorIndentSize));
-        _appearanceService.ApplyEditorLineHeight(EditorDisplaySettings.NormalizeLineHeightFactor(startup.Settings.EditorLineHeightFactor));
         _appearanceService.ApplyTerminalFont(startup.TerminalFontFamily, startup.TerminalFontVariant);
         _appearanceService.ApplySidebarFont(startup.SidebarFontFamily, startup.SidebarFontVariant);
         _appearanceService.ApplyCodeFont(startup.CodeFontFamily, startup.CodeFontVariant);
@@ -46,12 +44,16 @@ public partial class App : Application
         var startupStateService = new StartupStateService(settingsService, fontCatalog);
         var startup = startupStateService.Load();
         ApplyStartupAppearance(startup);
+        var editorLayoutState = new EditorLayoutState(new EditorLayoutSettings(
+            EditorDisplaySettings.NormalizeIndentSize(startup.Settings.EditorIndentSize),
+            EditorDisplaySettings.NormalizeLineHeightFactor(startup.Settings.EditorLineHeightFactor)));
         var windowLayoutService = new SettingsWindowLayoutService(settingsService);
         var mainWindow = new MainWindow
         {
             Opacity = 0
         };
-        var dialogService = new WindowDialogService(mainWindow);
+        mainWindow.SetEditorLayoutState(editorLayoutState);
+        var dialogService = new WindowDialogService(mainWindow, editorLayoutState);
         var repository = new NotesRepository();
         var noteMutationService = new NoteMutationService(repository);
         var fileWatcher = new FileWatcherService();
@@ -65,7 +67,7 @@ public partial class App : Application
         var aiTextActionService = new OpenAiTextActionService(aiCompletionsClient);
         var aiChatService = new OpenAiChatService(aiCompletionsClient);
         var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService);
-        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService, noteMutationService, dialogService, _appearanceService, chatViewModelFactory);
+        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory);
         mainWindow.DataContext = mainViewModel;
         mainWindow.SetWindowLayoutService(windowLayoutService);
 
@@ -88,6 +90,10 @@ public partial class App : Application
             {
                 vm.StatusMessage = $"Startup failed: {ex.Message}";
             }
+        }
+        finally
+        {
+            await mainWindow.CompleteStartupInitializationAsync();
         }
     }
 }

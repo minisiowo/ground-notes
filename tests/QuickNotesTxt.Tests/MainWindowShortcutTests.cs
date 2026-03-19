@@ -32,4 +32,19 @@ public sealed class MainWindowShortcutTests
 
         Assert.Equal(expected, result);
     }
+
+    [Theory]
+    [InlineData(Key.Up, KeyModifiers.Control | KeyModifiers.Shift, true, false)]
+    [InlineData(Key.Down, KeyModifiers.Control | KeyModifiers.Shift, true, true)]
+    [InlineData(Key.Up, KeyModifiers.Control, false, false)]
+    [InlineData(Key.Down, KeyModifiers.Shift, false, false)]
+    [InlineData(Key.Up, KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt, false, false)]
+    [InlineData(Key.Left, KeyModifiers.Control | KeyModifiers.Shift, false, false)]
+    public void IsMoveLineShortcut_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected, bool expectedMoveDown)
+    {
+        var result = MainWindow.IsMoveLineShortcut(key, modifiers, out var moveDown);
+
+        Assert.Equal(expected, result);
+        Assert.Equal(expectedMoveDown, moveDown);
+    }
 }

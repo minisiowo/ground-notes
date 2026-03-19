@@ -24,6 +24,9 @@ public partial class MainWindow : Window
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
     private readonly EditorHostController _editorHost;
     private readonly WindowChromeController _windowChrome;
+    private readonly TaskCompletionSource _openedTaskSource = new();
+    private IEditorLayoutState? _editorLayoutState;
+    private bool _hasAppliedInitialEditorLayout;
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
     private readonly SlashCommandPopupController _slashCommandPopup;
@@ -74,10 +77,14 @@ public partial class MainWindow : Window
                 SyncEditorText(vm.EditorBody);
             }
 
-            await RestoreWindowLayoutAsync();
-
-            // Reveal the window after layout has been fully applied.
-            Opacity = 1;
+            try
+            {
+                await RestoreWindowLayoutAsync();
+            }
+            finally
+            {
+                _openedTaskSource.TrySetResult();
+            }
         };
 
         Closing += (_, e) =>
@@ -86,6 +93,11 @@ public partial class MainWindow : Window
             {
                 vm.PropertyChanged -= OnViewModelPropertyChanged;
                 vm.FocusEditorRequested -= OnFocusEditorRequested;
+            }
+
+            if (_editorLayoutState is not null)
+            {
+                _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
             }
 
             _editorHost.Dispose();
@@ -109,6 +121,43 @@ public partial class MainWindow : Window
     public void SetWindowLayoutService(IWindowLayoutService windowLayoutService)
     {
         _windowLayoutService = windowLayoutService;
+    }
+
+    public void SetEditorLayoutState(IEditorLayoutState editorLayoutState)
+    {
+        if (_editorLayoutState is not null)
+        {
+            _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
+        }
+
+        _editorLayoutState = editorLayoutState;
+        _editorLayoutState.SettingsChanged += OnEditorLayoutSettingsChanged;
+    }
+
+    public async Task CompleteStartupInitializationAsync()
+    {
+        await _openedTaskSource.Task;
+
+        if (DataContext is MainViewModel vm)
+        {
+            SyncEditorText(vm.EditorBody);
+        }
+
+        if (_editorLayoutState is not null)
+        {
+            _editorHost.ApplyInitialLayout(_editorLayoutState.CurrentSettings);
+            _hasAppliedInitialEditorLayout = true;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            if (_editorLayoutState is not null)
+            {
+                _editorHost.ApplyRuntimeLayout(_editorLayoutState.CurrentSettings);
+            }
+        }, DispatcherPriority.Render);
+
+        Opacity = 1;
     }
 
     public void ApplyInitialWindowLayout(WindowLayout layout, bool isOnScreen)
@@ -885,6 +934,17 @@ public partial class MainWindow : Window
 
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
+            if (IsMoveLineShortcut(e.Key, e.KeyModifiers, out var moveDown))
+            {
+                e.Handled = true;
+                ApplyEditorEdit(MarkdownEditingCommands.MoveLines(
+                    GetEditorText(),
+                    textEditor.SelectionStart,
+                    textEditor.SelectionLength,
+                    moveDown));
+                return;
+            }
+
             if (e.Key == Key.D)
             {
                 e.Handled = true;
@@ -1066,12 +1126,47 @@ public partial class MainWindow : Window
         _slashCommandPopup.ScheduleRefresh(DispatcherPriority.Input);
     }
 
+    private void OnEditorLayoutSettingsChanged(object? sender, EditorLayoutSettings settings)
+    {
+        if (!_hasAppliedInitialEditorLayout)
+        {
+            return;
+        }
+
+        _editorHost.ApplyRuntimeLayout(settings);
+    }
+
     internal static bool IsToggleTaskShortcut(Key key, KeyModifiers modifiers)
     {
         return key == Key.Enter
             && modifiers.HasFlag(KeyModifiers.Control)
             && !modifiers.HasFlag(KeyModifiers.Shift)
             && !modifiers.HasFlag(KeyModifiers.Alt);
+    }
+
+    internal static bool IsMoveLineShortcut(Key key, KeyModifiers modifiers, out bool moveDown)
+    {
+        moveDown = false;
+
+        if (!modifiers.HasFlag(KeyModifiers.Control)
+            || !modifiers.HasFlag(KeyModifiers.Shift)
+            || modifiers.HasFlag(KeyModifiers.Alt))
+        {
+            return false;
+        }
+
+        if (key == Key.Up)
+        {
+            return true;
+        }
+
+        if (key == Key.Down)
+        {
+            moveDown = true;
+            return true;
+        }
+
+        return false;
     }
 
     private void OnEditorCaretPositionChanged(object? sender, EventArgs e)

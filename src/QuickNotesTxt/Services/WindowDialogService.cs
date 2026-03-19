@@ -13,10 +13,12 @@ public sealed class WindowDialogService : IWorkspaceDialogService
     private const double ChatWindowMaxWidth = 820;
 
     private readonly Window _owner;
+    private readonly IEditorLayoutState _editorLayoutState;
 
-    public WindowDialogService(Window owner)
+    public WindowDialogService(Window owner, IEditorLayoutState editorLayoutState)
     {
         _owner = owner;
+        _editorLayoutState = editorLayoutState;
     }
 
     public async Task<string?> PickFolderAsync()
@@ -49,6 +51,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
             DataContext = model,
             Width = targetWidth
         };
+        dialog.SetEditorLayoutState(_editorLayoutState);
 
         dialog.Show(_owner);
         return Task.CompletedTask;

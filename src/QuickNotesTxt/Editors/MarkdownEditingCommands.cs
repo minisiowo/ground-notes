@@ -184,6 +184,82 @@ internal static class MarkdownEditingCommands
         return new MarkdownEditResult(lineEnd, 0, "\n", lineEnd + 1, 0);
     }
 
+    public static MarkdownEditResult MoveLines(string text, int selectionStart, int selectionLength, bool moveDown)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return NoOp(0, 0);
+        }
+
+        var start = Clamp(selectionStart, 0, text.Length);
+        var length = Clamp(selectionLength, 0, text.Length - start);
+        var end = start + length;
+
+        if (start > end)
+        {
+            (start, end) = (end, start);
+            length = end - start;
+        }
+
+        var lines = text.Split('\n');
+        var lineStarts = BuildLineStarts(lines);
+        var startLineIndex = GetLineIndexAtOffset(lineStarts, text.Length, start);
+        var endLineIndex = GetLineIndexAtOffset(lineStarts, text.Length, length == 0 ? start : Math.Max(start, end - 1));
+        var blockLineCount = endLineIndex - startLineIndex + 1;
+
+        if (moveDown)
+        {
+            if (endLineIndex >= lines.Length - 1)
+            {
+                return NoOp(start, length);
+            }
+        }
+        else if (startLineIndex == 0)
+        {
+            return NoOp(start, length);
+        }
+
+        var movedLines = lines[startLineIndex..(endLineIndex + 1)];
+        var affectedStartLineIndex = moveDown ? startLineIndex : startLineIndex - 1;
+        var affectedEndLineIndex = moveDown ? endLineIndex + 1 : endLineIndex;
+        var affectedLines = lines[affectedStartLineIndex..(affectedEndLineIndex + 1)];
+        var reorderedLines = new List<string>(affectedLines.Length);
+
+        if (moveDown)
+        {
+            reorderedLines.Add(lines[endLineIndex + 1]);
+            reorderedLines.AddRange(movedLines);
+        }
+        else
+        {
+            reorderedLines.AddRange(movedLines);
+            reorderedLines.Add(lines[startLineIndex - 1]);
+        }
+
+        var affectedStartOffset = lineStarts[affectedStartLineIndex];
+        var affectedEndOffset = affectedEndLineIndex == lines.Length - 1
+            ? text.Length
+            : lineStarts[affectedEndLineIndex] + lines[affectedEndLineIndex].Length;
+        var replacement = string.Join('\n', reorderedLines);
+        var movedBlockLength = GetJoinedLength(movedLines);
+        var movedBlockOffsetWithinReplacement = moveDown ? lines[affectedEndLineIndex].Length + 1 : 0;
+
+        if (length == 0)
+        {
+            var caretColumn = start - lineStarts[startLineIndex];
+            var caretLineLength = lines[startLineIndex].Length;
+            var caretOffset = affectedStartOffset + movedBlockOffsetWithinReplacement + Math.Min(caretColumn, caretLineLength);
+            return new MarkdownEditResult(affectedStartOffset, affectedEndOffset - affectedStartOffset, replacement, caretOffset, 0);
+        }
+
+        return new MarkdownEditResult(
+            affectedStartOffset,
+            affectedEndOffset - affectedStartOffset,
+            replacement,
+            affectedStartOffset + movedBlockOffsetWithinReplacement,
+            movedBlockLength);
+    }
+
     public static MarkdownEditResult ChangeIndentation(string text, int selectionStart, int selectionLength, int indentationSize, bool unindent)
     {
         var indentSize = Math.Max(1, indentationSize);
@@ -371,6 +447,48 @@ internal static class MarkdownEditingCommands
         }
 
         return content;
+    }
+
+    private static int[] BuildLineStarts(string[] lines)
+    {
+        var starts = new int[lines.Length];
+        var offset = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            starts[i] = offset;
+            offset += lines[i].Length;
+            if (i < lines.Length - 1)
+            {
+                offset++;
+            }
+        }
+
+        return starts;
+    }
+
+    private static int GetLineIndexAtOffset(int[] lineStarts, int textLength, int offset)
+    {
+        var clampedOffset = Clamp(offset, 0, textLength);
+        for (var i = lineStarts.Length - 1; i >= 0; i--)
+        {
+            if (clampedOffset >= lineStarts[i])
+            {
+                return i;
+            }
+        }
+
+        return 0;
+    }
+
+    private static int GetJoinedLength(IReadOnlyList<string> lines)
+    {
+        if (lines.Count == 0)
+        {
+            return 0;
+        }
+
+        var total = lines.Sum(static line => line.Length);
+        return total + lines.Count - 1;
     }
 
     private static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);

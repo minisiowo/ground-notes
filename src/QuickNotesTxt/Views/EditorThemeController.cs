@@ -62,6 +62,11 @@ internal sealed class EditorThemeController : IDisposable
         RefreshTypographyResources(currentSignature);
     }
 
+    public void ForceRefreshTypographyResources()
+    {
+        RefreshTypographyResources(CaptureAppearanceSignature());
+    }
+
     private void RefreshTypographyResources(EditorAppearanceSignature currentSignature)
     {
         _lastAppearanceSignature = currentSignature;
@@ -125,29 +130,15 @@ internal sealed class EditorThemeController : IDisposable
         var fontFamily = resources?[ThemeKeys.CodeFont] as FontFamily;
         var fontWeight = resources?[ThemeKeys.CodeFontWeight] is FontWeight weight ? weight : FontWeight.Normal;
         var fontStyle = resources?[ThemeKeys.CodeFontStyle] is FontStyle style ? style : FontStyle.Normal;
-        var indentationSize = resources?[ThemeKeys.EditorIndentationSize] is int indent
-            ? EditorDisplaySettings.NormalizeIndentSize(indent)
-            : EditorDisplaySettings.DefaultIndentSize;
-        var lineHeightFactor = resources?[ThemeKeys.EditorLineHeightFactor] switch
-        {
-            double value => EditorDisplaySettings.NormalizeLineHeightFactor(value),
-            float value => EditorDisplaySettings.NormalizeLineHeightFactor(value),
-            int value => EditorDisplaySettings.NormalizeLineHeightFactor(value),
-            _ => EditorDisplaySettings.DefaultLineHeightFactor
-        };
-        return new EditorAppearanceSignature(fontFamily?.ToString() ?? string.Empty, fontWeight, fontStyle, indentationSize, lineHeightFactor);
+        return new EditorAppearanceSignature(fontFamily?.ToString() ?? string.Empty, fontWeight, fontStyle);
     }
 
-    private void ApplyEditorOptions(EditorAppearanceSignature signature)
+    private static void ApplyEditorOptions(EditorAppearanceSignature signature)
     {
-        _editor.Options.IndentationSize = signature.IndentationSize;
-        _editor.Options.LineHeightFactor = signature.LineHeightFactor;
     }
 
     private readonly record struct EditorAppearanceSignature(
         string FontFamily,
         FontWeight Weight,
-        FontStyle Style,
-        int IndentationSize,
-        double LineHeightFactor);
+        FontStyle Style);
 }

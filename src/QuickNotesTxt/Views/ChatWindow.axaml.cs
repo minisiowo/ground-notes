@@ -8,6 +8,8 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using QuickNotesTxt.Editors;
+using QuickNotesTxt.Models;
+using QuickNotesTxt.Services;
 using QuickNotesTxt.ViewModels;
 
 namespace QuickNotesTxt.Views;
@@ -27,6 +29,8 @@ public partial class ChatWindow : Window
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
     private readonly EditorHostController _editorHost;
     private readonly WindowChromeController _windowChrome;
+    private IEditorLayoutState? _editorLayoutState;
+    private bool _hasAppliedInitialEditorLayout;
     private ChatViewModel? _boundViewModel;
 
     public ChatWindow()
@@ -64,6 +68,12 @@ public partial class ChatWindow : Window
             {
                 SyncEditorText(vm.EditorBody);
             }
+
+            if (_editorLayoutState is not null)
+            {
+                _editorHost.ApplyInitialLayout(_editorLayoutState.CurrentSettings);
+                _hasAppliedInitialEditorLayout = true;
+            }
         };
 
         Activated += (_, _) =>
@@ -79,8 +89,24 @@ public partial class ChatWindow : Window
                 _boundViewModel = null;
             }
 
+            if (_editorLayoutState is not null)
+            {
+                _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
+            }
+
             _editorHost.Dispose();
         };
+    }
+
+    public void SetEditorLayoutState(IEditorLayoutState editorLayoutState)
+    {
+        if (_editorLayoutState is not null)
+        {
+            _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
+        }
+
+        _editorLayoutState = editorLayoutState;
+        _editorLayoutState.SettingsChanged += OnEditorLayoutSettingsChanged;
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -108,6 +134,16 @@ public partial class ChatWindow : Window
         {
             SyncEditorText(vm.EditorBody);
         }
+    }
+
+    private void OnEditorLayoutSettingsChanged(object? sender, EditorLayoutSettings settings)
+    {
+        if (!_hasAppliedInitialEditorLayout)
+        {
+            return;
+        }
+
+        _editorHost.ApplyRuntimeLayout(settings);
     }
 
     private void OnEditorTextViewScrollOffsetChanged(object? sender, EventArgs e)

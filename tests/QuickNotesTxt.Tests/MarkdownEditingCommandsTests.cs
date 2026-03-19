@@ -175,6 +175,97 @@ public sealed class MarkdownEditingCommandsTests
     }
 
     [Fact]
+    public void MoveLines_MovesCurrentLineUp()
+    {
+        var text = "first\nsecond\nthird";
+        var result = MarkdownEditingCommands.MoveLines(text, 8, 0, moveDown: false);
+
+        Assert.Equal(0, result.Start);
+        Assert.Equal("second\nfirst", result.Replacement);
+        Assert.Equal(2, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void MoveLines_MovesCurrentLineDown()
+    {
+        var text = "first\nsecond\nthird";
+        var result = MarkdownEditingCommands.MoveLines(text, 8, 0, moveDown: true);
+
+        Assert.Equal(6, result.Start);
+        Assert.Equal("third\nsecond", result.Replacement);
+        Assert.Equal(14, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void MoveLines_MovingTopLineUpIsNoOp()
+    {
+        var text = "first\nsecond";
+        var result = MarkdownEditingCommands.MoveLines(text, 2, 0, moveDown: false);
+
+        Assert.Equal(2, result.Start);
+        Assert.Equal(0, result.Length);
+        Assert.Equal(string.Empty, result.Replacement);
+        Assert.Equal(2, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void MoveLines_MovingBottomLineDownIsNoOp()
+    {
+        var text = "first\nsecond";
+        var result = MarkdownEditingCommands.MoveLines(text, text.Length, 0, moveDown: true);
+
+        Assert.Equal(text.Length, result.Start);
+        Assert.Equal(0, result.Length);
+        Assert.Equal(string.Empty, result.Replacement);
+        Assert.Equal(text.Length, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void MoveLines_MovesTouchedSelectedLinesUpAsBlock()
+    {
+        var text = "zero\none\ntwo\nthree";
+        var start = 7;
+        var length = 5;
+        var result = MarkdownEditingCommands.MoveLines(text, start, length, moveDown: false);
+
+        Assert.Equal(0, result.Start);
+        Assert.Equal("one\ntwo\nzero", result.Replacement);
+        Assert.Equal(0, result.SelectionStart);
+        Assert.Equal(7, result.SelectionLength);
+    }
+
+    [Fact]
+    public void MoveLines_MovesTouchedSelectedLinesDownAsBlock()
+    {
+        var text = "zero\none\ntwo\nthree";
+        var start = 5;
+        var length = 7;
+        var result = MarkdownEditingCommands.MoveLines(text, start, length, moveDown: true);
+
+        Assert.Equal(5, result.Start);
+        Assert.Equal("three\none\ntwo", result.Replacement);
+        Assert.Equal(11, result.SelectionStart);
+        Assert.Equal(7, result.SelectionLength);
+    }
+
+    [Fact]
+    public void MoveLines_PreservesBlankLinesAndIndentation()
+    {
+        var text = "before\n  one\n\n  two\nafter";
+        var start = 7;
+        var length = 11;
+        var result = MarkdownEditingCommands.MoveLines(text, start, length, moveDown: true);
+
+        Assert.Equal("after\n  one\n\n  two", result.Replacement);
+        Assert.Equal(13, result.SelectionStart);
+        Assert.Equal(12, result.SelectionLength);
+    }
+
+    [Fact]
     public void ChangeIndentation_InsertsConfiguredIndentAtCaret()
     {
         var result = MarkdownEditingCommands.ChangeIndentation("alpha", 2, 0, 2, unindent: false);
@@ -191,8 +282,8 @@ public sealed class MarkdownEditingCommandsTests
         var result = MarkdownEditingCommands.ChangeIndentation(text, 0, text.Length, 2, unindent: false);
 
         Assert.Equal("  one\n  two", result.Replacement);
-        Assert.Equal(0, result.SelectionStart);
-        Assert.Equal(result.Replacement.Length, result.SelectionLength);
+        Assert.Equal(2, result.SelectionStart);
+        Assert.Equal(result.Replacement.Length - 2, result.SelectionLength);
     }
 
     [Fact]

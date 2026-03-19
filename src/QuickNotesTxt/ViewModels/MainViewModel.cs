@@ -31,6 +31,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly INoteMutationService _noteMutationService;
     private readonly IWorkspaceDialogService _workspaceDialogService;
     private readonly IAppAppearanceService _appearanceService;
+    private readonly IEditorLayoutState _editorLayoutState;
     private readonly IChatViewModelFactory _chatViewModelFactory;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private readonly Guid _mutationOriginId = Guid.NewGuid();
@@ -191,6 +192,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         INoteMutationService noteMutationService,
         IWorkspaceDialogService workspaceDialogService,
         IAppAppearanceService appearanceService,
+        IEditorLayoutState editorLayoutState,
         IChatViewModelFactory chatViewModelFactory)
     {
         _notesRepository = notesRepository;
@@ -203,6 +205,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _noteMutationService = noteMutationService;
         _workspaceDialogService = workspaceDialogService;
         _appearanceService = appearanceService;
+        _editorLayoutState = editorLayoutState;
         _chatViewModelFactory = chatViewModelFactory;
         _fileWatcherService.NoteChanged += OnNoteChanged;
         _noteMutationService.NoteMutated += OnNoteMutated;
@@ -560,12 +563,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnEditorIndentSizeChanged(int value)
     {
-        _appearanceService.ApplyEditorIndentSize(EditorDisplaySettings.NormalizeIndentSize(value));
+        _editorLayoutState.Set(new EditorLayoutSettings(
+            EditorDisplaySettings.NormalizeIndentSize(value),
+            EditorLineHeightFactor));
     }
 
     partial void OnEditorLineHeightFactorChanged(double value)
     {
-        _appearanceService.ApplyEditorLineHeight(EditorDisplaySettings.NormalizeLineHeightFactor(value));
+        _editorLayoutState.Set(new EditorLayoutSettings(
+            EditorIndentSize,
+            EditorDisplaySettings.NormalizeLineHeightFactor(value)));
     }
 
     partial void OnNotesFolderChanged(string value)
