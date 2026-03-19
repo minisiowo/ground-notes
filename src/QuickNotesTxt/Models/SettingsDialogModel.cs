@@ -12,6 +12,8 @@ public sealed record SettingsDialogModel(
     string SelectedCodeFontVariantName,
     double EditorFontSize,
     double UiFontSize,
+    int EditorIndentSize,
+    double EditorLineHeightFactor,
     bool IsAiEnabled,
     string ApiKey,
     string DefaultModel,

@@ -22,7 +22,11 @@ internal sealed class EditorHostController : IDisposable
 
     public void ApplySelectionTheme() => _themeController.ApplySelectionTheme();
 
-    public void RefreshThemeResources() => _themeController.RefreshThemeResources();
+    public void RefreshVisualResources() => _themeController.RefreshVisualResources();
+
+    public void RefreshThemeResources() => RefreshVisualResources();
+
+    public void RefreshTypographyResources() => _themeController.RefreshTypographyResources();
 
     public bool SyncFromViewModel(string? text, bool appendSuffixWhenPossible, out bool appendedOnly)
         => _textSyncController.SyncFromViewModel(text, appendSuffixWhenPossible, out appendedOnly);

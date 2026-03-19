@@ -68,7 +68,7 @@ public partial class ChatWindow : Window
 
         Activated += (_, _) =>
         {
-            _editorHost.RefreshThemeResources();
+            _editorHost.RefreshTypographyResources();
         };
 
         Closed += (_, _) =>

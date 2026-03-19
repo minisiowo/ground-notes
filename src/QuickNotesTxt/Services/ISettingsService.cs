@@ -23,6 +23,8 @@ public sealed record AppSettings(
     string? NotesFolder,
     double? EditorFontSize,
     double? UiFontSize,
+    int? EditorIndentSize,
+    double? EditorLineHeightFactor,
     string? FontName,
     string? FontVariantName,
     string? SidebarFontName,

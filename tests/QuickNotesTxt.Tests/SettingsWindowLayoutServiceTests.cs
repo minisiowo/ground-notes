@@ -34,6 +34,8 @@ public sealed class SettingsWindowLayoutServiceTests
             null,
             null,
             null,
+            null,
+            null,
             AiSettings.Default);
 
         public bool SaveSettingsSyncCalled { get; private set; }

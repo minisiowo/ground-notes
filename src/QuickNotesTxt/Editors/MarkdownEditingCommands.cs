@@ -71,6 +71,64 @@ internal static class MarkdownEditingCommands
         });
     }
 
+    public static MarkdownEditResult ToggleTaskState(string text, int selectionStart, int selectionLength)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return NoOp(0, 0);
+        }
+
+        var start = Clamp(selectionStart, 0, text.Length);
+        var length = Clamp(selectionLength, 0, text.Length - start);
+        var end = start + length;
+
+        if (start > end)
+        {
+            (start, end) = (end, start);
+            length = end - start;
+        }
+
+        var lineStart = text.LastIndexOf('\n', Math.Max(start - 1, 0));
+        lineStart = lineStart < 0 ? 0 : lineStart + 1;
+
+        var lineEnd = end < text.Length ? text.IndexOf('\n', end) : -1;
+        if (lineEnd < 0)
+        {
+            lineEnd = text.Length;
+        }
+
+        if (lineEnd < lineStart)
+        {
+            lineEnd = lineStart;
+        }
+
+        var block = text[lineStart..lineEnd];
+        var rawLines = block.Split('\n');
+        var lines = rawLines.Select(static line => EditableLine.Parse(line)).ToList();
+
+        var changed = false;
+        foreach (var line in lines.Where(static line => line.IsTaskList))
+        {
+            line.ToggleTaskState();
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return NoOp(start, length);
+        }
+
+        var replacement = string.Join('\n', lines.Select(static line => line.ToText()));
+        if (length == 0 && lines.Count == 1)
+        {
+            var caretColumn = start - lineStart;
+            var caretOffset = Math.Min(lineStart + replacement.Length, lineStart + caretColumn);
+            return new MarkdownEditResult(lineStart, lineEnd - lineStart, replacement, caretOffset, 0);
+        }
+
+        return new MarkdownEditResult(lineStart, lineEnd - lineStart, replacement, lineStart, replacement.Length);
+    }
+
     public static MarkdownEditResult ToggleBulletList(string text, int selectionStart, int selectionLength)
     {
         return TransformSelectedLines(text, selectionStart, selectionLength, lines =>
@@ -124,6 +182,78 @@ internal static class MarkdownEditingCommands
         }
 
         return new MarkdownEditResult(lineEnd, 0, "\n", lineEnd + 1, 0);
+    }
+
+    public static MarkdownEditResult ChangeIndentation(string text, int selectionStart, int selectionLength, int indentationSize, bool unindent)
+    {
+        var indentSize = Math.Max(1, indentationSize);
+        var indentText = new string(' ', indentSize);
+        var start = Clamp(selectionStart, 0, text.Length);
+        var length = Clamp(selectionLength, 0, text.Length - start);
+        var end = start + length;
+
+        if (!unindent && length == 0)
+        {
+            return new MarkdownEditResult(start, 0, indentText, start + indentSize, 0);
+        }
+
+        if (start > end)
+        {
+            (start, end) = (end, start);
+            length = end - start;
+        }
+
+        var lineStart = text.LastIndexOf('\n', Math.Max(start - 1, 0));
+        lineStart = lineStart < 0 ? 0 : lineStart + 1;
+
+        var lineEnd = end < text.Length ? text.IndexOf('\n', end) : -1;
+        if (lineEnd < 0)
+        {
+            lineEnd = text.Length;
+        }
+
+        var block = text[lineStart..lineEnd];
+        var lines = block.Split('\n');
+        var totalDelta = 0;
+        var firstLineDelta = 0;
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (unindent)
+            {
+                var removed = 0;
+                while (removed < indentSize && removed < lines[i].Length && lines[i][removed] == ' ')
+                {
+                    removed++;
+                }
+
+                if (removed == 0)
+                {
+                    continue;
+                }
+
+                lines[i] = lines[i][removed..];
+                totalDelta -= removed;
+                if (i == 0)
+                {
+                    firstLineDelta = -removed;
+                }
+
+                continue;
+            }
+
+            lines[i] = indentText + lines[i];
+            totalDelta += indentSize;
+            if (i == 0)
+            {
+                firstLineDelta = indentSize;
+            }
+        }
+
+        var replacement = string.Join('\n', lines);
+        var newSelectionStart = Math.Max(lineStart, start + firstLineDelta);
+        var newSelectionEnd = Math.Max(newSelectionStart, end + totalDelta);
+        return new MarkdownEditResult(lineStart, lineEnd - lineStart, replacement, newSelectionStart, newSelectionEnd - newSelectionStart);
     }
 
     public static MarkdownEditResult DeleteCurrentLine(string text, int selectionStart, int selectionLength)
@@ -245,6 +375,9 @@ internal static class MarkdownEditingCommands
 
     private static int Clamp(int value, int min, int max) => Math.Min(Math.Max(value, min), max);
 
+    private static MarkdownEditResult NoOp(int selectionStart, int selectionLength)
+        => new(selectionStart, 0, string.Empty, selectionStart, selectionLength);
+
     private sealed class EditableLine
     {
         public required string Indent { get; init; }
@@ -256,6 +389,24 @@ internal static class MarkdownEditingCommands
         public bool IsTaskList => Content.StartsWith("- [ ] ", StringComparison.Ordinal) || Content.StartsWith("- [x] ", StringComparison.Ordinal) || Content.StartsWith("- [X] ", StringComparison.Ordinal);
 
         public bool IsBulletList => Content.StartsWith("- ", StringComparison.Ordinal) || Content.StartsWith("* ", StringComparison.Ordinal) || Content.StartsWith("+ ", StringComparison.Ordinal);
+
+        public void ToggleTaskState()
+        {
+            var taskList = MarkdownLineParser.TryGetTaskListMatch(Content);
+            if (taskList is not { Checkbox: { } checkbox })
+            {
+                return;
+            }
+
+            var stateOffset = checkbox.Start + 1;
+            var state = Content[stateOffset];
+            var nextState = state is 'x' or 'X' ? ' ' : 'x';
+            Content = string.Create(Content.Length, (Content, stateOffset, nextState), static (buffer, state) =>
+            {
+                state.Content.AsSpan().CopyTo(buffer);
+                buffer[state.stateOffset] = state.nextState;
+            });
+        }
 
         public int HeadingLevel
         {

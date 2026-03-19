@@ -17,6 +17,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private const double DefaultUiFontSize = 12;
     private const double MinUiFontSize = 10;
     private const double MaxUiFontSize = 20;
+    private const int DefaultEditorIndentSize = EditorDisplaySettings.DefaultIndentSize;
+    private const double DefaultEditorLineHeightFactor = EditorDisplaySettings.DefaultLineHeightFactor;
     private const int NotePickerResultLimitValue = 10;
 
     private readonly INotesRepository _notesRepository;
@@ -99,6 +101,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private double _uiFontSize = DefaultUiFontSize;
+
+    [ObservableProperty]
+    private int _editorIndentSize = DefaultEditorIndentSize;
+
+    [ObservableProperty]
+    private double _editorLineHeightFactor = DefaultEditorLineHeightFactor;
 
     [ObservableProperty]
     private string _selectedThemeName = AppTheme.Dark.Name;
@@ -548,6 +556,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnUiFontSizeChanged(double value)
     {
         _appearanceService.ApplyUiFontSize(value);
+    }
+
+    partial void OnEditorIndentSizeChanged(int value)
+    {
+        _appearanceService.ApplyEditorIndentSize(EditorDisplaySettings.NormalizeIndentSize(value));
+    }
+
+    partial void OnEditorLineHeightFactorChanged(double value)
+    {
+        _appearanceService.ApplyEditorLineHeight(EditorDisplaySettings.NormalizeLineHeightFactor(value));
     }
 
     partial void OnNotesFolderChanged(string value)
@@ -1093,6 +1111,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var settings = await _settingsService.GetSettingsAsync();
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
         UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
+        EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize);
+        EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor);
 
         _allFonts = _fontCatalogService.LoadBundledFonts();
         FontFamilyNames = _allFonts.Select(f => f.DisplayName).ToList();
@@ -1223,6 +1243,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SelectedCodeFontVariantName,
             EditorFontSize,
             UiFontSize,
+            EditorIndentSize,
+            EditorLineHeightFactor,
             IsAiEnabled,
             OpenAiApiKey,
             SelectedAiModel,
@@ -1268,6 +1290,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         var persistedEditorFontSize = ClampEditorFontSize(model.EditorFontSize);
         var persistedUiFontSize = ClampUiFontSize(model.UiFontSize);
+        var persistedEditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize);
+        var persistedEditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(model.EditorLineHeightFactor);
         if (!EditorFontSize.Equals(persistedEditorFontSize))
         {
             EditorFontSize = persistedEditorFontSize;
@@ -1276,6 +1300,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (!UiFontSize.Equals(persistedUiFontSize))
         {
             UiFontSize = persistedUiFontSize;
+        }
+
+        if (EditorIndentSize != persistedEditorIndentSize)
+        {
+            EditorIndentSize = persistedEditorIndentSize;
+        }
+
+        if (Math.Abs(EditorLineHeightFactor - persistedEditorLineHeightFactor) > 0.0001)
+        {
+            EditorLineHeightFactor = persistedEditorLineHeightFactor;
         }
 
         await PersistSettingsAsync(settings => settings with
@@ -1289,6 +1323,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             CodeFontVariantName = codeVariant.Key,
             EditorFontSize = persistedEditorFontSize,
             UiFontSize = persistedUiFontSize,
+            EditorIndentSize = persistedEditorIndentSize,
+            EditorLineHeightFactor = persistedEditorLineHeightFactor,
             AiSettings = BuildAiSettings()
         });
     }
@@ -1344,6 +1380,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (!UiFontSize.Equals(uiFontSize))
         {
             UiFontSize = uiFontSize;
+        }
+
+        var editorIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize);
+        if (EditorIndentSize != editorIndentSize)
+        {
+            EditorIndentSize = editorIndentSize;
+        }
+
+        var editorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(model.EditorLineHeightFactor);
+        if (Math.Abs(EditorLineHeightFactor - editorLineHeightFactor) > 0.0001)
+        {
+            EditorLineHeightFactor = editorLineHeightFactor;
         }
     }
 

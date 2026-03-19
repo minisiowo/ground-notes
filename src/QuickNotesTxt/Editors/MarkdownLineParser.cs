@@ -4,6 +4,8 @@ namespace QuickNotesTxt.Editors;
 
 internal static partial class MarkdownLineParser
 {
+    internal static MarkdownListMatch? TryGetTaskListMatch(string lineText) => TryMatchTaskList(lineText);
+
     public static MarkdownLineAnalysis Analyze(string lineText, MarkdownFenceState fenceStateBeforeLine)
     {
         MarkdownDiagnostics.RecordLineAnalyzed();

@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using QuickNotesTxt.Models;
 using QuickNotesTxt.Services;
 using QuickNotesTxt.ViewModels;
 using QuickNotesTxt.Views;
@@ -31,6 +32,8 @@ public partial class App : Application
     {
         _appearanceService.ApplyTheme(startup.Theme);
         _appearanceService.ApplyUiFontSize(startup.UiFontSize);
+        _appearanceService.ApplyEditorIndentSize(EditorDisplaySettings.NormalizeIndentSize(startup.Settings.EditorIndentSize));
+        _appearanceService.ApplyEditorLineHeight(EditorDisplaySettings.NormalizeLineHeightFactor(startup.Settings.EditorLineHeightFactor));
         _appearanceService.ApplyTerminalFont(startup.TerminalFontFamily, startup.TerminalFontVariant);
         _appearanceService.ApplySidebarFont(startup.SidebarFontFamily, startup.SidebarFontVariant);
         _appearanceService.ApplyCodeFont(startup.CodeFontFamily, startup.CodeFontVariant);

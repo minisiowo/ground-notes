@@ -106,6 +106,38 @@ public sealed class MarkdownEditingCommandsTests
     }
 
     [Fact]
+    public void ToggleTaskState_TogglesSingleTaskAtCaret()
+    {
+        var text = "- [ ] one";
+        var result = MarkdownEditingCommands.ToggleTaskState(text, 4, 0);
+
+        Assert.Equal("- [x] one", result.Replacement);
+        Assert.Equal(4, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void ToggleTaskState_TogglesSelectedTaskLinesOnly()
+    {
+        var text = "- [ ] one\nplain\n- [x] two";
+        var result = MarkdownEditingCommands.ToggleTaskState(text, 0, text.Length);
+
+        Assert.Equal("- [x] one\nplain\n- [ ] two", result.Replacement);
+    }
+
+    [Fact]
+    public void ToggleTaskState_OnNonTaskLineIsNoOp()
+    {
+        var result = MarkdownEditingCommands.ToggleTaskState("plain text", 3, 0);
+
+        Assert.Equal(3, result.Start);
+        Assert.Equal(0, result.Length);
+        Assert.Equal(string.Empty, result.Replacement);
+        Assert.Equal(3, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
     public void ToggleBulletList_OnEmptyLineInsertsBullet()
     {
         var result = MarkdownEditingCommands.ToggleBulletList(string.Empty, 0, 0);
@@ -140,6 +172,38 @@ public sealed class MarkdownEditingCommandsTests
         Assert.Equal("\n", end.Replacement);
         Assert.Equal(6, end.SelectionStart);
         Assert.Equal(0, end.SelectionLength);
+    }
+
+    [Fact]
+    public void ChangeIndentation_InsertsConfiguredIndentAtCaret()
+    {
+        var result = MarkdownEditingCommands.ChangeIndentation("alpha", 2, 0, 2, unindent: false);
+
+        Assert.Equal("  ", result.Replacement);
+        Assert.Equal(4, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void ChangeIndentation_UsesConfiguredIndentWidthForSelectedLines()
+    {
+        var text = "one\ntwo";
+        var result = MarkdownEditingCommands.ChangeIndentation(text, 0, text.Length, 2, unindent: false);
+
+        Assert.Equal("  one\n  two", result.Replacement);
+        Assert.Equal(0, result.SelectionStart);
+        Assert.Equal(result.Replacement.Length, result.SelectionLength);
+    }
+
+    [Fact]
+    public void ChangeIndentation_UnindentsUsingConfiguredWidth()
+    {
+        var text = "  one\n two";
+        var result = MarkdownEditingCommands.ChangeIndentation(text, 0, text.Length, 2, unindent: true);
+
+        Assert.Equal("one\ntwo", result.Replacement);
+        Assert.Equal(0, result.SelectionStart);
+        Assert.Equal(result.Replacement.Length, result.SelectionLength);
     }
 
     [Fact]

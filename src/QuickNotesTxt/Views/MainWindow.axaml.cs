@@ -322,11 +322,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.PropertyName is nameof(MainViewModel.SelectedThemeName)
-            or nameof(MainViewModel.SelectedCodeFontFamilyName)
+        if (e.PropertyName == nameof(MainViewModel.SelectedThemeName))
+        {
+            _editorHost.RefreshVisualResources();
+            return;
+        }
+
+        if (e.PropertyName is nameof(MainViewModel.SelectedCodeFontFamilyName)
             or nameof(MainViewModel.SelectedCodeFontVariantName))
         {
-            _editorHost.RefreshThemeResources();
+            _editorHost.RefreshTypographyResources();
             return;
         }
 
@@ -652,7 +657,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Meta) && e.Key is Key.OemPeriod or Key.Decimal)
+        if (IsOpenSettingsGesture(e.Key, e.KeyModifiers))
         {
             e.Handled = true;
             await vm.OpenSettingsCommand.ExecuteAsync(null);
@@ -710,6 +715,21 @@ public partial class MainWindow : Window
             e.Handled = true;
             await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
         }
+    }
+
+    internal static bool IsOpenSettingsGesture(Key key, KeyModifiers modifiers)
+    {
+        if (modifiers.HasFlag(KeyModifiers.Alt) || modifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return false;
+        }
+
+        if (!modifiers.HasFlag(KeyModifiers.Control) && !modifiers.HasFlag(KeyModifiers.Meta))
+        {
+            return false;
+        }
+
+        return key == Key.OemComma;
     }
 
     private void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
@@ -802,6 +822,17 @@ public partial class MainWindow : Window
 
         if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
+            if (IsToggleTaskShortcut(e.Key, e.KeyModifiers))
+            {
+                var toggleTaskEdit = MarkdownEditingCommands.ToggleTaskState(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength);
+                if (toggleTaskEdit.Length != 0 || toggleTaskEdit.Replacement.Length != 0)
+                {
+                    e.Handled = true;
+                    ApplyEditorEdit(toggleTaskEdit);
+                    return;
+                }
+            }
+
             if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.D && vm is not null && !vm.IsNotePickerOpen)
             {
                 e.Handled = true;
@@ -915,83 +946,13 @@ public partial class MainWindow : Window
 
         var text = document.Text;
         var selStart = textEditor.SelectionStart;
-        var selEnd = selStart + textEditor.SelectionLength;
-        var hasSelection = selStart != selEnd;
         var isUnindent = (e.KeyModifiers & KeyModifiers.Shift) != 0;
-
-        if (!hasSelection && !isUnindent)
-        {
-            var caretOffset = textEditor.CaretOffset;
-            document.Insert(caretOffset, "    ");
-            textEditor.CaretOffset = caretOffset + 4;
-            textEditor.Select(textEditor.CaretOffset, 0);
-            return;
-        }
-
-        // Ensure selStart <= selEnd.
-        if (selStart > selEnd)
-        {
-            (selStart, selEnd) = (selEnd, selStart);
-        }
-
-        // Find the start of the first selected line and end of the last selected line.
-        var lineStart = text.LastIndexOf('\n', Math.Max(selStart - 1, 0));
-        lineStart = lineStart < 0 ? 0 : lineStart + 1;
-
-        var lineEnd = selEnd < text.Length ? text.IndexOf('\n', selEnd) : -1;
-        if (lineEnd < 0)
-        {
-            lineEnd = text.Length;
-        }
-
-        var block = text[lineStart..lineEnd];
-        var lines = block.Split('\n');
-        var totalDelta = 0;
-        var firstLineDelta = 0;
-
-        for (var i = 0; i < lines.Length; i++)
-        {
-            if (isUnindent)
-            {
-                // Remove up to 4 leading spaces.
-                var removed = 0;
-                while (removed < 4 && removed < lines[i].Length && lines[i][removed] == ' ')
-                {
-                    removed++;
-                }
-
-                if (removed > 0)
-                {
-                    lines[i] = lines[i][removed..];
-                    totalDelta -= removed;
-                    if (i == 0)
-                    {
-                        firstLineDelta = -removed;
-                    }
-                }
-            }
-            else
-            {
-                lines[i] = "    " + lines[i];
-                totalDelta += 4;
-                if (i == 0)
-                {
-                    firstLineDelta = 4;
-                }
-            }
-        }
-
-        var newBlock = string.Join('\n', lines);
-
-        document.Replace(lineStart, lineEnd - lineStart, newBlock);
-
-        var newSelStart = Math.Max(lineStart, selStart + firstLineDelta);
-        var newSelEnd = Math.Max(newSelStart, selEnd + totalDelta);
-        Dispatcher.UIThread.Post(() =>
-        {
-            textEditor.Select(newSelStart, newSelEnd - newSelStart);
-            textEditor.CaretOffset = newSelEnd;
-        }, DispatcherPriority.Render);
+        ApplyEditorEdit(MarkdownEditingCommands.ChangeIndentation(
+            text,
+            selStart,
+            textEditor.SelectionLength,
+            Math.Max(1, textEditor.Options.IndentationSize),
+            isUnindent));
     }
 
     private void OnWindowPointerMoved(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerMoved(e);
@@ -1103,6 +1064,14 @@ public partial class MainWindow : Window
     private void OnEditorPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         _slashCommandPopup.ScheduleRefresh(DispatcherPriority.Input);
+    }
+
+    internal static bool IsToggleTaskShortcut(Key key, KeyModifiers modifiers)
+    {
+        return key == Key.Enter
+            && modifiers.HasFlag(KeyModifiers.Control)
+            && !modifiers.HasFlag(KeyModifiers.Shift)
+            && !modifiers.HasFlag(KeyModifiers.Alt);
     }
 
     private void OnEditorCaretPositionChanged(object? sender, EventArgs e)

@@ -109,12 +109,50 @@ public sealed class MainViewModelTests : IDisposable
         Assert.DoesNotContain(vm.VisibleNotes, summary => string.Equals(summary.DisplayName, "note", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task ApplySettingsPreview_AppliesCodeFontImmediately()
+    {
+        var appearanceService = new FakeAppAppearanceService();
+        using var vm = await CreateViewModelAsync(appearanceService: appearanceService);
+
+        var model = new SettingsDialogModel(
+            ["Default"],
+            new FakeFontCatalogService().LoadBundledFonts(),
+            "Default",
+            "Iosevka Slab",
+            FontCatalogService.DefaultVariantKey,
+            "Iosevka Slab",
+            FontCatalogService.DefaultVariantKey,
+            "JetBrains Mono",
+            FontCatalogService.DefaultVariantKey,
+            12,
+            12,
+            2,
+            1.3,
+            true,
+            string.Empty,
+            "gpt-5.4-mini",
+            string.Empty,
+            string.Empty,
+            string.Empty);
+
+        vm.ApplySettingsPreview(model);
+
+        Assert.Equal(1, appearanceService.ApplyCodeFontCallCount);
+        Assert.Equal("JetBrains Mono", appearanceService.LastCodeFontFamilyName);
+        Assert.Equal(FontCatalogService.DefaultVariantKey, appearanceService.LastCodeFontVariantName);
+        Assert.Equal(2, appearanceService.LastEditorIndentSize);
+        Assert.Equal(1.3, appearanceService.LastEditorLineHeightFactor);
+    }
+
     private async Task<MainViewModel> CreateViewModelAsync(
         FakeWorkspaceDialogService? dialogService = null,
-        FakeChatViewModelFactory? chatViewModelFactory = null)
+        FakeChatViewModelFactory? chatViewModelFactory = null,
+        FakeAppAppearanceService? appearanceService = null)
     {
         dialogService ??= new FakeWorkspaceDialogService();
         chatViewModelFactory ??= new FakeChatViewModelFactory();
+        appearanceService ??= new FakeAppAppearanceService();
 
         var repository = new NotesRepository();
         var settingsService = new FakeSettingsService();
@@ -130,7 +168,7 @@ public sealed class MainViewModelTests : IDisposable
             new FakeAiTextActionService(),
             noteMutationService,
             dialogService,
-            new FakeAppAppearanceService(),
+            appearanceService,
             chatViewModelFactory);
 
         await vm.InitializeAsync();
@@ -237,12 +275,32 @@ public sealed class MainViewModelTests : IDisposable
 
     private sealed class FakeAppAppearanceService : IAppAppearanceService
     {
+        public int ApplyCodeFontCallCount { get; private set; }
+
+        public string? LastCodeFontFamilyName { get; private set; }
+
+        public string? LastCodeFontVariantName { get; private set; }
+
+        public int? LastEditorIndentSize { get; private set; }
+
+        public double? LastEditorLineHeightFactor { get; private set; }
+
         public void ApplyTheme(QuickNotesTxt.Styles.AppTheme theme)
         {
         }
 
         public void ApplyUiFontSize(double fontSize)
         {
+        }
+
+        public void ApplyEditorIndentSize(int indentSize)
+        {
+            LastEditorIndentSize = indentSize;
+        }
+
+        public void ApplyEditorLineHeight(double lineHeightFactor)
+        {
+            LastEditorLineHeightFactor = lineHeightFactor;
         }
 
         public void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
@@ -255,6 +313,9 @@ public sealed class MainViewModelTests : IDisposable
 
         public void ApplyCodeFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
         {
+            ApplyCodeFontCallCount++;
+            LastCodeFontFamilyName = fontFamily.DisplayName;
+            LastCodeFontVariantName = fontVariant.DisplayName;
         }
     }
 
@@ -345,7 +406,7 @@ public sealed class MainViewModelTests : IDisposable
 
     private sealed class FakeSettingsService : ISettingsService
     {
-        private AppSettings _settings = new(null, 12, 12, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultCodeFontKey, FontCatalogService.DefaultVariantKey, QuickNotesTxt.Styles.AppTheme.Dark.Name, null, AiSettings.Default);
+        private AppSettings _settings = new(null, 12, 12, 4, 1.15, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultCodeFontKey, FontCatalogService.DefaultVariantKey, QuickNotesTxt.Styles.AppTheme.Dark.Name, null, AiSettings.Default);
 
         public AppSettings GetSettingsSync() => _settings;
 

@@ -112,6 +112,8 @@ public sealed class FolderSettingsService : ISettingsService
     {
         return settings with
         {
+            EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize),
+            EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor),
             AiSettings = AiSettings.Normalize(settings.AiSettings)
         };
     }
@@ -122,6 +124,8 @@ public sealed class FolderSettingsService : ISettingsService
             record.NotesFolder,
             record.EditorFontSize,
             record.UiFontSize,
+            record.EditorIndentSize,
+            record.EditorLineHeightFactor,
             record.FontName,
             record.FontVariantName,
             record.SidebarFontName,
@@ -154,6 +158,8 @@ public sealed class FolderSettingsService : ISettingsService
             NotesFolder = settings.NotesFolder,
             EditorFontSize = settings.EditorFontSize,
             UiFontSize = settings.UiFontSize,
+            EditorIndentSize = settings.EditorIndentSize,
+            EditorLineHeightFactor = settings.EditorLineHeightFactor,
             FontName = settings.FontName,
             FontVariantName = settings.FontVariantName,
             SidebarFontName = settings.SidebarFontName,
@@ -226,6 +232,8 @@ public sealed class FolderSettingsService : ISettingsService
         public string? NotesFolder { get; set; }
         public double? EditorFontSize { get; set; }
         public double? UiFontSize { get; set; }
+        public int? EditorIndentSize { get; set; }
+        public double? EditorLineHeightFactor { get; set; }
         public string? FontName { get; set; }
         public string? FontVariantName { get; set; }
         public string? SidebarFontName { get; set; }

@@ -316,6 +316,8 @@ public sealed class ChatViewModelTests
             null,
             null,
             null,
+            4,
+            1.15,
             null,
             null,
             null,

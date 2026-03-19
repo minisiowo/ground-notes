@@ -72,6 +72,26 @@
                   <ComboBox Grid.Column="1" x:Name="EditorFontSizeComboBox" Width="140" ItemsSource="{Binding EditorFontSizes}" SelectedItem="{Binding SelectedEditorFontSize}" />
                 </Grid>
               </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Indent Size" />
+                    <TextBlock Classes="settingsDescription" Text="Use 2 or 4 spaces when indenting with Tab." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding IndentSizes}" SelectedItem="{Binding SelectedIndentSize}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Line Height" />
+                    <TextBlock Classes="settingsDescription" Text="Adjust spacing between editor lines, including wrapped lines." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding LineHeights}" SelectedItem="{Binding SelectedLineHeight}" />
+                </Grid>
+              </Border>
             </StackPanel>
 
             <!-- Typography Section -->

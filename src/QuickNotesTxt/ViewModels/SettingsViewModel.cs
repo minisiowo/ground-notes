@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using QuickNotesTxt.Models;
 
@@ -15,6 +16,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
         FontFamilies = model.FontFamilies.Select(font => font.DisplayName).ToList();
         EditorFontSizes = Enumerable.Range(10, 15).Select(static size => size.ToString()).ToList();
         UiFontSizes = Enumerable.Range(10, 11).Select(static size => size.ToString()).ToList();
+        IndentSizes = EditorDisplaySettings.SupportedIndentSizes
+            .Select(static size => size.ToString(CultureInfo.InvariantCulture))
+            .ToList();
+        LineHeights = EditorDisplaySettings.SupportedLineHeightFactors
+            .Select(EditorDisplaySettings.FormatLineHeight)
+            .ToList();
         PromptsDirectory = string.IsNullOrWhiteSpace(model.PromptsDirectory)
             ? "Choose a notes folder first."
             : model.PromptsDirectory;
@@ -29,6 +36,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         UpdateCodeFontVariantNames(model.SelectedCodeFontVariantName);
         SelectedEditorFontSize = Math.Round(model.EditorFontSize).ToString("0");
         SelectedUiFontSize = Math.Round(model.UiFontSize).ToString("0");
+        SelectedIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize).ToString(CultureInfo.InvariantCulture);
+        SelectedLineHeight = EditorDisplaySettings.FormatLineHeight(model.EditorLineHeightFactor);
         IsAiEnabled = model.IsAiEnabled;
         ApiKey = model.ApiKey;
         DefaultModel = model.DefaultModel;
@@ -46,6 +55,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> EditorFontSizes { get; }
 
     public IReadOnlyList<string> UiFontSizes { get; }
+
+    public IReadOnlyList<string> IndentSizes { get; }
+
+    public IReadOnlyList<string> LineHeights { get; }
 
     public string PromptsDirectory { get; }
 
@@ -86,6 +99,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _selectedUiFontSize = "12";
 
     [ObservableProperty]
+    private string _selectedIndentSize = EditorDisplaySettings.DefaultIndentSize.ToString(CultureInfo.InvariantCulture);
+
+    [ObservableProperty]
+    private string _selectedLineHeight = "1.15";
+
+    [ObservableProperty]
     private bool _isAiEnabled = true;
 
     [ObservableProperty]
@@ -114,6 +133,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             SelectedCodeFontVariantName,
             ParseSize(SelectedEditorFontSize, 12),
             ParseSize(SelectedUiFontSize, 12),
+            ParseIndentSize(SelectedIndentSize),
+            ParseLineHeight(SelectedLineHeight),
             IsAiEnabled,
             ApiKey.Trim(),
             string.IsNullOrWhiteSpace(DefaultModel) ? "gpt-5.4-mini" : DefaultModel.Trim(),
@@ -151,6 +172,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     partial void OnSelectedEditorFontSizeChanged(string value) => RaisePreviewRequested();
 
     partial void OnSelectedUiFontSizeChanged(string value) => RaisePreviewRequested();
+
+    partial void OnSelectedIndentSizeChanged(string value) => RaisePreviewRequested();
+
+    partial void OnSelectedLineHeightChanged(string value) => RaisePreviewRequested();
 
     partial void OnIsAiEnabledChanged(bool value) => RaisePreviewRequested();
 
@@ -215,6 +240,20 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     private static double ParseSize(string text, double fallback)
     {
-        return double.TryParse(text, out var value) ? value : fallback;
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : fallback;
+    }
+
+    private static int ParseIndentSize(string text)
+    {
+        return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? EditorDisplaySettings.NormalizeIndentSize(value)
+            : EditorDisplaySettings.DefaultIndentSize;
+    }
+
+    private static double ParseLineHeight(string text)
+    {
+        return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? EditorDisplaySettings.NormalizeLineHeightFactor(value)
+            : EditorDisplaySettings.DefaultLineHeightFactor;
     }
 }

@@ -16,6 +16,16 @@ public sealed class AppAppearanceService : IAppAppearanceService
         ThemeService.ApplyUiFontSize(value);
     }
 
+    public void ApplyEditorIndentSize(int indentSize)
+    {
+        ThemeService.ApplyEditorIndentSize(EditorDisplaySettings.NormalizeIndentSize(indentSize));
+    }
+
+    public void ApplyEditorLineHeight(double lineHeightFactor)
+    {
+        ThemeService.ApplyEditorLineHeight(EditorDisplaySettings.NormalizeLineHeightFactor(lineHeightFactor));
+    }
+
     public void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption variant)
     {
         ThemeService.ApplyTerminalFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);

@@ -38,6 +38,8 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Null(settings.SidebarFontVariantName);
         Assert.Null(settings.CodeFontName);
         Assert.Null(settings.CodeFontVariantName);
+        Assert.Equal(EditorDisplaySettings.DefaultIndentSize, settings.EditorIndentSize);
+        Assert.Equal(EditorDisplaySettings.DefaultLineHeightFactor, settings.EditorLineHeightFactor);
         Assert.Equal("Dark", settings.ThemeName);
     }
 
@@ -159,6 +161,8 @@ public sealed class FolderSettingsServiceTests : IDisposable
             "notes-sync",
             15,
             13,
+            2,
+            1.3,
             "IosevkaSlab",
             "Medium",
             "IosevkaSlab",

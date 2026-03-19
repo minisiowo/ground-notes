@@ -63,6 +63,16 @@ public sealed class MarkdownLineParserTests
     }
 
     [Fact]
+    public void TryGetTaskListMatch_ReturnsCheckboxRange()
+    {
+        var task = MarkdownLineParser.TryGetTaskListMatch("  - [ ] todo item");
+
+        var match = Assert.IsType<MarkdownListMatch>(task);
+        Assert.NotNull(match.Checkbox);
+        Assert.Equal("[ ]", "  - [ ] todo item"[match.Checkbox!.Value.Start..match.Checkbox.Value.End]);
+    }
+
+    [Fact]
     public void Analyze_TreatsLinesInsideFenceAsCodeOnly()
     {
         var analysis = MarkdownLineParser.Analyze("## not a heading", new MarkdownFenceState(true, '`', 3));

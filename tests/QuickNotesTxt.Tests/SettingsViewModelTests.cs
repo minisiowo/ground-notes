@@ -28,6 +28,21 @@ public sealed class SettingsViewModelTests
         Assert.Equal("gpt-5.4-mini", model.DefaultModel);
     }
 
+    [Fact]
+    public void BuildModel_ParsesIndentSizeAndLineHeight()
+    {
+        var vm = new SettingsViewModel(CreateModel())
+        {
+            SelectedIndentSize = "2",
+            SelectedLineHeight = "1.3"
+        };
+
+        var model = vm.BuildModel();
+
+        Assert.Equal(2, model.EditorIndentSize);
+        Assert.Equal(1.3, model.EditorLineHeightFactor);
+    }
+
     private static SettingsDialogModel CreateModel()
     {
         return new SettingsDialogModel(
@@ -56,6 +71,8 @@ public sealed class SettingsViewModelTests
             "Regular",
             12,
             12,
+            4,
+            1.15,
             true,
             string.Empty,
             "gpt-5.4-mini",

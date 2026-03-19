@@ -90,6 +90,28 @@ public static class ThemeService
         SetValue(app, ThemeKeys.AppFontSizeLarge, fontSize + 2d);
     }
 
+    public static void ApplyEditorIndentSize(int indentSize)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        SetValue(app, ThemeKeys.EditorIndentationSize, indentSize);
+    }
+
+    public static void ApplyEditorLineHeight(double lineHeightFactor)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        SetValue(app, ThemeKeys.EditorLineHeightFactor, lineHeightFactor);
+    }
+
     public static void Apply(AppTheme theme)
     {
         var app = Application.Current;

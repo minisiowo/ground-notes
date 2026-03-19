@@ -57,6 +57,8 @@ public static class ThemeKeys
     public const string AppFontSize = "AppFontSize";
     public const string AppFontSizeSmall = "AppFontSizeSmall";
     public const string AppFontSizeLarge = "AppFontSizeLarge";
+    public const string EditorIndentationSize = "EditorIndentationSize";
+    public const string EditorLineHeightFactor = "EditorLineHeightFactor";
 
     // ── FluentTheme colors ─────────────────────────────────────
     public const string SystemAccentColor = "SystemAccentColor";
