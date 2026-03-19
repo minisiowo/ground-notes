@@ -109,6 +109,7 @@
                  TextWrapping="Wrap"
                  MaxHeight="150"
                  VerticalContentAlignment="Top"
+                 TextChanged="OnInputTextChanged"
                  KeyUp="OnInputKeyUp" />
         <Button Grid.Column="1"
                 VerticalAlignment="Bottom"
@@ -129,7 +130,8 @@
     <Popup x:Name="MentionPopup" 
            PlacementTarget="{Binding #InputTextBox}" 
            Placement="Top" 
-           IsLightDismissEnabled="True">
+           IsLightDismissEnabled="True"
+           IsOpen="{Binding IsMentionPopupOpen, Mode=TwoWay}">
       <Border Classes="sectionSurface" 
               Width="300" 
               MaxHeight="250" 
@@ -147,6 +149,8 @@
                    Grid.Row="1"
                    Background="Transparent"
                    BorderThickness="0"
+                   ItemsSource="{Binding MentionSuggestions}"
+                   SelectedIndex="{Binding SelectedMentionIndex, Mode=TwoWay}"
                    DoubleTapped="OnMentionDoubleTapped">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="models:NoteSummary">

@@ -31,6 +31,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IAppAppearanceService _appearanceService;
     private readonly IChatViewModelFactory _chatViewModelFactory;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
+    private readonly Guid _mutationOriginId = Guid.NewGuid();
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontFamilyOption> _allFonts =
     [
@@ -41,6 +42,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             [new BundledFontVariantOption(FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultVariantKey, FontWeight.Normal, FontStyle.Normal)])
     ];
     private CancellationTokenSource? _saveCts;
+    private Task? _initializationTask;
     private bool _isApplyingSelection;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
 
@@ -195,7 +197,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _noteMutationService.NoteMutated += OnNoteMutated;
 
         SortOptions = Enum.GetValues<SortOption>();
-        _ = InitializeAsync();
     }
 
     public event EventHandler? FocusEditorRequested;
@@ -851,29 +852,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         CancelScheduledSave();
         SuppressWatcher();
-        await _noteMutationService.DeleteIfExistsAsync(noteSummary.FilePath);
-        RemoveSummary(noteSummary.FilePath);
-
-        var deletedOpenNote = CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteSummary.FilePath, StringComparison.OrdinalIgnoreCase);
-        if (deletedOpenNote)
+        using (BeginMutationScope())
         {
-            ClearEditor();
+            await _noteMutationService.DeleteIfExistsAsync(noteSummary.FilePath);
         }
-        else if (SelectedNoteSummary is not null && string.Equals(SelectedNoteSummary.FilePath, noteSummary.FilePath, StringComparison.OrdinalIgnoreCase))
-        {
-            _isApplyingSelection = true;
-            try
-            {
-                SelectedNoteSummary = null;
-            }
-            finally
-            {
-                _isApplyingSelection = false;
-            }
-        }
-
-        RefreshAvailableTags();
-        RefreshVisibleNotes();
         StatusMessage = $"Deleted {displayName}";
     }
 
@@ -1029,19 +1011,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         SuppressWatcher();
         document.Title = newName;
-        var renamed = await _noteMutationService.SaveAsync(NotesFolder, document, CancellationToken.None);
-        CancelInlineRename();
-
-        if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteSummary.FilePath, StringComparison.OrdinalIgnoreCase))
+        NoteDocument renamed;
+        using (BeginMutationScope())
         {
-            CurrentNote = renamed;
-            ApplyDocumentToEditor(renamed);
+            renamed = await _noteMutationService.SaveAsync(NotesFolder, document, CancellationToken.None);
         }
-
-        ReplaceSummary(noteSummary.FilePath, BuildSummary(renamed));
-        RefreshAvailableTags();
-        RefreshVisibleNotes();
-        SelectSummaryByPath(renamed.FilePath);
+        CancelInlineRename();
         StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
     }
 
@@ -1056,7 +1031,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         noteSummary.RenameText = noteSummary.DisplayName;
     }
 
-    private async Task InitializeAsync()
+    public Task InitializeAsync()
+    {
+        return _initializationTask ??= InitializeAsyncCore();
+    }
+
+    private async Task InitializeAsyncCore()
     {
         var settings = await _settingsService.GetSettingsAsync();
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
@@ -1577,13 +1557,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task<NoteDocument> PersistNoteAsync(NoteDocument document, CancellationToken cancellationToken)
     {
-        var previousPath = document.FilePath;
         SuppressWatcher();
-        var saved = await _noteMutationService.SaveAsync(NotesFolder, document, cancellationToken);
-        ReplaceSummary(previousPath, BuildSummary(saved));
-        RefreshAvailableTags();
-        RefreshVisibleNotes();
-        SelectSummaryByPath(saved.FilePath);
+        NoteDocument saved;
+        using (BeginMutationScope())
+        {
+            saved = await _noteMutationService.SaveAsync(NotesFolder, document, cancellationToken);
+        }
         return saved;
     }
 
@@ -1747,7 +1726,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        _ = Dispatcher.UIThread.InvokeAsync(async () => await RefreshFromDiskAsync());
+        var changes = e.Changes.ToArray();
+        _ = Dispatcher.UIThread.InvokeAsync(async () => await ApplyExternalChangesAsync(changes));
     }
 
     public void Dispose()
@@ -1772,9 +1752,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         if (e.Kind == NoteMutationKind.Deleted)
         {
-            RemoveSummary(e.PreviousPath);
-            RefreshAvailableTags();
-            RefreshVisibleNotes();
+            ApplyDeletedNote(e.PreviousPath, refreshCollections: true);
             return;
         }
 
@@ -1799,7 +1777,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (HasUnsavedChanges)
+        if (HasUnsavedChanges && e.OriginId != _mutationOriginId)
         {
             HasConflict = true;
             StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
@@ -1808,6 +1786,146 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         ApplyDocumentToEditor(e.Document);
         SelectSummaryByPath(e.Document.FilePath);
+    }
+
+    private IDisposable BeginMutationScope()
+    {
+        return NoteMutationService.BeginMutationScope(_mutationOriginId);
+    }
+
+    private async Task ApplyExternalChangesAsync(IReadOnlyList<NoteFileChangedEventArgs.NoteFileChange> changes)
+    {
+        if (!HasSelectedFolder || changes.Count == 0)
+        {
+            return;
+        }
+
+        var refreshFallback = false;
+        var touchedCurrentNote = false;
+        var currentPath = CurrentNote?.FilePath;
+        var reloadedCurrentPath = currentPath;
+
+        foreach (var change in changes)
+        {
+            switch (change.Kind)
+            {
+                case NoteFileChangeKind.Created:
+                case NoteFileChangeKind.Changed:
+                {
+                    var summary = await LoadSummaryForPathAsync(change.Path);
+                    if (summary is null)
+                    {
+                        refreshFallback = true;
+                        continue;
+                    }
+
+                    ReplaceSummary(change.Path, summary);
+                    touchedCurrentNote |= string.Equals(currentPath, change.Path, StringComparison.OrdinalIgnoreCase);
+                    break;
+                }
+                case NoteFileChangeKind.Deleted:
+                    ApplyDeletedNote(change.Path, refreshCollections: false);
+                    touchedCurrentNote |= string.Equals(currentPath, change.Path, StringComparison.OrdinalIgnoreCase);
+                    break;
+                case NoteFileChangeKind.Renamed:
+                {
+                    if (string.IsNullOrWhiteSpace(change.OldPath))
+                    {
+                        refreshFallback = true;
+                        continue;
+                    }
+
+                    RemoveSummary(change.OldPath);
+                    var summary = await LoadSummaryForPathAsync(change.Path);
+                    if (summary is null)
+                    {
+                        refreshFallback = true;
+                        continue;
+                    }
+
+                    _allNotes.Add(summary);
+                    touchedCurrentNote |= string.Equals(currentPath, change.OldPath, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(currentPath, change.Path, StringComparison.OrdinalIgnoreCase);
+                    if (string.Equals(currentPath, change.OldPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        reloadedCurrentPath = change.Path;
+                    }
+                    break;
+                }
+            }
+        }
+
+        RefreshAvailableTags();
+        RefreshVisibleNotes();
+
+        if (refreshFallback)
+        {
+            await RefreshFromDiskAsync();
+            return;
+        }
+
+        if (!touchedCurrentNote || CurrentNote is null)
+        {
+            return;
+        }
+
+        var matchingSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, reloadedCurrentPath, StringComparison.OrdinalIgnoreCase));
+        if (matchingSummary is null)
+        {
+            ClearEditor();
+            StatusMessage = "The current note was removed.";
+            return;
+        }
+
+        if (HasUnsavedChanges)
+        {
+            HasConflict = true;
+            StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+            return;
+        }
+
+        var reloaded = await _notesRepository.LoadNoteAsync(matchingSummary.FilePath);
+        if (reloaded is not null)
+        {
+            ApplyDocumentToEditor(reloaded);
+            SelectSummaryByPath(reloaded.FilePath);
+        }
+    }
+
+    private async Task<NoteSummary?> LoadSummaryForPathAsync(string filePath)
+    {
+        var note = await _notesRepository.LoadNoteAsync(filePath);
+        return note is null ? null : BuildSummary(note);
+    }
+
+    private void ApplyDeletedNote(string filePath, bool refreshCollections)
+    {
+        RemoveSummary(filePath);
+        if (refreshCollections)
+        {
+            RefreshAvailableTags();
+            RefreshVisibleNotes();
+        }
+
+        var deletedOpenNote = CurrentNote is not null && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase);
+        if (deletedOpenNote)
+        {
+            ClearEditor();
+            return;
+        }
+
+        if (SelectedNoteSummary is not null && string.Equals(SelectedNoteSummary.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+        {
+            _isApplyingSelection = true;
+            try
+            {
+                SelectedNoteSummary = null;
+            }
+            finally
+            {
+                _isApplyingSelection = false;
+            }
+        }
     }
 
     private void ApplyAiSettings(AiSettings settings)

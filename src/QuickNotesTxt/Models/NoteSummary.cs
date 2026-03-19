@@ -57,30 +57,58 @@ public sealed partial class NoteSummary : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var summary = new NoteSummary
-        {
-            Id = document.Id,
-            FilePath = document.FilePath,
-            Title = document.Title,
-            Tags = [.. document.Tags],
-            CreatedAt = document.CreatedAt,
-            UpdatedAt = document.UpdatedAt,
-            Preview = NotePreviewFormatter.Build(document.Body),
-            SearchText = BuildSearchText(document)
-        };
-
-        if (includeRenameText)
-        {
-            summary.RenameText = Path.GetFileNameWithoutExtension(document.FilePath);
-        }
-
-        return summary;
+        return FromContent(
+            document.Id,
+            document.FilePath,
+            document.Title,
+            document.Tags,
+            document.CreatedAt,
+            document.UpdatedAt,
+            document.Body,
+            includeRenameText);
     }
 
     public static string BuildSearchText(NoteDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        return string.Join(' ', new[] { document.Title, document.Body, string.Join(' ', document.Tags) });
+        return BuildSearchText(document.Title, document.Body, document.Tags);
+    }
+
+    public static string BuildSearchText(string title, string body, IEnumerable<string> tags)
+    {
+        ArgumentNullException.ThrowIfNull(tags);
+
+        return string.Join(' ', new[] { title, body, string.Join(' ', tags) });
+    }
+
+    public static NoteSummary FromContent(
+        string id,
+        string filePath,
+        string title,
+        IReadOnlyList<string> tags,
+        DateTime createdAt,
+        DateTime updatedAt,
+        string body,
+        bool includeRenameText = false)
+    {
+        var summary = new NoteSummary
+        {
+            Id = id,
+            FilePath = filePath,
+            Title = title,
+            Tags = [.. tags],
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+            Preview = NotePreviewFormatter.Build(body),
+            SearchText = BuildSearchText(title, body, tags)
+        };
+
+        if (includeRenameText)
+        {
+            summary.RenameText = Path.GetFileNameWithoutExtension(filePath);
+        }
+
+        return summary;
     }
 }

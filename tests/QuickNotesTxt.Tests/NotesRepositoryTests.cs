@@ -150,6 +150,30 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadSummariesAsync_PreservesFrontMatterMetadata()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await File.WriteAllTextAsync(
+            Path.Combine(_tempRoot, "summary-frontmatter.md"),
+            """
+            ---
+            title: summary title
+            tags: ["alpha", "beta"]
+            createdAt: 2026-03-09T07:33:00.0000000+00:00
+            updatedAt: 2026-03-09T07:34:00.0000000+00:00
+            ---
+            body line
+            """);
+
+        var summaries = await _repository.LoadSummariesAsync(_tempRoot);
+
+        var summary = Assert.Single(summaries);
+        Assert.Equal("summary title", summary.Title);
+        Assert.Equal(["alpha", "beta"], summary.Tags);
+        Assert.Equal("body line", summary.Preview);
+    }
+
+    [Fact]
     public void ParseDocument_DoesNotTreatHorizontalRuleAsFrontMatter()
     {
         var parsed = NotesRepository.ParseDocument(Path.Combine(_tempRoot, "rule.md"), "---\nhello\n---\nbody");

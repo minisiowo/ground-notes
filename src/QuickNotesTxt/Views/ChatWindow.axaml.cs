@@ -5,23 +5,17 @@ using Avalonia.Data.Converters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Threading;
 using AvaloniaEdit;
-using QuickNotesTxt.Models;
 using QuickNotesTxt.Editors;
-using QuickNotesTxt.Styles;
 using QuickNotesTxt.ViewModels;
 
 namespace QuickNotesTxt.Views;
 
 public partial class ChatWindow : Window
 {
-    private const double WindowResizeBorderThickness = 6;
-    private const double WindowCornerResizeThickness = 10;
     private const double AutoScrollNearBottomThreshold = 48;
 
-    private WindowEdge? _activeResizeEdge;
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
     private bool _isProgrammaticAutoScroll;
@@ -31,48 +25,41 @@ public partial class ChatWindow : Window
     private int _queuedAutoScrollVersion;
     private int _queuedAutoScrollOffset;
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
+    private readonly EditorHostController _editorHost;
+    private readonly WindowChromeController _windowChrome;
     private ChatViewModel? _boundViewModel;
 
     public ChatWindow()
     {
         InitializeComponent();
 
+        _windowChrome = new WindowChromeController(
+            this,
+            new WindowChromeController.Options
+            {
+                IdleCursor = Cursor.Default,
+                CheckCanResizeOnHover = false,
+                CheckWindowStateOnHover = false,
+                CheckWindowStateOnResizePressed = false
+            });
+        _editorHost = new EditorHostController(ChatTextEditor, _markdownColorizer);
+
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel);
-
-        _markdownColorizer.RedrawRequested += (_, startLine) =>
-        {
-            var document = ChatTextEditor.Document;
-            if (document is null || startLine > document.LineCount)
-            {
-                return;
-            }
-
-            var startLineSegment = document.GetLineByNumber(startLine);
-            var lastLineSegment = document.GetLineByNumber(document.LineCount);
-            
-            ChatTextEditor.TextArea.TextView.Redraw(startLineSegment.Offset, lastLineSegment.EndOffset - startLineSegment.Offset);
-        };
-
-        ChatTextEditor.Options.ConvertTabsToSpaces = false;
-        ChatTextEditor.Options.EnableRectangularSelection = false;
-        ChatTextEditor.Options.WordWrapIndentation = 0;
-        ChatTextEditor.Options.InheritWordWrapIndentation = false;
-        ChatTextEditor.TextArea.TextView.LineTransformers.Add(_markdownColorizer);
         ChatTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         ChatTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
         ChatTextEditor.SizeChanged += OnChatEditorSizeChanged;
-        ApplyEditorSelectionTheme();
         
         ChatTextEditor.TextChanged += OnEditorTextChanged;
+        InputTextBox.TextChanged += OnInputTextChanged;
         
         DataContextChanged += OnDataContextChanged;
         
         Opened += (s, e) =>
         {
             InputTextBox.Focus();
-            ApplyEditorSelectionTheme();
+            _editorHost.ApplySelectionTheme();
             if (DataContext is ChatViewModel vm)
             {
                 SyncEditorText(vm.EditorBody);
@@ -81,9 +68,7 @@ public partial class ChatWindow : Window
 
         Activated += (_, _) =>
         {
-            _markdownColorizer.InvalidateResourceCache();
-            ApplyEditorSelectionTheme();
-            ChatTextEditor.TextArea.TextView.InvalidateVisual();
+            _editorHost.RefreshThemeResources();
         };
 
         Closed += (_, _) =>
@@ -93,16 +78,9 @@ public partial class ChatWindow : Window
                 _boundViewModel.PropertyChanged -= OnChatViewModelPropertyChanged;
                 _boundViewModel = null;
             }
-        };
-    }
 
-    private void ApplyEditorSelectionTheme()
-    {
-        var resources = Application.Current?.Resources;
-        ChatTextEditor.TextArea.SelectionBrush = resources?[ThemeKeys.EditorTextSelectionBrush] as IBrush;
-        ChatTextEditor.TextArea.SelectionForeground = null;
-        ChatTextEditor.TextArea.SelectionBorder = null;
-        ChatTextEditor.TextArea.SelectionCornerRadius = 0;
+            _editorHost.Dispose();
+        };
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)
@@ -278,46 +256,14 @@ public partial class ChatWindow : Window
 
     private void SyncEditorText(string text)
     {
-        if (_isUpdatingViewModelFromEditor)
-        {
-            return;
-        }
-
-        var document = ChatTextEditor.Document;
-        if (document is null)
-        {
-            return;
-        }
-
-        text ??= string.Empty;
-        var currentText = document.Text;
-        if (string.Equals(currentText, text, StringComparison.Ordinal))
+        var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: true, out _);
+        _isUpdatingEditorFromViewModel = _editorHost.IsUpdatingEditorFromViewModel;
+        if (!changed)
         {
             return;
         }
 
         var shouldAutoScroll = ShouldAutoScrollAfterSync();
-
-        _isUpdatingEditorFromViewModel = true;
-        try
-        {
-            if (text.StartsWith(currentText, StringComparison.Ordinal))
-            {
-                var suffix = text[currentText.Length..];
-                if (suffix.Length > 0)
-                {
-                    document.Insert(document.TextLength, suffix);
-                }
-            }
-            else
-            {
-                document.Replace(0, document.TextLength, text);
-            }
-        }
-        finally
-        {
-            _isUpdatingEditorFromViewModel = false;
-        }
 
         if (!shouldAutoScroll)
         {
@@ -331,95 +277,34 @@ public partial class ChatWindow : Window
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
     {
-        if (_isUpdatingEditorFromViewModel || DataContext is not ChatViewModel vm) return;
-
-        var text = ChatTextEditor.Document?.Text ?? string.Empty;
-        if (string.Equals(vm.EditorBody, text, StringComparison.Ordinal)) return;
-
-        _isUpdatingViewModelFromEditor = true;
-        try
+        if (DataContext is not ChatViewModel vm)
         {
-            vm.EditorBody = text;
+            return;
         }
-        finally
+
+        _editorHost.SyncToViewModel(() => vm.EditorBody, text => vm.EditorBody = text);
+        _isUpdatingViewModelFromEditor = _editorHost.IsUpdatingViewModelFromEditor;
+    }
+
+    private void OnInputTextChanged(object? sender, TextChangedEventArgs e)
+    {
+        if (DataContext is not ChatViewModel vm)
         {
-            _isUpdatingViewModelFromEditor = false;
+            return;
         }
+
+        vm.UpdateMentionSuggestions(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex);
     }
 
-    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed && _activeResizeEdge == null)
-        {
-            BeginMoveDrag(e);
-        }
-    }
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnTitleBarPointerPressed(e);
 
-    private void OnCloseClick(object? sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => _windowChrome.OnCloseClick();
 
-    private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (_activeResizeEdge != null) return;
+    private void OnWindowPointerMoved(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerMoved(e);
 
-        var edge = GetEdgeAtPoint(e.GetPosition(this));
-        _activeResizeEdge = null; // Don't lock it yet, just set cursor.
+    private void OnWindowPointerExited(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerExited();
 
-        Cursor = edge switch
-        {
-            WindowEdge.North => new Cursor(StandardCursorType.SizeNorthSouth),
-            WindowEdge.South => new Cursor(StandardCursorType.SizeNorthSouth),
-            WindowEdge.East => new Cursor(StandardCursorType.SizeWestEast),
-            WindowEdge.West => new Cursor(StandardCursorType.SizeWestEast),
-            WindowEdge.NorthWest or WindowEdge.SouthEast => new Cursor(StandardCursorType.TopLeftCorner),
-            WindowEdge.NorthEast or WindowEdge.SouthWest => new Cursor(StandardCursorType.TopRightCorner),
-            _ => Cursor.Default
-        };
-    }
-
-    private void OnWindowPointerExited(object? sender, PointerEventArgs e)
-    {
-        Cursor = Cursor.Default;
-    }
-
-    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        var edge = GetEdgeAtPoint(e.GetPosition(this));
-        if (edge != null)
-        {
-            _activeResizeEdge = edge;
-            BeginResizeDrag(edge.Value, e);
-            _activeResizeEdge = null;
-            e.Handled = true;
-        }
-    }
-
-    private WindowEdge? GetEdgeAtPoint(Point point)
-    {
-        bool north = point.Y <= WindowResizeBorderThickness;
-        bool south = point.Y >= Bounds.Height - WindowResizeBorderThickness;
-        bool west = point.X <= WindowResizeBorderThickness;
-        bool east = point.X >= Bounds.Width - WindowResizeBorderThickness;
-
-        bool cornerNorth = point.Y <= WindowCornerResizeThickness;
-        bool cornerSouth = point.Y >= Bounds.Height - WindowCornerResizeThickness;
-        bool cornerWest = point.X <= WindowCornerResizeThickness;
-        bool cornerEast = point.X >= Bounds.Width - WindowCornerResizeThickness;
-
-        if (cornerNorth && cornerWest) return WindowEdge.NorthWest;
-        if (cornerNorth && cornerEast) return WindowEdge.NorthEast;
-        if (cornerSouth && cornerWest) return WindowEdge.SouthWest;
-        if (cornerSouth && cornerEast) return WindowEdge.SouthEast;
-
-        if (north) return WindowEdge.North;
-        if (south) return WindowEdge.South;
-        if (west) return WindowEdge.West;
-        if (east) return WindowEdge.East;
-
-        return null;
-    }
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnWindowPointerPressed(e);
 
     private void OnInputKeyUp(object? sender, KeyEventArgs e)
     {
@@ -447,99 +332,59 @@ public partial class ChatWindow : Window
 
         if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-             if (MentionPopup.IsOpen)
+             if (vm.IsMentionPopupOpen)
              {
-                 AcceptMention();
+                 if (vm.TryAcceptMention(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex, out var updatedText, out var updatedCaretIndex))
+                 {
+                     InputTextBox.Text = updatedText;
+                     InputTextBox.CaretIndex = updatedCaretIndex;
+                     InputTextBox.Focus();
+                 }
                  e.Handled = true;
                  return;
              }
         }
 
-        if (e.Key == Key.Down && MentionPopup.IsOpen)
+        if (e.Key == Key.Down && vm.IsMentionPopupOpen)
         {
-            if (MentionListBox.Items.Count > 0)
-            {
-                MentionListBox.SelectedIndex = (MentionListBox.SelectedIndex + 1) % (MentionListBox.Items.Count);
-            }
+            vm.MoveMentionSelection(1);
             e.Handled = true;
             return;
         }
         
-        if (e.Key == Key.Up && MentionPopup.IsOpen)
+        if (e.Key == Key.Up && vm.IsMentionPopupOpen)
         {
-            if (MentionListBox.Items.Count > 0)
-            {
-                MentionListBox.SelectedIndex = (MentionListBox.SelectedIndex - 1 + MentionListBox.Items.Count) % (MentionListBox.Items.Count);
-            }
+            vm.MoveMentionSelection(-1);
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Escape && MentionPopup.IsOpen)
+        if (e.Key == Key.Escape && vm.IsMentionPopupOpen)
         {
-            MentionPopup.IsOpen = false;
+            vm.DismissMentionPopup();
             e.Handled = true;
             return;
         }
 
-        CheckForMention(InputTextBox.Text ?? "", InputTextBox.CaretIndex);
-    }
-
-    private void CheckForMention(string text, int caretIndex)
-    {
-        if (DataContext is not ChatViewModel vm) return;
-
-        if (caretIndex <= 0)
+        if (e.Key is Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Back or Key.Delete)
         {
-            MentionPopup.IsOpen = false;
-            return;
+            vm.UpdateMentionSuggestions(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex);
         }
-
-        var lastAt = text.LastIndexOf('@', caretIndex - 1);
-        if (lastAt >= 0)
-        {
-            var query = text.Substring(lastAt + 1, caretIndex - (lastAt + 1));
-            if (lastAt == 0 || char.IsWhiteSpace(text[lastAt - 1]))
-            {
-                var results = vm.SearchNotes(query);
-                if (results.Any())
-                {
-                    MentionListBox.ItemsSource = results;
-                    MentionListBox.SelectedIndex = 0;
-                    MentionPopup.IsOpen = true;
-                    return;
-                }
-            }
-        }
-
-        MentionPopup.IsOpen = false;
     }
 
     private void OnMentionDoubleTapped(object? sender, RoutedEventArgs e)
     {
-        AcceptMention();
-    }
-
-    private void AcceptMention()
-    {
-        if (DataContext is not ChatViewModel vm || MentionListBox.SelectedItem is not NoteSummary note) return;
-
-        var text = InputTextBox.Text ?? "";
-        var caretIndex = InputTextBox.CaretIndex;
-        var lastAt = text.LastIndexOf('@', Math.Max(0, caretIndex - 1));
-
-        if (lastAt >= 0)
+        if (DataContext is not ChatViewModel vm)
         {
-            var newText = text.Remove(lastAt, caretIndex - lastAt);
-            InputTextBox.Text = newText;
-            InputTextBox.CaretIndex = lastAt;
-            vm.InputText = newText;
-            
-            vm.AddNoteToContextCommand.Execute(note);
+            return;
         }
 
-        MentionPopup.IsOpen = false;
-        InputTextBox.Focus();
+        if (vm.TryAcceptMention(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex, out var updatedText, out var updatedCaretIndex))
+        {
+            InputTextBox.Text = updatedText;
+            InputTextBox.CaretIndex = updatedCaretIndex;
+            InputTextBox.Focus();
+        }
     }
 }
 

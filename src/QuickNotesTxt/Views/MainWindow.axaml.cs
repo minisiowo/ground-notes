@@ -20,12 +20,11 @@ namespace QuickNotesTxt.Views;
 
 public partial class MainWindow : Window
 {
-    private const double WindowResizeBorderThickness = 6;
-    private const double WindowCornerResizeThickness = 10;
     private IWindowLayoutService? _windowLayoutService;
-    private WindowEdge? _activeResizeEdge;
     private readonly MenuFlyout _editorContextFlyout = new();
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
+    private readonly EditorHostController _editorHost;
+    private readonly WindowChromeController _windowChrome;
     private MarkdownSlashTrigger? _activeSlashTrigger;
     private IReadOnlyList<MarkdownSlashCommand> _activeSlashCommands = [];
     private bool _isSlashPopupRefreshQueued;
@@ -37,23 +36,18 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        _windowChrome = new WindowChromeController(
+            this,
+            new WindowChromeController.Options
+            {
+                IdleCursor = null,
+                IsInteractiveControl = IsPointerOverInteractiveControl,
+                ShouldSuppressTitleBarDoubleTap = e => e.Source is Control control && control.FindAncestorOfType<Button>() is not null
+            });
+        _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer);
+
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
-
-        _markdownColorizer.RedrawRequested += (_, startLine) =>
-        {
-            var document = EditorTextEditor.Document;
-            if (document is null || startLine > document.LineCount)
-            {
-                return;
-            }
-
-            var startLineSegment = document.GetLineByNumber(startLine);
-            var lastLineSegment = document.GetLineByNumber(document.LineCount);
-            
-            // Redraw from the start of the changed line to the end of the document
-            EditorTextEditor.TextArea.TextView.Redraw(startLineSegment.Offset, lastLineSegment.EndOffset - startLineSegment.Offset);
-        };
 
         // Use Tunnel routing so corner resize takes priority over title-bar buttons.
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
@@ -65,12 +59,6 @@ public partial class MainWindow : Window
         EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
         SlashCommandPopup.PlacementTarget = EditorBorder;
-        EditorTextEditor.Options.ConvertTabsToSpaces = false;
-        EditorTextEditor.Options.EnableRectangularSelection = false;
-        EditorTextEditor.Options.WordWrapIndentation = 0;
-        EditorTextEditor.Options.InheritWordWrapIndentation = false;
-        EditorTextEditor.TextArea.TextView.LineTransformers.Add(_markdownColorizer);
-        ApplyEditorSelectionTheme();
         EditorTextEditor.TextChanged += OnEditorTextChanged;
         RebuildEditorContextFlyout();
 
@@ -97,6 +85,7 @@ public partial class MainWindow : Window
                 vm.FocusEditorRequested -= OnFocusEditorRequested;
             }
 
+            _editorHost.Dispose();
             SaveWindowLayout();
         };
 
@@ -334,9 +323,7 @@ public partial class MainWindow : Window
             or nameof(MainViewModel.SelectedCodeFontFamilyName)
             or nameof(MainViewModel.SelectedCodeFontVariantName))
         {
-            _markdownColorizer.InvalidateResourceCache();
-            ApplyEditorSelectionTheme();
-            EditorTextEditor.TextArea.TextView.InvalidateVisual();
+            _editorHost.RefreshThemeResources();
             return;
         }
 
@@ -617,38 +604,19 @@ public partial class MainWindow : Window
         _editorContextFlyout.ShowAt(control);
     }
 
-    private void ApplyEditorSelectionTheme()
-    {
-        var resources = Application.Current?.Resources;
-        EditorTextEditor.TextArea.SelectionBrush = resources?[QuickNotesTxt.Styles.ThemeKeys.EditorTextSelectionBrush] as IBrush;
-        EditorTextEditor.TextArea.SelectionForeground = null;
-        EditorTextEditor.TextArea.SelectionBorder = null;
-        EditorTextEditor.TextArea.SelectionCornerRadius = 0;
-    }
-
     private void OnEditorTextChanged(object? sender, EventArgs e)
     {
-        if (_isUpdatingEditorFromViewModel || DataContext is not MainViewModel vm)
-        {
-            return;
-        }
-
-        var text = EditorTextEditor.Document?.Text ?? string.Empty;
-        if (string.Equals(vm.EditorBody, text, StringComparison.Ordinal))
+        if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
         var hadCurrentNote = vm.CurrentNote is not null;
-
-        _isUpdatingViewModelFromEditor = true;
-        try
+        var updated = _editorHost.SyncToViewModel(() => vm.EditorBody, text => vm.EditorBody = text);
+        _isUpdatingViewModelFromEditor = _editorHost.IsUpdatingViewModelFromEditor;
+        if (!updated)
         {
-            vm.EditorBody = text;
-        }
-        finally
-        {
-            _isUpdatingViewModelFromEditor = false;
+            return;
         }
 
         if (!hadCurrentNote && vm.CurrentNote is not null)
@@ -664,37 +632,11 @@ public partial class MainWindow : Window
 
     private void SyncEditorText(string text)
     {
-        if (_isUpdatingViewModelFromEditor)
+        var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out _);
+        _isUpdatingEditorFromViewModel = _editorHost.IsUpdatingEditorFromViewModel;
+        if (!changed)
         {
             return;
-        }
-
-        var document = EditorTextEditor.Document;
-        if (document is null)
-        {
-            return;
-        }
-
-        text ??= string.Empty;
-        if (string.Equals(document.Text, text, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        var caretOffset = Math.Min(EditorTextEditor.CaretOffset, text.Length);
-
-        _isUpdatingEditorFromViewModel = true;
-        try
-        {
-            document.BeginUpdate();
-            document.Replace(0, document.TextLength, text);
-            document.EndUpdate();
-            EditorTextEditor.CaretOffset = caretOffset;
-            EditorTextEditor.Select(caretOffset, 0);
-        }
-        finally
-        {
-            _isUpdatingEditorFromViewModel = false;
         }
 
         ScheduleSlashCommandPopupRefresh();
@@ -1049,88 +991,11 @@ public partial class MainWindow : Window
         }, DispatcherPriority.Render);
     }
 
-    private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
-    {
-        if (!CanResize || WindowState != WindowState.Normal)
-        {
-            ClearWindowResizeCursor();
-            return;
-        }
+    private void OnWindowPointerMoved(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerMoved(e);
 
-        var edge = TryGetResizeEdge(e.GetPosition(this));
-        var isCorner = edge is WindowEdge.NorthWest or WindowEdge.NorthEast
-                            or WindowEdge.SouthWest or WindowEdge.SouthEast;
+    private void OnWindowPointerExited(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerExited();
 
-        // Allow interactive controls to work normally unless we are in a corner resize zone.
-        if (!isCorner && IsPointerOverInteractiveControl(e))
-        {
-            ClearWindowResizeCursor();
-            return;
-        }
-
-        _activeResizeEdge = edge;
-        Cursor = _activeResizeEdge switch
-        {
-            WindowEdge.West or WindowEdge.East => new Cursor(StandardCursorType.SizeWestEast),
-            WindowEdge.North or WindowEdge.South => new Cursor(StandardCursorType.SizeNorthSouth),
-            WindowEdge.NorthWest or WindowEdge.SouthEast => new Cursor(StandardCursorType.TopLeftCorner),
-            WindowEdge.NorthEast or WindowEdge.SouthWest => new Cursor(StandardCursorType.TopRightCorner),
-            _ => null
-        };
-    }
-
-    private void OnWindowPointerExited(object? sender, PointerEventArgs e)
-    {
-        ClearWindowResizeCursor();
-    }
-
-    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!CanResize)
-        {
-            return;
-        }
-
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-
-        if (WindowState != WindowState.Normal)
-        {
-            return;
-        }
-
-        var edge = _activeResizeEdge ?? TryGetResizeEdge(e.GetPosition(this));
-        if (edge is null)
-        {
-            return;
-        }
-
-        var isCorner = edge is WindowEdge.NorthWest or WindowEdge.NorthEast
-                            or WindowEdge.SouthWest or WindowEdge.SouthEast;
-
-        // Let interactive controls handle the click unless we are in a corner resize zone.
-        if (!isCorner && IsPointerOverInteractiveControl(e))
-        {
-            return;
-        }
-
-        try
-        {
-            e.Handled = true;
-            BeginResizeDrag(edge.Value, e);
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
-
-    private void ClearWindowResizeCursor()
-    {
-        _activeResizeEdge = null;
-        Cursor = null;
-    }
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnWindowPointerPressed(e);
 
     /// <summary>
     /// Returns <c>true</c> when the pointer event originates from an interactive
@@ -1160,122 +1025,18 @@ public partial class MainWindow : Window
             || visual.FindAncestorOfType<ListBox>() is not null;
     }
 
-    private WindowEdge? TryGetResizeEdge(Point point)
-    {
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
-        {
-            return null;
-        }
-
-        // Use a larger hit area for corners so they are easier to grab.
-        var cornerLeft = point.X >= 0 && point.X <= WindowCornerResizeThickness;
-        var cornerRight = point.X <= Bounds.Width && point.X >= Bounds.Width - WindowCornerResizeThickness;
-        var cornerTop = point.Y >= 0 && point.Y <= WindowCornerResizeThickness;
-        var cornerBottom = point.Y <= Bounds.Height && point.Y >= Bounds.Height - WindowCornerResizeThickness;
-
-        if (cornerTop && cornerLeft)
-        {
-            return WindowEdge.NorthWest;
-        }
-
-        if (cornerTop && cornerRight)
-        {
-            return WindowEdge.NorthEast;
-        }
-
-        if (cornerBottom && cornerLeft)
-        {
-            return WindowEdge.SouthWest;
-        }
-
-        if (cornerBottom && cornerRight)
-        {
-            return WindowEdge.SouthEast;
-        }
-
-        var onLeft = point.X >= 0 && point.X <= WindowResizeBorderThickness;
-        var onRight = point.X <= Bounds.Width && point.X >= Bounds.Width - WindowResizeBorderThickness;
-        var onTop = point.Y >= 0 && point.Y <= WindowResizeBorderThickness;
-        var onBottom = point.Y <= Bounds.Height && point.Y >= Bounds.Height - WindowResizeBorderThickness;
-
-        if (onLeft)
-        {
-            return WindowEdge.West;
-        }
-
-        if (onRight)
-        {
-            return WindowEdge.East;
-        }
-
-        if (onTop)
-        {
-            return WindowEdge.North;
-        }
-
-        if (onBottom)
-        {
-            return WindowEdge.South;
-        }
-
-        return null;
-    }
-
-    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
-    {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            return;
-        }
-
-        if (e.Source is Control control && control.FindAncestorOfType<Button>() is not null)
-        {
-            return;
-        }
-
-        try
-        {
-            BeginMoveDrag(e);
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
+    private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnTitleBarPointerPressed(e);
 
     private void OnTitleBarDoubleTapped(object? sender, TappedEventArgs e)
     {
-        if (!CanResize)
-        {
-            return;
-        }
-
-        if (e.Source is Control control && control.FindAncestorOfType<Button>() is not null)
-        {
-            return;
-        }
-
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        _windowChrome.OnTitleBarDoubleTapped(e);
     }
 
-    private void OnMinimizeClick(object? sender, RoutedEventArgs e)
-    {
-        WindowState = WindowState.Minimized;
-    }
+    private void OnMinimizeClick(object? sender, RoutedEventArgs e) => _windowChrome.OnMinimizeClick();
 
-    private void OnMaximizeRestoreClick(object? sender, RoutedEventArgs e)
-    {
-        if (!CanResize)
-        {
-            return;
-        }
+    private void OnMaximizeRestoreClick(object? sender, RoutedEventArgs e) => _windowChrome.OnMaximizeRestoreClick();
 
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-    }
-
-    private void OnCloseClick(object? sender, RoutedEventArgs e)
-    {
-        Close();
-    }
+    private void OnCloseClick(object? sender, RoutedEventArgs e) => _windowChrome.OnCloseClick();
 
     private async void OnRenameTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
@@ -1308,7 +1069,7 @@ public partial class MainWindow : Window
         await vm.CommitRenameAsync(noteSummary);
     }
 
-    private string GetEditorText() => EditorTextEditor.Document?.Text ?? string.Empty;
+    private string GetEditorText() => _editorHost.GetText();
 
     private void ApplyEditorEdit(MarkdownEditResult edit)
     {

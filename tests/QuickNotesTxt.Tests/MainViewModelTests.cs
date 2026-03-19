@@ -78,6 +78,36 @@ public sealed class MainViewModelTests : IDisposable
         Assert.Equal("Delete canceled.", vm.StatusMessage);
     }
 
+    [Fact]
+    public async Task CommitRenameAsync_DoesNotMarkConflictForLocalRename()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "note.md");
+        await File.WriteAllTextAsync(notePath, "body");
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var note = Assert.Single(vm.VisibleNotes);
+        vm.SelectedNoteSummary = note;
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+
+        vm.StartRenameNoteCommand.Execute(note);
+        note.RenameText = "renamed";
+
+        await vm.CommitRenameAsync(note);
+
+        Assert.False(vm.HasConflict);
+        Assert.Equal("renamed", vm.CurrentNote?.Title);
+        Assert.Contains(vm.VisibleNotes, summary => string.Equals(summary.DisplayName, "renamed", StringComparison.Ordinal));
+        Assert.DoesNotContain(vm.VisibleNotes, summary => string.Equals(summary.DisplayName, "note", StringComparison.Ordinal));
+    }
+
     private async Task<MainViewModel> CreateViewModelAsync(
         FakeWorkspaceDialogService? dialogService = null,
         FakeChatViewModelFactory? chatViewModelFactory = null)
@@ -102,8 +132,22 @@ public sealed class MainViewModelTests : IDisposable
             new FakeAppAppearanceService(),
             chatViewModelFactory);
 
-        await Task.Delay(25);
+        await vm.InitializeAsync();
         return vm;
+    }
+
+    private static async Task WaitForConditionAsync(Func<bool> condition, int timeoutMs = 1000)
+    {
+        var start = Environment.TickCount64;
+        while (!condition())
+        {
+            if (Environment.TickCount64 - start > timeoutMs)
+            {
+                throw new TimeoutException("Timed out waiting for condition.");
+            }
+
+            await Task.Delay(20);
+        }
     }
 
     public void Dispose()

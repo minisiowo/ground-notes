@@ -52,6 +52,15 @@ public partial class ChatViewModel : ViewModelBase
     [ObservableProperty]
     private IReadOnlyList<string> _availableModels = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"];
 
+    [ObservableProperty]
+    private ObservableCollection<NoteSummary> _mentionSuggestions = [];
+
+    [ObservableProperty]
+    private bool _isMentionPopupOpen;
+
+    [ObservableProperty]
+    private int _selectedMentionIndex = -1;
+
     public bool IsPersisted => _chatDocument is not null;
 
     public ChatViewModel(
@@ -89,6 +98,77 @@ public partial class ChatViewModel : ViewModelBase
     partial void OnEditorBodyChanged(string value)
     {
         OnPropertyChanged(nameof(IsPersisted));
+    }
+
+    public void UpdateMentionSuggestions(string text, int caretIndex)
+    {
+        text ??= string.Empty;
+
+        if (TryResolveMentionQuery(text, caretIndex, out var query))
+        {
+            var results = _noteSearchService.Search(query);
+            UpdateMentionPopupState(results);
+            return;
+        }
+
+        DismissMentionPopup();
+    }
+
+    public void DismissMentionPopup()
+    {
+        MentionSuggestions = new ObservableCollection<NoteSummary>();
+        SelectedMentionIndex = -1;
+        IsMentionPopupOpen = false;
+    }
+
+    public void MoveMentionSelection(int delta)
+    {
+        if (!IsMentionPopupOpen || MentionSuggestions.Count == 0)
+        {
+            return;
+        }
+
+        var nextIndex = SelectedMentionIndex;
+        if (nextIndex < 0 || nextIndex >= MentionSuggestions.Count)
+        {
+            nextIndex = 0;
+        }
+
+        nextIndex = (nextIndex + delta + MentionSuggestions.Count) % MentionSuggestions.Count;
+        SelectedMentionIndex = nextIndex;
+    }
+
+    public bool TryAcceptMention(string text, int caretIndex, out string updatedText, out int updatedCaretIndex)
+    {
+        text ??= string.Empty;
+        updatedText = text;
+        updatedCaretIndex = caretIndex;
+
+        if (!IsMentionPopupOpen || MentionSuggestions.Count == 0)
+        {
+            return false;
+        }
+
+        var selectedIndex = SelectedMentionIndex;
+        if (selectedIndex < 0 || selectedIndex >= MentionSuggestions.Count)
+        {
+            DismissMentionPopup();
+            return false;
+        }
+
+        var mentionNote = MentionSuggestions[selectedIndex];
+        var lastAt = text.LastIndexOf('@', Math.Max(0, caretIndex - 1));
+        if (lastAt < 0)
+        {
+            DismissMentionPopup();
+            return false;
+        }
+
+        updatedText = text.Remove(lastAt, caretIndex - lastAt);
+        updatedCaretIndex = lastAt;
+        AddNoteToContext(mentionNote);
+        DismissMentionPopup();
+        return true;
     }
 
     [RelayCommand]
@@ -222,6 +302,19 @@ public partial class ChatViewModel : ViewModelBase
         return !IsBusy && !string.IsNullOrWhiteSpace(InputText);
     }
 
+    private void UpdateMentionPopupState(IReadOnlyList<NoteSummary> suggestions)
+    {
+        if (suggestions.Count == 0)
+        {
+            DismissMentionPopup();
+            return;
+        }
+
+        MentionSuggestions = new ObservableCollection<NoteSummary>(suggestions);
+        SelectedMentionIndex = 0;
+        IsMentionPopupOpen = true;
+    }
+
     private NoteDocument CreateInitialChatDocument()
     {
         var draft = _notesRepository.CreateDraftNote(_notesFolder, _sessionStartedAt);
@@ -323,6 +416,31 @@ public partial class ChatViewModel : ViewModelBase
         return existingBody.TrimEnd() + "\n\n" + editorBody;
     }
 
+    private bool TryResolveMentionQuery(string text, int caretIndex, out string query)
+    {
+        text ??= string.Empty;
+        query = string.Empty;
+
+        if (caretIndex <= 0)
+        {
+            return false;
+        }
+
+        var lastAt = text.LastIndexOf('@', caretIndex - 1);
+        if (lastAt < 0)
+        {
+            return false;
+        }
+
+        if (lastAt > 0 && !char.IsWhiteSpace(text[lastAt - 1]))
+        {
+            return false;
+        }
+
+        query = text.Substring(lastAt + 1, caretIndex - (lastAt + 1));
+        return true;
+    }
+
     private static string BuildLinkedNoteReferenceLine(NoteSummary summary)
     {
         var displayName = summary.DisplayName;
@@ -392,10 +510,5 @@ public partial class ChatViewModel : ViewModelBase
         }
 
         AttachedNotes.Add(note);
-    }
-
-    public IReadOnlyList<NoteSummary> SearchNotes(string query)
-    {
-        return _noteSearchService.Search(query);
     }
 }

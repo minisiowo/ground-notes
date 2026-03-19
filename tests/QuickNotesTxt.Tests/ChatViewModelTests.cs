@@ -18,6 +18,32 @@ public sealed class ChatViewModelTests
     }
 
     [Fact]
+    public void UpdateMentionSuggestions_OpensPopupForMatchingTrigger()
+    {
+        var notesRepository = new FakeNotesRepository();
+        var vm = CreateViewModel(notesRepository, initialNotes: [CreateNoteSummary("alpha")]);
+
+        vm.UpdateMentionSuggestions("@al", 3);
+
+        Assert.True(vm.IsMentionPopupOpen);
+        Assert.Single(vm.MentionSuggestions);
+        Assert.Equal(0, vm.SelectedMentionIndex);
+    }
+
+    [Fact]
+    public void UpdateMentionSuggestions_ClosesPopupWhenNoTriggerIsPresent()
+    {
+        var notesRepository = new FakeNotesRepository();
+        var vm = CreateViewModel(notesRepository, initialNotes: [CreateNoteSummary("alpha")]);
+
+        vm.UpdateMentionSuggestions("plain text", 10);
+
+        Assert.False(vm.IsMentionPopupOpen);
+        Assert.Empty(vm.MentionSuggestions);
+        Assert.Equal(-1, vm.SelectedMentionIndex);
+    }
+
+    [Fact]
     public async Task SendMessageAsync_DoesNotPersist_WhenConversationNotSavedYet()
     {
         var notesRepository = new FakeNotesRepository();
@@ -164,6 +190,25 @@ public sealed class ChatViewModelTests
 
         Assert.Equal(0, notesRepository.SaveCallCount);
         Assert.Equal("Error: The original note could not be loaded.", vm.StatusMessage);
+    }
+
+    [Fact]
+    public void TryAcceptMention_RemovesTriggerAndAddsNoteToContext()
+    {
+        var notesRepository = new FakeNotesRepository();
+        var mentionedNote = CreateNoteSummary("alpha");
+        var vm = CreateViewModel(notesRepository, initialNotes: [mentionedNote]);
+
+        vm.UpdateMentionSuggestions("@al", 3);
+
+        var accepted = vm.TryAcceptMention("Hello @al", 9, out var updatedText, out var updatedCaretIndex);
+
+        Assert.True(accepted);
+        Assert.Equal("Hello ", updatedText);
+        Assert.Equal(6, updatedCaretIndex);
+        Assert.Contains(vm.AttachedNotes, note => note.FilePath == mentionedNote.FilePath);
+        Assert.False(vm.IsMentionPopupOpen);
+        Assert.Empty(vm.MentionSuggestions);
     }
 
     private static ChatViewModel CreateViewModel(

@@ -6,7 +6,8 @@ public sealed class FileWatcherService : IFileWatcherService
 
     private readonly List<FileSystemWatcher> _watchers = [];
     private readonly Lock _pendingLock = new();
-    private readonly Dictionary<string, NoteFileChangedEventArgs> _pendingEvents = [];
+    private readonly Dictionary<string, NoteFileChangedEventArgs.NoteFileChange> _pendingEvents = [];
+    private readonly List<string> _pendingOrder = [];
     private Timer? _flushTimer;
 
     public event EventHandler<NoteFileChangedEventArgs>? NoteChanged;
@@ -67,29 +68,39 @@ public sealed class FileWatcherService : IFileWatcherService
 
     private void OnCreated(object sender, FileSystemEventArgs e)
     {
-        Queue(new NoteFileChangedEventArgs(NoteFileChangeKind.Created, e.FullPath));
+        Queue(new NoteFileChangedEventArgs.NoteFileChange(NoteFileChangeKind.Created, e.FullPath));
     }
 
     private void OnChanged(object sender, FileSystemEventArgs e)
     {
-        Queue(new NoteFileChangedEventArgs(NoteFileChangeKind.Changed, e.FullPath));
+        Queue(new NoteFileChangedEventArgs.NoteFileChange(NoteFileChangeKind.Changed, e.FullPath));
     }
 
     private void OnDeleted(object sender, FileSystemEventArgs e)
     {
-        Queue(new NoteFileChangedEventArgs(NoteFileChangeKind.Deleted, e.FullPath));
+        Queue(new NoteFileChangedEventArgs.NoteFileChange(NoteFileChangeKind.Deleted, e.FullPath));
     }
 
     private void OnRenamed(object sender, RenamedEventArgs e)
     {
-        Queue(new NoteFileChangedEventArgs(NoteFileChangeKind.Renamed, e.FullPath, e.OldFullPath));
+        Queue(new NoteFileChangedEventArgs.NoteFileChange(NoteFileChangeKind.Renamed, e.FullPath, e.OldFullPath));
     }
 
-    private void Queue(NoteFileChangedEventArgs change)
+    private void Queue(NoteFileChangedEventArgs.NoteFileChange change)
     {
         lock (_pendingLock)
         {
-            _pendingEvents[BuildKey(change)] = Merge(_pendingEvents.GetValueOrDefault(BuildKey(change)), change);
+            var key = BuildKey(change);
+
+            if (_pendingEvents.TryGetValue(key, out var existing))
+            {
+                _pendingEvents[key] = Merge(existing, change);
+            }
+            else
+            {
+                _pendingEvents[key] = change;
+                _pendingOrder.Add(key);
+            }
 
             if (_flushTimer is null)
             {
@@ -104,36 +115,34 @@ public sealed class FileWatcherService : IFileWatcherService
 
     private void Flush()
     {
-        List<NoteFileChangedEventArgs> pending;
+        List<NoteFileChangedEventArgs.NoteFileChange> pending;
 
         lock (_pendingLock)
         {
-            pending = _pendingEvents.Values.ToList();
+            pending = _pendingOrder.Select(key => _pendingEvents[key]).ToList();
             _pendingEvents.Clear();
+            _pendingOrder.Clear();
             _flushTimer?.Dispose();
             _flushTimer = null;
         }
 
-        foreach (var change in pending)
+        if (pending.Count == 0)
         {
-            NoteChanged?.Invoke(this, change);
+            return;
         }
+
+        NoteChanged?.Invoke(this, new NoteFileChangedEventArgs(pending));
     }
 
-    private static string BuildKey(NoteFileChangedEventArgs change)
+    private static string BuildKey(NoteFileChangedEventArgs.NoteFileChange change)
     {
         return change.Kind == NoteFileChangeKind.Renamed
             ? $"{change.OldPath}->{change.Path}"
             : change.Path;
     }
 
-    private static NoteFileChangedEventArgs Merge(NoteFileChangedEventArgs? existing, NoteFileChangedEventArgs incoming)
+    private static NoteFileChangedEventArgs.NoteFileChange Merge(NoteFileChangedEventArgs.NoteFileChange existing, NoteFileChangedEventArgs.NoteFileChange incoming)
     {
-        if (existing is null)
-        {
-            return incoming;
-        }
-
         if (incoming.Kind == NoteFileChangeKind.Renamed || existing.Kind == NoteFileChangeKind.Renamed)
         {
             return incoming.Kind == NoteFileChangeKind.Renamed ? incoming : existing;
@@ -141,12 +150,12 @@ public sealed class FileWatcherService : IFileWatcherService
 
         if (incoming.Kind == NoteFileChangeKind.Deleted || existing.Kind == NoteFileChangeKind.Deleted)
         {
-            return new NoteFileChangedEventArgs(NoteFileChangeKind.Deleted, incoming.Path);
+            return new NoteFileChangedEventArgs.NoteFileChange(NoteFileChangeKind.Deleted, incoming.Path);
         }
 
         if (incoming.Kind == NoteFileChangeKind.Created || existing.Kind == NoteFileChangeKind.Created)
         {
-            return new NoteFileChangedEventArgs(NoteFileChangeKind.Created, incoming.Path);
+            return new NoteFileChangedEventArgs.NoteFileChange(NoteFileChangeKind.Created, incoming.Path);
         }
 
         return incoming;

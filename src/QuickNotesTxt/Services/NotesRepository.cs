@@ -20,11 +20,15 @@ public sealed class NotesRepository : INotesRepository
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var document = await LoadNoteAsync(filePath, cancellationToken);
-            if (document is not null)
+            if (!File.Exists(filePath))
             {
-                notes.Add(NoteSummary.FromDocument(document));
+                continue;
             }
+
+            var metadata = GetFileMetadata(filePath);
+            var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
+            var note = ParseSummary(filePath, content, metadata.CreatedAt, metadata.UpdatedAt);
+            notes.Add(note);
         }
 
         return notes;
@@ -192,6 +196,30 @@ public sealed class NotesRepository : INotesRepository
 
     private static NoteDocument ParseDocument(string filePath, string content, DateTime createdAt, DateTime updatedAt)
     {
+        var parsed = ParseNoteContent(filePath, content, createdAt, updatedAt);
+
+        return new NoteDocument
+        {
+            Id = filePath,
+            FilePath = filePath,
+            Title = parsed.Title,
+            OriginalTitle = parsed.Title,
+            Body = parsed.Body,
+            Tags = parsed.Tags,
+            CreatedAt = parsed.CreatedAt,
+            UpdatedAt = parsed.UpdatedAt,
+            IsAutoCreated = false
+        };
+    }
+
+    private static NoteSummary ParseSummary(string filePath, string content, DateTime createdAt, DateTime updatedAt)
+    {
+        var parsed = ParseNoteContent(filePath, content, createdAt, updatedAt);
+        return NoteSummary.FromContent(filePath, filePath, parsed.Title, parsed.Tags, parsed.CreatedAt, parsed.UpdatedAt, parsed.Body);
+    }
+
+    private static ParsedNoteContent ParseNoteContent(string filePath, string content, DateTime createdAt, DateTime updatedAt)
+    {
         var normalized = content.Replace("\r\n", "\n");
         var title = Path.GetFileNameWithoutExtension(filePath);
         var tags = new List<string>();
@@ -202,18 +230,7 @@ public sealed class NotesRepository : INotesRepository
             body = parsedBody;
         }
 
-        return new NoteDocument
-        {
-            Id = filePath,
-            FilePath = filePath,
-            Title = title,
-            OriginalTitle = title,
-            Body = body,
-            Tags = tags,
-            CreatedAt = createdAt,
-            UpdatedAt = updatedAt,
-            IsAutoCreated = false
-        };
+        return new ParsedNoteContent(title, tags, body, createdAt, updatedAt);
     }
 
     private static NoteDocument Clone(NoteDocument document)
@@ -554,4 +571,11 @@ public sealed class NotesRepository : INotesRepository
     }
 
     private readonly record struct FileMetadata(DateTime CreatedAt, DateTime UpdatedAt);
+
+    private readonly record struct ParsedNoteContent(
+        string Title,
+        List<string> Tags,
+        string Body,
+        DateTime CreatedAt,
+        DateTime UpdatedAt);
 }
