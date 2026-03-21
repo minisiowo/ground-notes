@@ -161,6 +161,7 @@ public sealed class MainViewModelTests : IDisposable
         var settingsService = new FakeSettingsService();
         var fileWatcherService = new FakeFileWatcherService();
         var noteMutationService = new NoteMutationService(repository);
+        var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
         var vm = new MainViewModel(
             repository,
             settingsService,
@@ -173,7 +174,8 @@ public sealed class MainViewModelTests : IDisposable
             dialogService,
             appearanceService,
             editorLayoutState,
-            chatViewModelFactory);
+            chatViewModelFactory,
+            noteSearchServiceFactory);
 
         await vm.InitializeAsync();
         return vm;

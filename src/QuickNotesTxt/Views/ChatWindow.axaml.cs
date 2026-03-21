@@ -29,6 +29,7 @@ public partial class ChatWindow : Window
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
     private readonly EditorHostController _editorHost;
     private readonly WindowChromeController _windowChrome;
+    private readonly ChatMentionPopupController _mentionPopup;
     private IEditorLayoutState? _editorLayoutState;
     private bool _hasAppliedInitialEditorLayout;
     private ChatViewModel? _boundViewModel;
@@ -47,6 +48,15 @@ public partial class ChatWindow : Window
                 CheckWindowStateOnResizePressed = false
             });
         _editorHost = new EditorHostController(ChatTextEditor, _markdownColorizer);
+        _mentionPopup = new ChatMentionPopupController(() =>
+        {
+            if (DataContext is not ChatViewModel vm)
+            {
+                return;
+            }
+
+            vm.UpdateMentionSuggestions(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex);
+        });
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -57,7 +67,8 @@ public partial class ChatWindow : Window
         
         ChatTextEditor.TextChanged += OnEditorTextChanged;
         InputTextBox.TextChanged += OnInputTextChanged;
-        
+        InputTextBox.AddHandler(KeyDownEvent, OnInputKeyDown, RoutingStrategies.Tunnel);
+
         DataContextChanged += OnDataContextChanged;
         
         Opened += (s, e) =>
@@ -324,12 +335,7 @@ public partial class ChatWindow : Window
 
     private void OnInputTextChanged(object? sender, TextChangedEventArgs e)
     {
-        if (DataContext is not ChatViewModel vm)
-        {
-            return;
-        }
-
-        vm.UpdateMentionSuggestions(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex);
+        _mentionPopup.ScheduleRefresh();
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnTitleBarPointerPressed(e);
@@ -341,6 +347,62 @@ public partial class ChatWindow : Window
     private void OnWindowPointerExited(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerExited();
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnWindowPointerPressed(e);
+
+    private void OnInputKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not ChatViewModel vm)
+        {
+            return;
+        }
+
+        if (!vm.IsMentionPopupOpen)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Down)
+        {
+            vm.MoveMentionSelection(1);
+            ScrollMentionListToSelection();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Up)
+        {
+            vm.MoveMentionSelection(-1);
+            ScrollMentionListToSelection();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            if (vm.TryAcceptMention(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex, out var updatedText, out var updatedCaretIndex))
+            {
+                InputTextBox.Text = updatedText;
+                InputTextBox.CaretIndex = updatedCaretIndex;
+                InputTextBox.Focus();
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape)
+        {
+            vm.DismissMentionPopup();
+            e.Handled = true;
+        }
+    }
+
+    private void ScrollMentionListToSelection()
+    {
+        if (MentionListBox.SelectedItem is { } item)
+        {
+            MentionListBox.ScrollIntoView(item);
+        }
+    }
 
     private void OnInputKeyUp(object? sender, KeyEventArgs e)
     {
@@ -366,45 +428,9 @@ public partial class ChatWindow : Window
              return;
         }
 
-        if (e.Key == Key.Enter && !e.KeyModifiers.HasFlag(KeyModifiers.Shift))
-        {
-             if (vm.IsMentionPopupOpen)
-             {
-                 if (vm.TryAcceptMention(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex, out var updatedText, out var updatedCaretIndex))
-                 {
-                     InputTextBox.Text = updatedText;
-                     InputTextBox.CaretIndex = updatedCaretIndex;
-                     InputTextBox.Focus();
-                 }
-                 e.Handled = true;
-                 return;
-             }
-        }
-
-        if (e.Key == Key.Down && vm.IsMentionPopupOpen)
-        {
-            vm.MoveMentionSelection(1);
-            e.Handled = true;
-            return;
-        }
-        
-        if (e.Key == Key.Up && vm.IsMentionPopupOpen)
-        {
-            vm.MoveMentionSelection(-1);
-            e.Handled = true;
-            return;
-        }
-
-        if (e.Key == Key.Escape && vm.IsMentionPopupOpen)
-        {
-            vm.DismissMentionPopup();
-            e.Handled = true;
-            return;
-        }
-
         if (e.Key is Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Back or Key.Delete)
         {
-            vm.UpdateMentionSuggestions(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex);
+            _mentionPopup.ScheduleRefresh();
         }
     }
 

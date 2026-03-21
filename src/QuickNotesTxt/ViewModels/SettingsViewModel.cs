@@ -111,7 +111,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _apiKey = string.Empty;
 
     [ObservableProperty]
-    private string _defaultModel = "gpt-5.4-mini";
+    private string _defaultModel = AiModelCatalog.DefaultChatModel;
 
     [ObservableProperty]
     private string _projectId = string.Empty;
@@ -137,7 +137,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ParseLineHeight(SelectedLineHeight),
             IsAiEnabled,
             ApiKey.Trim(),
-            string.IsNullOrWhiteSpace(DefaultModel) ? "gpt-5.4-mini" : DefaultModel.Trim(),
+            string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel.Trim(),
             ProjectId.Trim(),
             OrganizationId.Trim(),
             PromptsDirectory);

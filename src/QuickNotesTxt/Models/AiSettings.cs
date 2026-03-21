@@ -7,7 +7,7 @@ public sealed record AiSettings(
     string ProjectId = "",
     string OrganizationId = "")
 {
-    public static AiSettings Default { get; } = new(string.Empty, "gpt-5.4-mini", true);
+    public static AiSettings Default { get; } = new(string.Empty, AiModelCatalog.DefaultChatModel, true);
 
     public static AiSettings Normalize(
         string? apiKey,

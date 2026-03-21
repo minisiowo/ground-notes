@@ -116,6 +116,9 @@ public partial class MainWindow : Window
         };
 
         SizeChanged += (_, _) => _slashCommandPopup.SchedulePositionUpdate();
+
+        AddHandler(KeyDownEvent, OnWindowTunnelKeyDownForLazyEditor, RoutingStrategies.Tunnel);
+        AddHandler(TextInputEvent, OnWindowTunnelTextInputForLazyEditor, RoutingStrategies.Tunnel);
     }
 
     public void SetWindowLayoutService(IWindowLayoutService windowLayoutService)
@@ -334,7 +337,33 @@ public partial class MainWindow : Window
 
     private void OnFocusEditorRequested(object? sender, EventArgs e)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => EditorTextEditor.Focus(), Avalonia.Threading.DispatcherPriority.Input);
+        var moveCaretToEnd = e is FocusEditorRequestEventArgs fe && fe.MoveCaretToEndOfBody;
+        TryFocusEditor(moveCaretToEnd);
+    }
+
+    /// <summary>
+    /// Defers focus to after layout/render so sidebar ListBox / picker controls do not reclaim
+    /// keyboard focus when pointer routing completes after a selection change.
+    /// </summary>
+    private void TryFocusEditor(bool moveCaretToEndOfBody)
+    {
+        void ApplyFocusAndCaret()
+        {
+            if (moveCaretToEndOfBody && EditorTextEditor.Document is not null)
+            {
+                var end = EditorTextEditor.Document.TextLength;
+                EditorTextEditor.CaretOffset = end;
+                EditorTextEditor.Select(end, 0);
+            }
+
+            Activate();
+            EditorTextEditor.Focus();
+        }
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            Dispatcher.UIThread.Post(ApplyFocusAndCaret, DispatcherPriority.Input);
+        }, DispatcherPriority.Render);
     }
 
     private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -461,17 +490,10 @@ public partial class MainWindow : Window
 
     private void FocusEditorAfterNotePickerClosed(MainViewModel vm)
     {
-        Dispatcher.UIThread.Post(() =>
+        if (!vm.HasSelectedFolder)
         {
-            if (vm.HasSelectedFolder)
-            {
-                EditorTextEditor.Focus();
-            }
-            else
-            {
-                Focus();
-            }
-        }, DispatcherPriority.Input);
+            Dispatcher.UIThread.Post(() => Focus(), DispatcherPriority.Input);
+        }
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)

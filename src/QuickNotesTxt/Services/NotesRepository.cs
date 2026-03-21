@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using QuickNotesTxt.Models;
 
@@ -6,6 +7,7 @@ namespace QuickNotesTxt.Services;
 public sealed class NotesRepository : INotesRepository
 {
     private const string MarkdownExtension = ".md";
+    private const int SummaryLoadMaxParallelism = 8;
     private static readonly string[] s_supportedExtensions = [MarkdownExtension, ".txt"];
 
     public async Task<IReadOnlyList<NoteSummary>> LoadSummariesAsync(string folderPath, CancellationToken cancellationToken = default)
@@ -15,23 +17,34 @@ public sealed class NotesRepository : INotesRepository
             return [];
         }
 
-        var notes = new List<NoteSummary>();
-        foreach (var filePath in EnumeratePreferredNoteFiles(folderPath))
+        var pathList = EnumeratePreferredNoteFiles(folderPath).ToArray();
+        if (pathList.Length == 0)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (!File.Exists(filePath))
-            {
-                continue;
-            }
-
-            var metadata = GetFileMetadata(filePath);
-            var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, cancellationToken);
-            var note = ParseSummary(filePath, content, metadata.CreatedAt, metadata.UpdatedAt);
-            notes.Add(note);
+            return [];
         }
 
-        return notes;
+        var ordered = new ConcurrentBag<(int Index, NoteSummary Summary)>();
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, pathList.Length),
+            new ParallelOptions { MaxDegreeOfParallelism = SummaryLoadMaxParallelism, CancellationToken = cancellationToken },
+            async (i, ct) =>
+            {
+                var filePath = pathList[i];
+                if (!File.Exists(filePath))
+                {
+                    return;
+                }
+
+                var metadata = GetFileMetadata(filePath);
+                var content = await File.ReadAllTextAsync(filePath, Encoding.UTF8, ct).ConfigureAwait(false);
+                var note = ParseSummary(filePath, content, metadata.CreatedAt, metadata.UpdatedAt);
+                ordered.Add((i, note));
+            }).ConfigureAwait(false);
+
+        return ordered
+            .OrderBy(entry => entry.Index)
+            .Select(entry => entry.Summary)
+            .ToList();
     }
 
     public async Task<NoteDocument?> LoadNoteAsync(string filePath, CancellationToken cancellationToken = default)

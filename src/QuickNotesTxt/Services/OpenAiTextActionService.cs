@@ -25,19 +25,9 @@ public sealed class OpenAiTextActionService : IAiTextActionService
             throw new InvalidOperationException("Select text first.");
         }
 
-        if (string.IsNullOrWhiteSpace(settings.ApiKey))
-        {
-            throw new AiServiceException(AiServiceErrorKind.MissingApiKey, "Set your OpenAI API key first.");
-        }
-
         var model = !string.IsNullOrWhiteSpace(prompt.Model)
             ? prompt.Model
             : settings.DefaultModel;
-
-        if (string.IsNullOrWhiteSpace(model))
-        {
-            throw new AiServiceException(AiServiceErrorKind.MissingModel, "Choose an AI model first.");
-        }
 
         var renderedPrompt = prompt.PromptTemplate.Replace("{selected}", selectedText, StringComparison.Ordinal);
         return _completionsClient.CompleteAsync(

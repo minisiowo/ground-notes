@@ -5,8 +5,6 @@ namespace QuickNotesTxt.Services;
 
 public sealed class ChatViewModelFactory : IChatViewModelFactory
 {
-    private static readonly IReadOnlyList<string> s_availableModels = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"];
-
     private readonly IAiChatService _aiChatService;
     private readonly INotesRepository _notesRepository;
     private readonly ISettingsService _settingsService;
@@ -41,7 +39,7 @@ public sealed class ChatViewModelFactory : IChatViewModelFactory
             noteSearchService,
             notesFolder,
             selectedModel,
-            s_availableModels,
+            AiModelCatalog.ChatCompletionModels,
             originNote,
             initialNotes);
     }

@@ -93,7 +93,11 @@
 
           <TextBlock Grid.Row="2" Classes="metaText" Margin="0,0,0,10" Text="{Binding NotesFolder}" TextWrapping="Wrap" />
 
-          <TextBox Grid.Row="3" Watermark="Search notes" Text="{Binding SearchText}" VerticalContentAlignment="Center" />
+          <TextBox x:Name="SidebarSearchTextBox"
+                   Grid.Row="3"
+                   Watermark="Search notes"
+                   Text="{Binding SearchText}"
+                   VerticalContentAlignment="Center" />
 
           <Grid Grid.Row="4" ColumnDefinitions="*,*" Margin="0,10,0,10">
             <ComboBox ItemsSource="{Binding SortOptions}"
@@ -112,7 +116,8 @@
                   Classes="sectionSurface"
                   BorderThickness="1"
                   Padding="2,2">
-            <ListBox HorizontalAlignment="Stretch"
+            <ListBox x:Name="NotesListBox"
+                     HorizontalAlignment="Stretch"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                      ItemsSource="{Binding VisibleNotes}"
                      SelectedItem="{Binding SelectedVisibleNote}">
@@ -186,7 +191,10 @@
               Margin="8,12,14,10"
               IsEnabled="{Binding HasSelectedFolder}">
           <Grid>
-            <TextBox Classes="editorFont" Text="{Binding EditorTitle}" VerticalContentAlignment="Center" />
+            <TextBox x:Name="EditorTitleTextBox"
+                     Classes="editorFont"
+                     Text="{Binding EditorTitle}"
+                     VerticalContentAlignment="Center" />
             <TextBlock Margin="8,0"
                        Classes="editorPlaceholderText"
                        IsHitTestVisible="False"
@@ -200,7 +208,10 @@
           </Grid>
           <Grid Grid.Column="1"
                 Margin="8,0,0,0">
-            <TextBox Classes="editorFont" Text="{Binding EditorTags}" VerticalContentAlignment="Center" />
+            <TextBox x:Name="EditorTagsTextBox"
+                     Classes="editorFont"
+                     Text="{Binding EditorTags}"
+                     VerticalContentAlignment="Center" />
             <TextBlock Margin="8,0"
                        Classes="editorPlaceholderText"
                        IsHitTestVisible="False"

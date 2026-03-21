@@ -50,7 +50,7 @@ public partial class ChatViewModel : ViewModelBase
     private string _selectedModel = AiSettings.Default.DefaultModel;
 
     [ObservableProperty]
-    private IReadOnlyList<string> _availableModels = ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"];
+    private IReadOnlyList<string> _availableModels = AiModelCatalog.ChatCompletionModels;
 
     [ObservableProperty]
     private ObservableCollection<NoteSummary> _mentionSuggestions = [];
@@ -84,7 +84,7 @@ public partial class ChatViewModel : ViewModelBase
         _originNote = originNote;
         _sessionStartedAt = DateTimeOffset.Now;
         _selectedModel = string.IsNullOrWhiteSpace(defaultModel) ? AiSettings.Default.DefaultModel : defaultModel;
-        _availableModels = availableModels.Count == 0 ? ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"] : availableModels;
+        _availableModels = availableModels.Count == 0 ? AiModelCatalog.ChatCompletionModels : availableModels;
 
         if (initialNotes is not null)
         {
@@ -310,9 +310,29 @@ public partial class ChatViewModel : ViewModelBase
             return;
         }
 
+        if (IsMentionPopupOpen
+            && MentionSuggestions.Count == suggestions.Count
+            && PathsMatchInOrder(MentionSuggestions, suggestions))
+        {
+            return;
+        }
+
         MentionSuggestions = new ObservableCollection<NoteSummary>(suggestions);
         SelectedMentionIndex = 0;
         IsMentionPopupOpen = true;
+    }
+
+    private static bool PathsMatchInOrder(IReadOnlyList<NoteSummary> current, IReadOnlyList<NoteSummary> next)
+    {
+        for (var i = 0; i < next.Count; i++)
+        {
+            if (!string.Equals(current[i].FilePath, next[i].FilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private NoteDocument CreateInitialChatDocument()

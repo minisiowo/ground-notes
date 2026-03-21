@@ -155,6 +155,37 @@
     <Setter Property="Background" Value="{DynamicResource TitleBarCloseHoverBrush}" />
   </Style>
 
+  <!-- AI Chat context chips: small dismiss control; must not use titleBarButton (different background from chip). -->
+  <Style Selector="Button.contextChipRemoveButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="MinWidth" Value="16" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Margin" Value="2,0,0,0" />
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.contextChipRemoveButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="Button.contextChipRemoveButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.contextChipRemoveButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
+  </Style>
+
   <!-- ══ TextBox ═════════════════════════════════════════════ -->
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />

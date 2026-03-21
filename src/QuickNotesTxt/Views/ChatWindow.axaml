@@ -43,18 +43,26 @@
       </Grid>
     </Border>
 
-    <!-- Header / Model Selector -->
+    <!-- Header / Model Selector + save actions -->
     <Border Grid.Row="1" Padding="12,8" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource BorderBrushBase}">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
         <StackPanel Spacing="2">
           <TextBlock Text="AI Chat Journal" FontWeight="SemiBold" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" />
           <TextBlock Text="{Binding StatusMessage}" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" />
         </StackPanel>
-        
-        <ComboBox Grid.Column="1" 
-                  ItemsSource="{Binding AvailableModels}" 
-                  SelectedItem="{Binding SelectedModel}" 
-                  VerticalAlignment="Center" />
+
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    VerticalAlignment="Center">
+          <ComboBox MinWidth="160"
+                    ItemsSource="{Binding AvailableModels}"
+                    SelectedItem="{Binding SelectedModel}" />
+          <Button Content="Save As New"
+                  Command="{Binding SaveConversationCommand}" />
+          <Button Content="Append To File"
+                  Command="{Binding AppendToFileCommand}" />
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -84,12 +92,20 @@
            </ItemsControl.ItemsPanel>
            <ItemsControl.ItemTemplate>
              <DataTemplate x:DataType="models:NoteSummary">
-               <Border Background="{DynamicResource SurfaceRaisedBrush}" Padding="6,2" CornerRadius="4">
+               <Border Background="{DynamicResource SurfaceBackgroundBrush}"
+                       BorderBrush="{DynamicResource BorderBrushBase}"
+                       BorderThickness="1"
+                       Padding="6,2"
+                       CornerRadius="0">
                  <StackPanel Orientation="Horizontal" Spacing="4">
-                   <TextBlock Text="{Binding DisplayName}" FontSize="11" VerticalAlignment="Center" />
-                   <Button Classes="titleBarButton" Padding="2" Command="{Binding $parent[Window].DataContext.RemoveAttachedNoteCommand}" CommandParameter="{Binding}">
-                     <TextBlock Text="×" FontSize="14" />
-                   </Button>
+                   <TextBlock Text="{Binding DisplayName}"
+                              FontSize="11"
+                              VerticalAlignment="Center"
+                              Foreground="{DynamicResource PrimaryTextBrush}" />
+                   <Button Classes="contextChipRemoveButton"
+                           Content="×"
+                           Command="{Binding $parent[Window].DataContext.RemoveAttachedNoteCommand}"
+                           CommandParameter="{Binding}" />
                  </StackPanel>
                </Border>
              </DataTemplate>
@@ -100,11 +116,11 @@
 
     <!-- Input Area -->
     <Border Grid.Row="4" Padding="12" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrushBase}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
-        <TextBox x:Name="InputTextBox" 
-                 Grid.Column="0" 
-                 Watermark="Ask a question... Use @ to reference notes. Ctrl+Shift+Enter sends." 
-                 Text="{Binding InputText}" 
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <TextBox x:Name="InputTextBox"
+                 Grid.Column="0"
+                 Watermark="Ask a question... Use @ to reference notes. Ctrl+Shift+Enter sends."
+                 Text="{Binding InputText}"
                  AcceptsReturn="True"
                  TextWrapping="Wrap"
                  MaxHeight="150"
@@ -113,15 +129,7 @@
                  KeyUp="OnInputKeyUp" />
         <Button Grid.Column="1"
                 VerticalAlignment="Bottom"
-                Content="Save As New"
-                Command="{Binding SaveConversationCommand}" />
-        <Button Grid.Column="2"
-                VerticalAlignment="Bottom"
-                Content="Append To File"
-                Command="{Binding AppendToFileCommand}" />
-        <Button Grid.Column="3"
-                VerticalAlignment="Bottom"
-                Content="Send" 
+                Content="Send"
                 Command="{Binding SendMessageCommand}" />
       </Grid>
     </Border>
@@ -136,10 +144,10 @@
               Width="300" 
               MaxHeight="250" 
               BorderThickness="1"
-              CornerRadius="4"
+              CornerRadius="0"
               BoxShadow="0 4 12 0 #40000000">
         <Grid RowDefinitions="Auto,*">
-          <Border Grid.Row="0" Margin="4,2,4,4" Padding="4,2" Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="1">
+          <Border Grid.Row="0" Margin="4,2,4,4" Padding="4,2" Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="0">
             <TextBlock Text="Reference Note" 
                        FontSize="10" 
                        FontWeight="SemiBold" 
