@@ -191,6 +191,40 @@ dotnet restore GroundNotes.sln
 dotnet run --project src/GroundNotes
 ```
 
+Install with the helper script:
+
+```bash
+./scripts/publish-and-install-linux.sh
+```
+
+Optional arguments:
+
+- `./scripts/publish-and-install-linux.sh linux-x64 Release`
+- `./scripts/publish-and-install-linux.sh linux-arm64 Release`
+
+The script publishes a self-contained build and installs it to:
+
+```text
+~/.local/opt/GroundNotes
+```
+
+Example desktop launcher:
+
+```ini
+[Desktop Entry]
+Type=Application
+Name=GroundNotes
+Exec=/home/YOUR_USER/.local/opt/GroundNotes/GroundNotes
+Terminal=false
+Categories=Utility;Office;
+```
+
+You can save that as:
+
+```text
+~/.local/share/applications/ground-notes.desktop
+```
+
 ### Windows
 
 Run from source:
@@ -212,6 +246,19 @@ Helper scripts are available:
 
 - PowerShell: `.\scripts\publish-and-install-windows.ps1`
 - WSL: `./scripts/publish-and-install-wsl.sh`
+
+Both scripts publish a self-contained Windows build, refresh the install directory, and recreate a Start Menu shortcut for `GroundNotes`.
+
+Default install location:
+
+```text
+C:\Apps\GroundNotes
+```
+
+Optional arguments:
+
+- PowerShell: `-Runtime win-arm64 -Configuration Release`
+- WSL: `./scripts/publish-and-install-wsl.sh win-arm64 Release`
 
 ## Project Layout
 
