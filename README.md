@@ -188,9 +188,26 @@ You can move that folder anywhere you want and launch `QuickNotesTxt.exe`.
 
 On ARM64 Windows, replace `win-x64` with `win-arm64`.
 
-## AI prompts
+## AI features
 
-QuickNotesTxt can load AI prompt actions for selected editor text.
+QuickNotesTxt has two OpenAI-backed AI workflows:
+
+- prompt actions for selected editor text
+- a dedicated AI Chat window that can use attached notes as context and save conversations back as regular notes
+
+### AI Chat
+
+Use the `Ask AI` action in the app to open the chat window.
+
+- choose the chat model from the toolbar
+- attach note context with `@`
+- save the conversation as a new note or append the result back to the source note
+
+The chat window opens with a fixed default size of `500x600`.
+
+### AI prompts
+
+QuickNotesTxt can also load AI prompt actions for selected editor text.
 
 - Built-in prompts are shipped in `src/QuickNotesTxt/Assets/AiPrompts/`
 - Custom prompts are loaded from `<notes-folder>/.quicknotestxt/ai-prompts/`
@@ -228,7 +245,11 @@ You can fine-tune AI behavior per prompt using these optional fields:
 dotnet test QuickNotesTxt.sln
 ```
 
-At the time this README was written, the solution test suite contains 6 passing tests.
+For faster iteration you can run the test project directly:
+
+```bash
+dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj
+```
 
 ## Create a Release build
 
