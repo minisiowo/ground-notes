@@ -1,6 +1,6 @@
-# QuickNotesTxt
+# GroundNotes
 
-QuickNotesTxt is a desktop notes app built around plain text files in a folder you control.
+GroundNotes is a desktop notes app built around plain text files in a folder you control.
 
 It is designed for people who want local notes first: no database, no proprietary file format, no forced cloud sync. The app works directly on `.txt` and `.md` files, adds structured frontmatter for metadata, and layers a focused desktop UI on top.
 
@@ -17,7 +17,7 @@ It is designed for people who want local notes first: no database, no proprietar
 
 ## Note Format
 
-QuickNotesTxt stores notes as regular text files with frontmatter followed by the body.
+GroundNotes stores notes as regular text files with frontmatter followed by the body.
 
 Example:
 
@@ -35,13 +35,13 @@ Notes remain readable outside the app and can be edited with any text editor.
 
 ## AI Features
 
-QuickNotesTxt has two separate AI workflows.
+GroundNotes has two separate AI workflows.
 
 ### 1. Prompt Actions
 
 Prompt actions run on selected editor text.
 
-- Built-in prompts are bundled in `src/QuickNotesTxt/Assets/AiPrompts/`
+- Built-in prompts are bundled in `src/GroundNotes/Assets/AiPrompts/`
 - Custom prompts are loaded from `<notes-folder>/.quicknotestxt/ai-prompts/`
 - Custom prompts can override built-in prompts by using the same `id`
 
@@ -107,7 +107,7 @@ Clone the repository:
 
 ```bash
 git clone <your-repository-url>
-cd quick-notes-txt
+cd ground-notes
 ```
 
 If you use `mise`:
@@ -119,19 +119,19 @@ mise install
 Restore dependencies:
 
 ```bash
-dotnet restore QuickNotesTxt.sln
+dotnet restore GroundNotes.sln
 ```
 
 Build the solution:
 
 ```bash
-dotnet build QuickNotesTxt.sln
+dotnet build GroundNotes.sln
 ```
 
 Run the app:
 
 ```bash
-dotnet run --project src/QuickNotesTxt
+dotnet run --project src/GroundNotes
 ```
 
 On first launch, choose the folder that should hold your notes.
@@ -141,31 +141,31 @@ On first launch, choose the folder that should hold your notes.
 Build the full solution:
 
 ```bash
-dotnet build QuickNotesTxt.sln
+dotnet build GroundNotes.sln
 ```
 
 Build only the desktop app:
 
 ```bash
-dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
+dotnet build src/GroundNotes/GroundNotes.csproj
 ```
 
 Run all tests:
 
 ```bash
-dotnet test QuickNotesTxt.sln
+dotnet test GroundNotes.sln
 ```
 
 Run only the test project:
 
 ```bash
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj
 ```
 
 Publish a release build:
 
 ```bash
-dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release
+dotnet publish src/GroundNotes/GroundNotes.csproj -c Release
 ```
 
 ## Platform Notes
@@ -186,9 +186,9 @@ Then build and run from source:
 
 ```bash
 git clone <your-repository-url>
-cd quick-notes-txt
-dotnet restore QuickNotesTxt.sln
-dotnet run --project src/QuickNotesTxt
+cd ground-notes
+dotnet restore GroundNotes.sln
+dotnet run --project src/GroundNotes
 ```
 
 ### Windows
@@ -197,15 +197,15 @@ Run from source:
 
 ```powershell
 git clone <your-repository-url>
-cd quick-notes-txt
-dotnet restore QuickNotesTxt.sln
-dotnet run --project src/QuickNotesTxt
+cd ground-notes
+dotnet restore GroundNotes.sln
+dotnet run --project src/GroundNotes
 ```
 
 Publish a standalone build:
 
 ```powershell
-dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r win-x64 --self-contained true
+dotnet publish src/GroundNotes/GroundNotes.csproj -c Release -r win-x64 --self-contained true
 ```
 
 Helper scripts are available:
@@ -216,15 +216,15 @@ Helper scripts are available:
 ## Project Layout
 
 ```text
-src/QuickNotesTxt/               Avalonia desktop application
-src/QuickNotesTxt/Models/        note, AI, theme, and font models
-src/QuickNotesTxt/Services/      filesystem, settings, AI, themes, fonts
-src/QuickNotesTxt/ViewModels/    MVVM state and commands
-src/QuickNotesTxt/Views/         Avalonia windows and UI glue
-tests/QuickNotesTxt.Tests/       xUnit tests
-QuickNotesTxt.sln                solution file
-global.json                      pinned SDK version
-mise.toml                        optional mise configuration
+src/GroundNotes/               Avalonia desktop application
+src/GroundNotes/Models/        note, AI, theme, and font models
+src/GroundNotes/Services/      filesystem, settings, AI, themes, fonts
+src/GroundNotes/ViewModels/    MVVM state and commands
+src/GroundNotes/Views/         Avalonia windows and UI glue
+tests/GroundNotes.Tests/       xUnit tests
+GroundNotes.sln                solution file
+global.json                    pinned SDK version
+mise.toml                      optional mise configuration
 ```
 
 ## Troubleshooting

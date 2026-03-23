@@ -6,19 +6,19 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$projectPath = Join-Path $repoRoot "src/QuickNotesTxt/QuickNotesTxt.csproj"
-$publishDir = Join-Path $repoRoot "src/QuickNotesTxt/bin/$Configuration/net10.0/$Runtime/publish"
-$installDir = "C:\Apps\QuickNotes"
+$projectPath = Join-Path $repoRoot "src/GroundNotes/GroundNotes.csproj"
+$publishDir = Join-Path $repoRoot "src/GroundNotes/bin/$Configuration/net10.0/$Runtime/publish"
+$installDir = "C:\Apps\GroundNotes"
 $startMenuDir = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
-$shortcutPath = Join-Path $startMenuDir "QuickNotesTxt.lnk"
-$exePath = Join-Path $installDir "QuickNotesTxt.exe"
+$shortcutPath = Join-Path $startMenuDir "GroundNotes.lnk"
+$exePath = Join-Path $installDir "GroundNotes.exe"
 $shortcutScriptPath = Join-Path $PSScriptRoot "create-start-menu-shortcut.ps1"
 
 Write-Host "Cleaning previous build artifacts..."
-if (Test-Path -Path "src/QuickNotesTxt/bin") { Remove-Item -Path "src/QuickNotesTxt/bin" -Recurse -Force }
-if (Test-Path -Path "src/QuickNotesTxt/obj") { Remove-Item -Path "src/QuickNotesTxt/obj" -Recurse -Force }
+if (Test-Path -Path "src/GroundNotes/bin") { Remove-Item -Path "src/GroundNotes/bin" -Recurse -Force }
+if (Test-Path -Path "src/GroundNotes/obj") { Remove-Item -Path "src/GroundNotes/obj" -Recurse -Force }
 
-Write-Host "Publishing QuickNotesTxt for $Runtime..."
+Write-Host "Publishing GroundNotes for $Runtime..."
 dotnet publish $projectPath -c $Configuration -r $Runtime --self-contained true
 
 if (-not (Test-Path -LiteralPath $publishDir)) {
@@ -42,4 +42,4 @@ if (-not (Test-Path -LiteralPath $exePath)) {
 Write-Host "Creating Start Menu shortcut: $shortcutPath"
 & $shortcutScriptPath -ShortcutPath $shortcutPath -TargetPath $exePath -WorkingDirectory $installDir
 
-Write-Host "Done. QuickNotesTxt was installed to $installDir"
+Write-Host "Done. GroundNotes was installed to $installDir"

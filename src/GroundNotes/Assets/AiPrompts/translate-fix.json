@@ -1,0 +1,10 @@
+{
+  "id": "translate-fix",
+  "name": "Translate & Fix",
+  "description": "Translate and Fix Selected Text",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "replaceSelection": true,
+  "order": 100,
+  "promptTemplate": "Jesteś ekspertem językowym EN↔PL. Twoim zadaniem jest poprawa tekstu (FIX). Zasady: Zwracaj najpierw poprawioną wersję tekstu. Następnie dodaj sekcję 'Wyjaśnienie:' w języku polskim w formie listy punktów. Poprawiaj błędy gramatyczne, literówki, składnię i logiczny przepływ zdań. Zachowaj oryginalny sens wypowiedzi. Upraszczaj tekst tylko jeśli poprawia to czytelność. Nie dodawaj nowych informacji. Jeśli tekst jest mieszany (EN+PL), popraw go do spójnego języka EN. Tekst: {selected}"
+}

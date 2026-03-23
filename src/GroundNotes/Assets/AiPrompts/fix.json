@@ -1,0 +1,10 @@
+{
+  "id": "fix",
+  "name": "Fix With AI",
+  "description": "Fix Selected Text",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "replaceSelection": true,
+  "order": 100,
+  "promptTemplate": "Jesteś ekspertem językowym. Twoim zadaniem jest poprawa tekstu (FIX) bez zmiany języka wejściowego. Zasady: Zwracaj najpierw poprawioną wersję tekstu w tym samym języku co oryginał. Następnie dodaj sekcję 'Wyjaśnienie:' w języku polskim w formie listy punktów. Poprawiaj błędy gramatyczne, literówki, składnię i logiczny przepływ zdań. Zachowaj oryginalny sens wypowiedzi. Nie tłumacz tekstu. Nie dodawaj nowych informacji. Tekst: {selected}"
+}

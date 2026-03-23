@@ -9,12 +9,12 @@ configuration="${2:-Release}"
 # Paths
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "$script_dir/.." && pwd)"
-project_path="$repo_root/src/QuickNotesTxt/QuickNotesTxt.csproj"
-publish_dir="$repo_root/src/QuickNotesTxt/bin/$configuration/net10.0/$runtime/publish"
-install_dir="$HOME/.local/opt/QuickNotesTxt"
+project_path="$repo_root/src/GroundNotes/GroundNotes.csproj"
+publish_dir="$repo_root/src/GroundNotes/bin/$configuration/net10.0/$runtime/publish"
+install_dir="$HOME/.local/opt/GroundNotes"
 
 echo "Cleaning previous build artifacts..."
-rm -rf "$repo_root/src/QuickNotesTxt/bin" "$repo_root/src/QuickNotesTxt/obj"
+rm -rf "$repo_root/src/GroundNotes/bin" "$repo_root/src/GroundNotes/obj"
 dotnet publish "$project_path" -c "$configuration" -r "$runtime" --self-contained true
 
 if [[ ! -d "$publish_dir" ]]; then
@@ -35,10 +35,10 @@ cp -R "$publish_dir"/* "$install_dir"/
 shopt -u dotglob nullglob
 
 # Verify the executable exists
-if [[ ! -f "$install_dir/QuickNotesTxt" ]]; then
-    echo "Error: Executable not found at $install_dir/QuickNotesTxt" >&2
+if [[ ! -f "$install_dir/GroundNotes" ]]; then
+    echo "Error: Executable not found at $install_dir/GroundNotes" >&2
     exit 1
 fi
 
-echo "Success! QuickNotesTxt has been installed to $install_dir"
-echo "You can now launch it via your desktop shortcut or by running: $install_dir/QuickNotesTxt"
+echo "Success! GroundNotes has been installed to $install_dir"
+echo "You can now launch it via your desktop shortcut or by running: $install_dir/GroundNotes"

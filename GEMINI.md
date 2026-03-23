@@ -1,101 +1,66 @@
-# GEMINI.md - QuickNotesTxt
+# GEMINI.md - GroundNotes
 
-This file provides instructional context for Gemini CLI when working in the `quick-notes-txt` repository. It complements the existing `CLAUDE.md` and `AGENTS.md` files.
+This file provides instructional context for Gemini CLI when working in the `ground-notes` repository. It complements the existing `CLAUDE.md` and `AGENTS.md` files.
 
 ## Project Overview
 
-**QuickNotesTxt** is a lightweight, cross-platform desktop note-taking application for plain-text notes. It is built using **.NET 10** and **Avalonia UI 11.3**. Notes are stored as `.txt` or `.md` files in a user-selected folder, using YAML-like frontmatter for metadata (title, tags, timestamps).
-
-### Core Features
-- **Markdown Support:** Editor with syntax highlighting (via AvaloniaEdit) and slash commands.
-- **Slash Commands:** Inline productivity via `/` (e.g., `/bold`, `/task`, `/h1`).
-- **Auto-save:** Debounced (450ms) auto-saving to disk.
-- **AI Integration:** OpenAI-powered text actions (translate, summarize, etc.) with customizable prompt templates (`.json`) stored in `Assets/AiPrompts` or a custom `.quicknotestxt/ai-prompts` folder.
-- **File System Driven:** Monitors the notes folder for external changes using a `FileWatcherService`.
-- **Theming & Fonts:** Supports built-in themes (Dark, Claude, Amoled Black, Light, Flexoki Light) and custom themes, plus bundled fonts (Iosevka, JetBrains Mono, Monaspace).
-- **Note Picker:** Fast search and navigation via a global note picker.
-
-## Tech Stack
-
-- **Runtime:** .NET 10 (SDK `10.0.103` pinned in `global.json`)
-- **UI Framework:** Avalonia UI 11.3
-- **Editor Component:** AvaloniaEdit 11.4
-- **MVVM Framework:** CommunityToolkit.Mvvm (using source generators for properties and commands)
-- **Testing:** xUnit
-- **Configuration:** `mise` for tool management (optional)
+**GroundNotes** is a lightweight, cross-platform desktop note-taking application for plain-text notes. It is built using **.NET 10** and **Avalonia UI 11.3**. Notes are stored as `.txt` or `.md` files in a user-selected folder, using YAML-like frontmatter for metadata (title, tags, timestamps).
 
 ## Project Structure
 
-```text
-/
-├── QuickNotesTxt.sln           # Main solution file
-├── src/QuickNotesTxt/          # Main application project
-│   ├── Assets/                 # Fonts and AI prompt JSON files
-│   ├── Controls/               # Custom UI controls (e.g., NotePicker)
-│   ├── Converters/             # XAML value converters
-│   ├── Editors/                # Markdown highlighting, parsing, and slash commands
-│   ├── Models/                 # Note, settings, and prompt data structures
-│   ├── Services/               # Business logic (I/O, AI, Themes, Settings, Fonts)
-│   ├── Styles/                 # Avalonia XAML styles and theme definitions
-│   ├── ViewModels/             # MVVM state and commands (MainViewModel)
-│   └── Views/                  # Avalonia XAML views and code-behind
-└── tests/QuickNotesTxt.Tests/  # xUnit test suite
+```
+GroundNotes/
+├── GroundNotes.sln            # Main solution file
+├── src/GroundNotes/           # Main application project
+├── tests/GroundNotes.Tests/   # xUnit test suite
+├── scripts/                   # Publish/install helper scripts
+├── README.md                  # User-facing documentation
+├── AGENTS.md                  # Codex/agent instructions
+└── CLAUDE.md                  # Claude-specific instructions
 ```
 
 ## Development Workflow
 
-### Standard Commands
+### Build
 ```bash
-# Build the entire solution
-dotnet build QuickNotesTxt.sln
-
-# Run the desktop application (requires a graphical session)
-dotnet run --project src/QuickNotesTxt
-
-# Run all tests
-dotnet test QuickNotesTxt.sln
-
-# Run a specific test class
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --filter "FullyQualifiedName~NotesRepositoryTests"
-
-# Create a self-contained release build
-dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r linux-x64 --self-contained true
+dotnet build GroundNotes.sln
 ```
 
-### Note on Avalonia
-If builds fail due to locked files in `obj/` or `bin/`, ensure no instance of the app or a debugger is running.
+### Run
+```bash
+dotnet run --project src/GroundNotes
+```
 
-## Development Conventions
+### Test
+```bash
+dotnet test GroundNotes.sln
+```
 
-### Coding Style
-- **Namespaces:** Use file-scoped namespaces (`namespace QuickNotesTxt.Services;`).
-- **Indentation:** 4-space indentation.
-- **Naming:** 
-  - `PascalCase` for types, methods, and properties.
-  - `_camelCase` for private fields.
-  - `I` prefix for interfaces (e.g., `INotesRepository`).
-  - `Async` suffix for asynchronous methods.
-- **Immutability:** Use `sealed` for concrete classes unless inheritance is specifically required.
-- **Nullability:** Nullable reference types are enabled; handle nulls explicitly and avoid the null-forgiving operator (`!`) where possible.
+Target a specific test class:
+```bash
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --filter "FullyQualifiedName~NotesRepositoryTests"
+```
 
-### Architecture (MVVM)
-- **View Models:** Inherit from `ViewModelBase` (which inherits from `ObservableObject`). Use `[ObservableProperty]` and `[RelayCommand]` attributes from `CommunityToolkit.Mvvm`.
-- **Services:** All business logic, I/O, and external API calls must reside in services. Use interface-based dependency injection.
-- **Views:** Code-behind should be minimal, focused on UI-only concerns like focus management, windowing, and complex input routing.
+### Publish
+```bash
+dotnet publish src/GroundNotes/GroundNotes.csproj -c Release -r linux-x64 --self-contained true
+```
 
-### Testing
-- Always verify changes with unit tests in `tests/QuickNotesTxt.Tests/`.
-- Repository tests (`NotesRepositoryTests`) should use temporary directories and ensure cleanup in `Dispose()`.
-- Mock or use test-specific configurations for services that interact with the filesystem or network.
+## Coding Conventions
 
-## Key Services & Components
+- **Namespaces:** Use file-scoped namespaces (`namespace GroundNotes.Services;`).
+- **One top-level type per file** where practical.
+- **Prefer sealed classes** unless inheritance is needed.
+- **Keep code-behind minimal** in Avalonia views.
+- **Keep filesystem operations deterministic**.
+- **Use xUnit** for unit tests in `tests/GroundNotes.Tests/`.
 
-- **NotesRepository:** Handles reading/writing notes, frontmatter parsing, and search/filter/sort logic.
-- **MainViewModel:** The central orchestrator. Manages note selection, editor state, save scheduling, file watcher suppression, and global search.
-- **FileWatcherService:** Uses `FileSystemWatcher` to sync the UI when files are changed outside the app.
-- **OpenAiTextActionService:** Handles communication with the OpenAI API for AI-assisted editing.
-- **AiPromptCatalogService:** Loads built-in and user-provided AI prompt templates.
-- **ThemeLoaderService / ThemeService:** Manages theme loading from JSON and applying them to the Avalonia application.
-- **FontCatalogService:** Manages discovery and selection of bundled fonts.
-- **MarkdownLineParser:** Core logic for analyzing Markdown structure for syntax highlighting and editing features.
-- **MarkdownSlashCommandCatalog:** Defines and matches slash commands for the editor.
+## Notes for AI Changes
+
+- Prompt-style AI actions belong in services like `OpenAiTextActionService`.
+- Conversational AI chat belongs in `ChatViewModel` and `OpenAiChatService`.
+- Keep note persistence deterministic: saved AI conversations should remain regular notes tagged with `AI`.
+
+## Validation
+
+Always verify changes with unit tests in `tests/GroundNotes.Tests/`.

@@ -1,0 +1,10 @@
+{
+  "id": "translate",
+  "name": "Translate With AI",
+  "description": "Translate selected EN/PL text",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "replaceSelection": true,
+  "order": 100,
+  "promptTemplate": "Jesteś wyspecjalizowanym tłumaczem EN↔PL. Zasady: Zwracaj WYŁĄCZNIE przetłumaczony tekst. Popraw składnię, gramatykę i logiczny przepływ zdań. Zachowaj oryginalny sens wypowiedzi. Upraszczaj i porządkuj chaotyczne fragmenty. Nie dodawaj nowych informacji. Logika: EN → PL, PL → EN, mixed → spójny EN. Tekst: {selected}"
+}
