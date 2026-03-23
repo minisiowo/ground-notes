@@ -8,9 +8,8 @@ namespace QuickNotesTxt.Services;
 
 public sealed class WindowDialogService : IWorkspaceDialogService
 {
-    private const double ChatWindowDefaultWidth = 700;
-    private const double ChatWindowMinWidth = 460;
-    private const double ChatWindowMaxWidth = 820;
+    private const double ChatWindowDefaultWidth = 500;
+    private const double ChatWindowDefaultHeight = 600;
 
     private readonly Window _owner;
     private readonly IEditorLayoutState _editorLayoutState;
@@ -40,16 +39,11 @@ public sealed class WindowDialogService : IWorkspaceDialogService
 
     public Task ShowChatAsync(ChatViewModel model)
     {
-        var targetWidth = Math.Clamp(_owner.Bounds.Width * 0.6, ChatWindowMinWidth, ChatWindowMaxWidth);
-        if (_owner.Bounds.Width <= 0)
-        {
-            targetWidth = ChatWindowDefaultWidth;
-        }
-
         var dialog = new ChatWindow
         {
             DataContext = model,
-            Width = targetWidth
+            Width = ChatWindowDefaultWidth,
+            Height = ChatWindowDefaultHeight
         };
         dialog.SetEditorLayoutState(_editorLayoutState);
 
