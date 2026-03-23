@@ -22,8 +22,7 @@ internal sealed class EditorThemeController : IDisposable
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
 
-        _editor.Options.ConvertTabsToSpaces = false;
-        _editor.Options.EnableRectangularSelection = false;
+        ConfigureEditorOptions(_editor.Options);
         _editor.Options.WordWrapIndentation = 0;
         _editor.Options.InheritWordWrapIndentation = false;
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
@@ -131,6 +130,17 @@ internal sealed class EditorThemeController : IDisposable
         var fontWeight = resources?[ThemeKeys.CodeFontWeight] is FontWeight weight ? weight : FontWeight.Normal;
         var fontStyle = resources?[ThemeKeys.CodeFontStyle] is FontStyle style ? style : FontStyle.Normal;
         return new EditorAppearanceSignature(fontFamily?.ToString() ?? string.Empty, fontWeight, fontStyle);
+    }
+
+    internal static void ConfigureEditorOptions(TextEditorOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        options.ConvertTabsToSpaces = false;
+        options.EnableRectangularSelection = false;
+        options.EnableHyperlinks = false;
+        options.EnableEmailHyperlinks = false;
+        options.RequireControlModifierForHyperlinkClick = false;
     }
 
     private static void ApplyEditorOptions(EditorAppearanceSignature signature)

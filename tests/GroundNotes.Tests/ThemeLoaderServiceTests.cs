@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Xunit;
 using GroundNotes.Services;
 using GroundNotes.Styles;
+using Xunit;
 
 namespace GroundNotes.Tests;
 
@@ -28,14 +28,27 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadAllThemesAsync_LoadsValidCustomTheme()
+    public async Task LoadAllThemesAsync_LoadsValidCustomThemeV2()
     {
-        WriteThemeFile("custom.json", MakeValidThemeJson("My Custom Theme"));
+        WriteThemeFile("custom-v2.json", MakeValidThemeV2Json("My Custom Theme"));
 
         var themes = await _service.LoadAllThemesAsync();
 
         Assert.Equal(AppTheme.BuiltInThemes.Count + 1, themes.Count);
         Assert.Contains(themes, t => t.Name == "My Custom Theme");
+    }
+
+    [Fact]
+    public async Task LoadAllThemesAsync_LoadsLegacyFlatTheme()
+    {
+        WriteThemeFile("custom-legacy.json", MakeValidLegacyThemeJson("Legacy Theme"));
+
+        var themes = await _service.LoadAllThemesAsync();
+
+        var loaded = Assert.Single(themes.Where(t => t.Name == "Legacy Theme"));
+        var tokens = ThemeBuilder.BuildTokens(loaded);
+        Assert.Equal("#67B7FF", tokens.MarkdownLinkLabel);
+        Assert.Equal("#8899AA", tokens.MarkdownLinkUrl);
     }
 
     [Fact]
@@ -53,7 +66,7 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     public async Task LoadAllThemesAsync_SkipsJsonMissingRequiredFields()
     {
         Directory.CreateDirectory(_themesDir);
-        var partial = new { name = "Incomplete", isLight = false, appBackground = "#000000" };
+        var partial = new { name = "Incomplete", isLight = false, palette = new { appBackground = "#000000" } };
         await File.WriteAllTextAsync(
             Path.Combine(_themesDir, "incomplete.json"),
             JsonSerializer.Serialize(partial));
@@ -64,10 +77,10 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadAllThemesAsync_SkipsThemeMissingEditorModeToken()
+    public async Task LoadAllThemesAsync_SkipsThemeMissingLegacyMarkdownToken()
     {
         Directory.CreateDirectory(_themesDir);
-        var theme = JsonSerializer.Deserialize<Dictionary<string, object?>>(MakeValidThemeJson("Missing Token"))!;
+        var theme = JsonSerializer.Deserialize<Dictionary<string, object?>>(MakeValidLegacyThemeJson("Missing Token"))!;
         theme.Remove("markdownLinkLabel");
 
         await File.WriteAllTextAsync(
@@ -82,7 +95,7 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     [Fact]
     public async Task LoadAllThemesAsync_SkipsBuiltInNameCollision()
     {
-        WriteThemeFile("dark.json", MakeValidThemeJson("Dark"));
+        WriteThemeFile("dark.json", MakeValidThemeV2Json("Dark"));
 
         var themes = await _service.LoadAllThemesAsync();
 
@@ -92,7 +105,7 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     [Fact]
     public async Task LoadAllThemesAsync_SkipsBuiltInNameCollisionCaseInsensitive()
     {
-        WriteThemeFile("dark.json", MakeValidThemeJson("dark"));
+        WriteThemeFile("dark.json", MakeValidThemeV2Json("dark"));
 
         var themes = await _service.LoadAllThemesAsync();
 
@@ -102,7 +115,7 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     [Fact]
     public async Task LoadAllThemesAsync_SkipsInvalidHexColor()
     {
-        WriteThemeFile("badcolor.json", MakeValidThemeJson("Bad Color", appBackground: "not-a-color"));
+        WriteThemeFile("badcolor.json", MakeValidThemeV2Json("Bad Color", accent: "not-a-color"));
 
         var themes = await _service.LoadAllThemesAsync();
 
@@ -110,48 +123,20 @@ public sealed class ThemeLoaderServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ExportThemeAsync_RoundTrips()
+    public async Task ExportThemeAsync_RoundTripsV2()
     {
         var original = new AppTheme
         {
             Name = "Exported Theme",
             IsLight = true,
-            AppBackground = "#FFFFFF",
-            PaneBackground = "#FAFAFA",
-            SurfaceBackground = "#F5F5F5",
-            SurfaceHover = "#EEEEEE",
-            SurfacePressed = "#E0E0E0",
-            SurfaceRaised = "#F0F0F0",
-            SelectionBackground = "#CCE5FF",
-            SelectionBorder = "#0078D4",
-            TextSelectionBrush = "#ADD6FF",
-            EditorTextSelectionBrush = "#ADD6FF",
-            BorderBase = "#C8C8C8",
-            FocusBorder = "#005FB8",
-            PrimaryText = "#1B1B1B",
-            SecondaryText = "#5A5A5A",
-            MutedText = "#8A8A8A",
-            PlaceholderText = "#9E9E9E",
-            EditorText = "#1B1B1B",
-            AppText = "#1B1B1B",
-            MarkdownHeading1 = "#005FB8",
-            MarkdownHeading2 = "#7A5C00",
-            MarkdownHeading3 = "#356859",
-            MarkdownLinkLabel = "#005FB8",
-            MarkdownLinkUrl = "#5A5A5A",
-            MarkdownTaskDone = "#356859",
-            MarkdownTaskPending = "#7A5C00",
-            MarkdownStrikethrough = "#757575",
-            MarkdownRule = "#B8C2CC",
-            MarkdownBlockquote = "#4C647A",
-            MarkdownFenceMarker = "#7F8B96",
-            MarkdownFenceInfo = "#356859",
-            MarkdownInlineCodeForeground = "#004B91",
-            MarkdownInlineCodeBackground = "#E7EEF5",
-            MarkdownCodeBlockForeground = "#1E3A5F",
-            MarkdownCodeBlockBackground = "#E1E8EF",
-            TitleBarButtonHover = "#E5E5E5",
-            TitleBarCloseHover = "#C42B1C",
+            Palette = CreatePalette(),
+            Overrides = new ThemeTokenOverrides
+            {
+                MarkdownHeading1 = "#005FB8",
+                MarkdownLinkLabel = "#005FB8",
+                MarkdownLinkUrl = "#68727D",
+                TitleBarCloseHover = "#C42B1C"
+            }
         };
 
         await _service.ExportThemeAsync(original);
@@ -160,16 +145,9 @@ public sealed class ThemeLoaderServiceTests : IDisposable
         var loaded = themes.FirstOrDefault(t => t.Name == "Exported Theme");
         Assert.NotNull(loaded);
         Assert.Equal(original.IsLight, loaded.IsLight);
-        Assert.Equal(original.AppBackground, loaded.AppBackground);
-        Assert.Equal(original.PrimaryText, loaded.PrimaryText);
-        Assert.Equal(original.MarkdownHeading1, loaded.MarkdownHeading1);
-        Assert.Equal(original.MarkdownHeading2, loaded.MarkdownHeading2);
-        Assert.Equal(original.MarkdownLinkLabel, loaded.MarkdownLinkLabel);
-        Assert.Equal(original.MarkdownTaskDone, loaded.MarkdownTaskDone);
-        Assert.Equal(original.MarkdownRule, loaded.MarkdownRule);
-        Assert.Equal(original.MarkdownInlineCodeForeground, loaded.MarkdownInlineCodeForeground);
-        Assert.Equal(original.MarkdownCodeBlockBackground, loaded.MarkdownCodeBlockBackground);
-        Assert.Equal(original.TitleBarCloseHover, loaded.TitleBarCloseHover);
+        Assert.Equal(original.Palette.AppBackground, loaded.Palette.AppBackground);
+        Assert.Equal(original.Palette.Accent, loaded.Palette.Accent);
+        Assert.Equal(original.Overrides!.MarkdownLinkUrl, loaded.Overrides!.MarkdownLinkUrl);
     }
 
     private void WriteThemeFile(string fileName, string json)
@@ -178,7 +156,49 @@ public sealed class ThemeLoaderServiceTests : IDisposable
         File.WriteAllText(Path.Combine(_themesDir, fileName), json);
     }
 
-    private static string MakeValidThemeJson(string name, string appBackground = "#1E1E1E")
+    private static string MakeValidThemeV2Json(string name, string accent = "#4AA3FF")
+    {
+        var theme = new
+        {
+            name,
+            isLight = false,
+            palette = new
+            {
+                appBackground = "#1E1E1E",
+                paneBackground = "#252526",
+                surfaceBackground = "#1E1E1E",
+                surfaceHover = "#2A2D2E",
+                surfacePressed = "#1A1A1A",
+                surfaceRaised = "#2D2D2D",
+                borderBase = "#3C3C3C",
+                primaryText = "#D4D4D4",
+                secondaryText = "#9D9D9D",
+                mutedText = "#6A6A6A",
+                placeholderText = "#5A5A5A",
+                accent,
+                accentSoft = "#7FB0D9",
+                selectionBackground = "#264F78",
+                textSelectionBrush = "#264F78",
+                editorTextSelectionBrush = "#66007ACC",
+                success = "#6CB7A8",
+                warning = "#D1B86F",
+                danger = "#E81123"
+            },
+            overrides = new
+            {
+                selectionBorder = "#007ACC",
+                focusBorder = "#007ACC",
+                markdownHeading2 = "#6CB7A8",
+                markdownHeading3 = "#8FB7A3",
+                markdownLinkLabel = "#67B7FF",
+                markdownLinkUrl = "#8899AA"
+            }
+        };
+
+        return JsonSerializer.Serialize(theme, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static string MakeValidLegacyThemeJson(string name, string appBackground = "#1E1E1E")
     {
         var theme = new
         {
@@ -223,6 +243,32 @@ public sealed class ThemeLoaderServiceTests : IDisposable
         };
 
         return JsonSerializer.Serialize(theme, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    private static ThemePalette CreatePalette()
+    {
+        return new ThemePalette
+        {
+            AppBackground = "#FFFFFF",
+            PaneBackground = "#FAFAFA",
+            SurfaceBackground = "#F5F5F5",
+            SurfaceHover = "#EEEEEE",
+            SurfacePressed = "#E0E0E0",
+            SurfaceRaised = "#F0F0F0",
+            BorderBase = "#C8C8C8",
+            PrimaryText = "#1B1B1B",
+            SecondaryText = "#5A5A5A",
+            MutedText = "#8A8A8A",
+            PlaceholderText = "#9E9E9E",
+            Accent = "#005FB8",
+            AccentSoft = "#4C647A",
+            SelectionBackground = "#CCE5FF",
+            TextSelectionBrush = "#ADD6FF",
+            EditorTextSelectionBrush = "#665C86B8",
+            Success = "#356859",
+            Warning = "#7A5C00",
+            Danger = "#C42B1C"
+        };
     }
 
     public void Dispose()
