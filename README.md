@@ -1,220 +1,51 @@
 # QuickNotesTxt
 
-QuickNotesTxt is a small desktop app for writing plain-text notes in a folder you choose. It is built with Avalonia and .NET 10.
+QuickNotesTxt is a desktop notes app built around plain text files in a folder you control.
 
-## What you need
+It is designed for people who want local notes first: no database, no proprietary file format, no forced cloud sync. The app works directly on `.txt` and `.md` files, adds structured frontmatter for metadata, and layers a focused desktop UI on top.
 
-Before you build the project, make sure you have:
+## What It Does
 
-1. Git
-2. .NET SDK 10.0.103 or newer in the same feature band
-3. A graphical desktop session if you want to run the app locally
+- Works on a normal folder of note files.
+- Supports `.txt` and `.md` notes.
+- Stores note metadata in simple YAML-like frontmatter.
+- Lets you search, filter by tag, sort, rename, and edit notes quickly.
+- Watches the notes folder for external filesystem changes.
+- Includes theme, UI font, editor font, code font, indentation, and line-height settings.
+- Supports OpenAI-powered text actions on selected text.
+- Includes a dedicated AI Chat window that can reference notes as context and save conversations back as notes.
 
-The repository pins the SDK in `global.json`:
+## Note Format
 
-```json
-{
-  "sdk": {
-    "version": "10.0.103",
-    "rollForward": "latestFeature"
-  }
-}
-```
+QuickNotesTxt stores notes as regular text files with frontmatter followed by the body.
 
-If you use `mise`, the repo already contains a matching tool definition in `mise.toml`.
-
-## Get the source
-
-```bash
-git clone <your-repository-url>
-cd quick-notes-txt
-```
-
-## Install the .NET SDK
-
-### Option 1: use mise
-
-If you already use `mise`, run:
-
-```bash
-mise install
-```
-
-### Option 2: install .NET manually
-
-Install the .NET 10 SDK and confirm it is available:
-
-```bash
-dotnet --version
-```
-
-You should see a version compatible with `10.0.103`.
-
-## Restore dependencies
-
-```bash
-dotnet restore QuickNotesTxt.sln
-```
-
-## Build the project
-
-To build everything in Debug:
-
-```bash
-dotnet build QuickNotesTxt.sln
-```
-
-To build only the desktop app:
-
-```bash
-dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
-```
-
-## Run the app
-
-```bash
-dotnet run --project src/QuickNotesTxt
-```
-
-On first launch, choose a folder where your notes should live. The app works directly with plain-text files in that folder.
-
-## Install on Arch Linux
-
-The simplest option on Arch is to build and run the app from source with the system .NET SDK.
-
-Install prerequisites:
-
-```bash
-sudo pacman -S --needed git dotnet-sdk
-```
-
-Clone and run:
-
-```bash
-git clone <your-repository-url>
-cd quick-notes-txt
-dotnet restore QuickNotesTxt.sln
-dotnet run --project src/QuickNotesTxt
-```
-
-If you want a standalone local install instead of running from the source tree:
-
-```bash
-dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r linux-x64 --self-contained true
-mkdir -p ~/.local/opt/QuickNotesTxt
-cp -r src/QuickNotesTxt/bin/Release/net10.0/linux-x64/publish/* ~/.local/opt/QuickNotesTxt/
-~/.local/opt/QuickNotesTxt/QuickNotesTxt
-```
-
-On ARM64 Linux, replace `linux-x64` with `linux-arm64`.
-
-Optional desktop launcher:
-
-```bash
-mkdir -p ~/.local/share/applications
-cat > ~/.local/share/applications/quick-notes-txt.desktop <<EOF
-[Desktop Entry]
-Type=Application
-Name=QuickNotesTxt
-Exec=/home/$USER/.local/opt/QuickNotesTxt/QuickNotesTxt
-Terminal=false
-Categories=Utility;Office;
-EOF
-```
-
-QuickNotesTxt requires a graphical desktop session.
-
-## Install on Windows
-
-You can run the app from source with the .NET SDK or publish a self-contained build.
-
-Install prerequisites:
-
-1. Install Git.
-2. Install the .NET 10 SDK.
-
-Clone the repository:
-
-```powershell
-git clone <your-repository-url>
-cd quick-notes-txt
-```
-
-Run from source:
-
-```powershell
-dotnet restore QuickNotesTxt.sln
-dotnet run --project src/QuickNotesTxt
-```
-
-Create a standalone build:
-
-```powershell
-dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r win-x64 --self-contained true
-```
-
-To publish, replace `C:\Apps\QuickNotes`, and recreate a Start Menu shortcut automatically, use one of these helper scripts:
-
-Native Windows PowerShell:
-
-```powershell
-.\scripts\publish-and-install-windows.ps1
-```
-
-WSL:
-
-```bash
-./scripts/publish-and-install-wsl.sh
-```
-
-Both scripts:
-
-- publish `QuickNotesTxt` as a self-contained `win-x64` app
-- clear and repopulate `C:\Apps\QuickNotes`
-- recreate `QuickNotesTxt.lnk` in the current user's Start Menu programs folder
-
-Optional arguments:
-
-- PowerShell: `-Runtime win-arm64 -Configuration Release`
-- WSL: `./scripts/publish-and-install-wsl.sh win-arm64 Release`
-
-The published app will be in:
+Example:
 
 ```text
-src\QuickNotesTxt\bin\Release\net10.0\win-x64\publish\
+---
+title: Project Ideas
+tags: [work, backlog]
+createdAt: 2026-03-23T08:15:00.0000000+01:00
+updatedAt: 2026-03-23T09:30:00.0000000+01:00
+---
+Build a smaller note-capture flow for quick thoughts.
 ```
 
-You can move that folder anywhere you want and launch `QuickNotesTxt.exe`.
+Notes remain readable outside the app and can be edited with any text editor.
 
-On ARM64 Windows, replace `win-x64` with `win-arm64`.
+## AI Features
 
-## AI features
+QuickNotesTxt has two separate AI workflows.
 
-QuickNotesTxt has two OpenAI-backed AI workflows:
+### 1. Prompt Actions
 
-- prompt actions for selected editor text
-- a dedicated AI Chat window that can use attached notes as context and save conversations back as regular notes
+Prompt actions run on selected editor text.
 
-### AI Chat
-
-Use the `Ask AI` action in the app to open the chat window.
-
-- choose the chat model from the toolbar
-- attach note context with `@`
-- save the conversation as a new note or append the result back to the source note
-
-The chat window opens with a fixed default size of `500x600`.
-
-### AI prompts
-
-QuickNotesTxt can also load AI prompt actions for selected editor text.
-
-- Built-in prompts are shipped in `src/QuickNotesTxt/Assets/AiPrompts/`
+- Built-in prompts are bundled in `src/QuickNotesTxt/Assets/AiPrompts/`
 - Custom prompts are loaded from `<notes-folder>/.quicknotestxt/ai-prompts/`
-- Prompt files are JSON and can override built-in prompts when they use the same `id`
-- Configure the OpenAI API key and default model from `AI Settings` in the app
+- Custom prompts can override built-in prompts by using the same `id`
 
-The built-in prompt format looks like this:
+Example prompt definition:
 
 ```json
 {
@@ -231,58 +62,169 @@ The built-in prompt format looks like this:
 }
 ```
 
-### Advanced Parameters
+Optional prompt parameters:
 
-You can fine-tune AI behavior per prompt using these optional fields:
-- `temperature`: Controls randomness (0.0 to 2.0).
-- `max_tokens`: Limits the length of the AI response.
-- `reasoning_effort`: For reasoning models (e.g., `o1`), set to `low`, `medium`, or `high`.
+- `temperature`
+- `max_tokens`
+- `reasoning_effort`
 
+### 2. AI Chat
 
-## Run the tests
+The AI Chat window is meant for longer interactions than one-shot prompt actions.
+
+- Select the chat model from the toolbar.
+- Reference notes with `@`.
+- Start chat from the current note with note context pre-attached.
+- Save the conversation as a new note.
+- Append the chat result back into the originating note.
+
+Saved conversations are regular notes tagged with `AI`.
+
+## Requirements
+
+Before building the project, make sure you have:
+
+1. Git
+2. .NET SDK `10.0.103` or a compatible newer SDK in the same feature band
+3. A graphical desktop session to run the app
+
+The repository pins the SDK in `global.json`:
+
+```json
+{
+  "sdk": {
+    "version": "10.0.103",
+    "rollForward": "latestFeature"
+  }
+}
+```
+
+If you use `mise`, the repo already includes `mise.toml`.
+
+## Getting Started
+
+Clone the repository:
+
+```bash
+git clone <your-repository-url>
+cd quick-notes-txt
+```
+
+If you use `mise`:
+
+```bash
+mise install
+```
+
+Restore dependencies:
+
+```bash
+dotnet restore QuickNotesTxt.sln
+```
+
+Build the solution:
+
+```bash
+dotnet build QuickNotesTxt.sln
+```
+
+Run the app:
+
+```bash
+dotnet run --project src/QuickNotesTxt
+```
+
+On first launch, choose the folder that should hold your notes.
+
+## Build, Test, Publish
+
+Build the full solution:
+
+```bash
+dotnet build QuickNotesTxt.sln
+```
+
+Build only the desktop app:
+
+```bash
+dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
+```
+
+Run all tests:
 
 ```bash
 dotnet test QuickNotesTxt.sln
 ```
 
-For faster iteration you can run the test project directly:
+Run only the test project:
 
 ```bash
 dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj
 ```
 
-## Create a Release build
+Publish a release build:
 
 ```bash
 dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release
 ```
 
-The published output will be written to:
+## Platform Notes
 
-```text
-src/QuickNotesTxt/bin/Release/net10.0/publish/
+### Linux
+
+The app needs a graphical desktop session. In a headless shell you can build and run tests, but not launch the UI.
+
+### Arch Linux
+
+Install prerequisites:
+
+```bash
+sudo pacman -S --needed git dotnet-sdk
 ```
 
-## Project layout
-
-```text
-src/QuickNotesTxt/               Avalonia desktop application
-tests/QuickNotesTxt.Tests/       xUnit test project
-global.json                      pinned .NET SDK version
-mise.toml                        optional mise tool configuration
-QuickNotesTxt.sln                solution file
-```
-
-## Common workflow
-
-If you just want the shortest possible path from clone to running app:
+Then build and run from source:
 
 ```bash
 git clone <your-repository-url>
 cd quick-notes-txt
-mise install   # optional, if you use mise
 dotnet restore QuickNotesTxt.sln
 dotnet run --project src/QuickNotesTxt
+```
+
+### Windows
+
+Run from source:
+
+```powershell
+git clone <your-repository-url>
+cd quick-notes-txt
+dotnet restore QuickNotesTxt.sln
+dotnet run --project src/QuickNotesTxt
+```
+
+Publish a standalone build:
+
+```powershell
+dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release -r win-x64 --self-contained true
+```
+
+Helper scripts are available:
+
+- PowerShell: `.\scripts\publish-and-install-windows.ps1`
+- WSL: `./scripts/publish-and-install-wsl.sh`
+
+## Project Layout
+
+```text
+src/QuickNotesTxt/               Avalonia desktop application
+src/QuickNotesTxt/Models/        note, AI, theme, and font models
+src/QuickNotesTxt/Services/      filesystem, settings, AI, themes, fonts
+src/QuickNotesTxt/ViewModels/    MVVM state and commands
+src/QuickNotesTxt/Views/         Avalonia windows and UI glue
+tests/QuickNotesTxt.Tests/       xUnit tests
+QuickNotesTxt.sln                solution file
+global.json                      pinned SDK version
+mise.toml                        optional mise configuration
 ```
 
 ## Troubleshooting
@@ -291,10 +233,10 @@ dotnet run --project src/QuickNotesTxt
 
 Install the .NET 10 SDK and make sure it is on your `PATH`.
 
-### The app builds but does not open a window
+### The app builds but no window opens
 
-Make sure you are starting it from a graphical desktop session, not a headless shell.
+Make sure you are running it in a graphical desktop session.
 
 ### SDK version mismatch
 
-Check `global.json` and install the SDK version requested by the repo, or a compatible newer feature-band version allowed by `rollForward`.
+Check `global.json` and install the requested SDK version or a compatible newer feature-band version allowed by `rollForward`.
