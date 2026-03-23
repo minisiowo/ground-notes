@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Repository guide for agentic coding assistants working in `quick-notes-txt`.
+Repository guide for agentic coding assistants working in `ground-notes`.
 
 ## Purpose
 - Provide the command set and coding conventions for this repo.
@@ -12,18 +12,18 @@ Repository guide for agentic coding assistants working in `quick-notes-txt`.
 - Stack: .NET 10, Avalonia UI 11, AvaloniaEdit, CommunityToolkit.Mvvm, xUnit.
 - Note format: `.txt` files with YAML-like frontmatter and body text.
 - AI features: OpenAI-backed text actions plus a dedicated chat window that can attach note context and persist conversations as notes.
-- Solution: `QuickNotesTxt.sln`.
-- App: `src/QuickNotesTxt/QuickNotesTxt.csproj`.
-- Tests: `tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj`.
+- Solution: `GroundNotes.sln`.
+- App: `src/GroundNotes/GroundNotes.csproj`.
+- Tests: `tests/GroundNotes.Tests/GroundNotes.Tests.csproj`.
 
 ## Layout
-- `src/QuickNotesTxt/Models/`: note/theme/font plus AI settings, prompts, and chat message models.
-- `src/QuickNotesTxt/Services/`: repository, watcher, settings, theme/font, AI prompt catalog, OpenAI text action, and OpenAI chat services.
-- `src/QuickNotesTxt/ViewModels/`: primary MVVM state and commands, including `MainViewModel` and `ChatViewModel`.
-- `src/QuickNotesTxt/Views/`: Avalonia XAML plus minimal code-behind, including `ChatWindow` and `SettingsWindow`.
-- `src/QuickNotesTxt/Styles/`: theme/style resources.
-- `src/QuickNotesTxt/Assets/`: bundled assets, including built-in AI prompt definitions in `Assets/AiPrompts/`.
-- `tests/QuickNotesTxt.Tests/`: xUnit tests.
+- `src/GroundNotes/Models/`: note/theme/font plus AI settings, prompts, and chat message models.
+- `src/GroundNotes/Services/`: repository, watcher, settings, theme/font, AI prompt catalog, OpenAI text action, and OpenAI chat services.
+- `src/GroundNotes/ViewModels/`: primary MVVM state and commands, including `MainViewModel` and `ChatViewModel`.
+- `src/GroundNotes/Views/`: Avalonia XAML plus minimal code-behind, including `ChatWindow` and `SettingsWindow`.
+- `src/GroundNotes/Styles/`: theme/style resources.
+- `src/GroundNotes/Assets/`: bundled assets, including built-in AI prompt definitions in `Assets/AiPrompts/`.
+- `tests/GroundNotes.Tests/`: xUnit tests.
 
 ## Cursor and Copilot Rules
 - `.cursorrules`: not present.
@@ -39,10 +39,10 @@ Repository guide for agentic coding assistants working in `quick-notes-txt`.
 
 ## Build Commands
 ```bash
-dotnet restore QuickNotesTxt.sln
-dotnet build QuickNotesTxt.sln
-dotnet build src/QuickNotesTxt/QuickNotesTxt.csproj
-dotnet publish src/QuickNotesTxt/QuickNotesTxt.csproj -c Release
+dotnet restore GroundNotes.sln
+dotnet build GroundNotes.sln
+dotnet build src/GroundNotes/GroundNotes.csproj
+dotnet publish src/GroundNotes/GroundNotes.csproj -c Release
 ```
 
 Build guidance:
@@ -51,7 +51,7 @@ Build guidance:
 
 ## Run Command
 ```bash
-dotnet run --project src/QuickNotesTxt
+dotnet run --project src/GroundNotes
 ```
 
 Run notes:
@@ -61,35 +61,35 @@ Run notes:
 ## Test Commands
 Run all tests:
 ```bash
-dotnet test QuickNotesTxt.sln
-dotnet test QuickNotesTxt.sln --no-build
+dotnet test GroundNotes.sln
+dotnet test GroundNotes.sln --no-build
 ```
 
 Run test project only:
 ```bash
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build
 ```
 
 List tests:
 ```bash
-dotnet test QuickNotesTxt.sln --no-build --list-tests
+dotnet test GroundNotes.sln --no-build --list-tests
 ```
 
 ## Single-Test Commands (Important)
 Preferred single-test pattern:
 ```bash
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~QuickNotesTxt.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
 ```
 
 Useful filter variants:
 ```bash
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~NotesRepositoryTests"
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~ThemeLoaderServiceTests"
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~ChatViewModelTests"
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~OpenAiTextActionServiceTests"
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~AiPromptCatalogServiceTests"
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "Name~SerializeAndParse"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~NotesRepositoryTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~ThemeLoaderServiceTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~ChatViewModelTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~OpenAiTextActionServiceTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~AiPromptCatalogServiceTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "Name~SerializeAndParse"
 ```
 
 Fast iteration loop:
@@ -126,7 +126,7 @@ Fast iteration loop:
 - Order `using` directives as:
   1) `System.*`
   2) third-party namespaces
-  3) `QuickNotesTxt.*`
+  3) `GroundNotes.*`
 - Remove unused imports.
 - Prefer existing platform APIs before introducing dependencies.
 
@@ -180,16 +180,16 @@ Fast iteration loop:
 - If commands cannot run due to environment limits, state that clearly.
 
 ## Validation Baseline
-- `dotnet build QuickNotesTxt.sln` succeeds.
-- `dotnet test QuickNotesTxt.sln --no-build` succeeds after build.
+- `dotnet build GroundNotes.sln` succeeds.
+- `dotnet test GroundNotes.sln --no-build` succeeds after build.
 - Single-test execution via `--filter` works reliably.
 
 ## Quick Commands
 ```bash
-dotnet restore QuickNotesTxt.sln
-dotnet build QuickNotesTxt.sln
-dotnet test QuickNotesTxt.sln --no-build
-dotnet test QuickNotesTxt.sln --no-build --list-tests
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~QuickNotesTxt.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
-dotnet test tests/QuickNotesTxt.Tests/QuickNotesTxt.Tests.csproj --no-build --filter "FullyQualifiedName~QuickNotesTxt.Tests.ChatViewModelTests"
+dotnet restore GroundNotes.sln
+dotnet build GroundNotes.sln
+dotnet test GroundNotes.sln --no-build
+dotnet test GroundNotes.sln --no-build --list-tests
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.ChatViewModelTests"
 ```

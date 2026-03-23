@@ -32,13 +32,13 @@ This was tested against real screenshots from the app. The screenshots remained 
 
 ## Files Touched During The Failed Attempt
 
-- `src/QuickNotesTxt/Views/EditorThemeController.cs`
-- `src/QuickNotesTxt/Views/EditorHostController.cs`
-- `src/QuickNotesTxt/Editors/MarkdownColorizingTransformer.cs`
-- `src/QuickNotesTxt/Editors/MarkdownLineParser.cs`
-- `src/QuickNotesTxt/Editors/MarkdownLineAnalysisService.cs`
-- `tests/QuickNotesTxt.Tests/MarkdownLineParserTests.cs`
-- `tests/QuickNotesTxt.Tests/MarkdownLineAnalysisServiceTests.cs`
+- `src/GroundNotes/Views/EditorThemeController.cs`
+- `src/GroundNotes/Views/EditorHostController.cs`
+- `src/GroundNotes/Editors/MarkdownColorizingTransformer.cs`
+- `src/GroundNotes/Editors/MarkdownLineParser.cs`
+- `src/GroundNotes/Editors/MarkdownLineAnalysisService.cs`
+- `tests/GroundNotes.Tests/MarkdownLineParserTests.cs`
+- `tests/GroundNotes.Tests/MarkdownLineAnalysisServiceTests.cs`
 
 ## Recommended Future Follow-Up
 

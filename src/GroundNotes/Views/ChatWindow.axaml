@@ -1,0 +1,170 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GroundNotes.ViewModels"
+        xmlns:models="using:GroundNotes.Models"
+        xmlns:converters="using:GroundNotes.Converters"
+        xmlns:views="using:GroundNotes.Views"
+        xmlns:ae="clr-namespace:AvaloniaEdit;assembly=AvaloniaEdit"
+        x:Class="GroundNotes.Views.ChatWindow"
+        Title="Ask AI"
+        Width="500"
+        Height="600"
+        MinWidth="460"
+        MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        Background="{DynamicResource AppBackgroundBrush}">
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+    <!-- Custom Title Bar (Matches MainWindow) -->
+    <Border Grid.Row="0"
+            Classes="titleBarSurface"
+            BorderThickness="0,0,0,1"
+            PointerPressed="OnTitleBarPointerPressed">
+      <Grid ColumnDefinitions="Auto,*,Auto" Height="30">
+        <TextBlock Grid.Column="0" 
+                   Text="Ask AI" 
+                   VerticalAlignment="Center" 
+                   Margin="12,0" 
+                   FontSize="12"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource SecondaryTextBrush}" />
+        
+        <Border Grid.Column="1" Background="Transparent" />
+
+        <Button Grid.Column="2"
+                Classes="titleBarButton titleBarCloseButton"
+                Click="OnCloseClick"
+                Content="X"
+                Width="42"
+                Height="30" />
+      </Grid>
+    </Border>
+
+    <!-- Actions -->
+    <Border Grid.Row="1" Padding="12,8" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,0,0,1" BorderBrush="{DynamicResource BorderBrushBase}">
+      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+        <ComboBox Grid.Column="0"
+                  MinWidth="160"
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding AvailableModels}"
+                  SelectedItem="{Binding SelectedModel}" />
+        <Button Grid.Column="1"
+                Content="Save As New"
+                Command="{Binding SaveConversationCommand}" />
+        <Button Grid.Column="2"
+                Content="Append To File"
+                Command="{Binding AppendToFileCommand}" />
+      </Grid>
+    </Border>
+
+    <!-- Markdown Editor (Conversation History) -->
+    <Border Grid.Row="2" Margin="12" Classes="editorSurface" BorderThickness="1" BorderBrush="{DynamicResource BorderBrushBase}">
+      <ae:TextEditor x:Name="ChatTextEditor"
+                     Classes="editorTextBox"
+                     Margin="4"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="12"
+                     ShowLineNumbers="False"
+                     HorizontalScrollBarVisibility="Disabled"
+                     VerticalScrollBarVisibility="Auto"
+                     WordWrap="True" />
+    </Border>
+
+    <!-- Attached Notes (Context) -->
+    <Border Grid.Row="3" IsVisible="{Binding AttachedNotes.Count}" Padding="12,4" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrushBase}">
+       <StackPanel Orientation="Horizontal" Spacing="8">
+         <TextBlock Text="Context:" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" />
+         <ItemsControl ItemsSource="{Binding AttachedNotes}">
+           <ItemsControl.ItemsPanel>
+             <ItemsPanelTemplate>
+               <StackPanel Orientation="Horizontal" Spacing="4" />
+             </ItemsPanelTemplate>
+           </ItemsControl.ItemsPanel>
+           <ItemsControl.ItemTemplate>
+             <DataTemplate x:DataType="models:NoteSummary">
+               <Border Background="{DynamicResource SurfaceBackgroundBrush}"
+                       BorderBrush="{DynamicResource BorderBrushBase}"
+                       BorderThickness="1"
+                       Padding="6,2"
+                       CornerRadius="0">
+                 <StackPanel Orientation="Horizontal" Spacing="4">
+                   <TextBlock Text="{Binding DisplayName}"
+                              FontSize="11"
+                              VerticalAlignment="Center"
+                              Foreground="{DynamicResource PrimaryTextBrush}" />
+                   <Button Classes="contextChipRemoveButton"
+                           Content="×"
+                           Command="{Binding $parent[Window].DataContext.RemoveAttachedNoteCommand}"
+                           CommandParameter="{Binding}" />
+                 </StackPanel>
+               </Border>
+             </DataTemplate>
+           </ItemsControl.ItemTemplate>
+         </ItemsControl>
+       </StackPanel>
+    </Border>
+
+    <!-- Input Area -->
+    <Border Grid.Row="4" Padding="12" Background="{DynamicResource PaneBackgroundBrush}" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource BorderBrushBase}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+        <TextBox x:Name="InputTextBox"
+                 Grid.Column="0"
+                 Watermark="Ask a question... Use @ to reference notes. Ctrl+Shift+Enter sends."
+                 Text="{Binding InputText}"
+                 AcceptsReturn="True"
+                 MinLines="1"
+                 MaxLines="6"
+                 TextWrapping="Wrap"
+                 VerticalContentAlignment="Top"
+                 TextChanged="OnInputTextChanged"
+                 KeyUp="OnInputKeyUp" />
+        <Button Grid.Column="1"
+                VerticalAlignment="Bottom"
+                Content="Send"
+                Command="{Binding SendMessageCommand}" />
+      </Grid>
+    </Border>
+
+    <!-- @ Mention Popup (Styled like Slash Command Picker) -->
+    <Popup x:Name="MentionPopup" 
+           PlacementTarget="{Binding #InputTextBox}" 
+           Placement="Top" 
+           IsLightDismissEnabled="True"
+           IsOpen="{Binding IsMentionPopupOpen, Mode=TwoWay}">
+      <Border Classes="sectionSurface" 
+              Width="300" 
+              MaxHeight="250" 
+              BorderThickness="1"
+              CornerRadius="0"
+              BoxShadow="0 4 12 0 #40000000">
+        <Grid RowDefinitions="Auto,*">
+          <Border Grid.Row="0" Margin="4,2,4,4" Padding="4,2" Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="0">
+            <TextBlock Text="Reference Note" 
+                       FontSize="10" 
+                       FontWeight="SemiBold" 
+                       Foreground="{DynamicResource SecondaryTextBrush}" />
+          </Border>
+          <ListBox x:Name="MentionListBox" 
+                   Grid.Row="1"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   ItemsSource="{Binding MentionSuggestions}"
+                   SelectedIndex="{Binding SelectedMentionIndex, Mode=TwoWay}"
+                   DoubleTapped="OnMentionDoubleTapped">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="models:NoteSummary">
+                <Border Classes="fileRow" Padding="8,4" BorderThickness="1">
+                  <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+    </Popup>
+  </Grid>
+</Window>

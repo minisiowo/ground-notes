@@ -8,7 +8,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$WorkingDirectory,
 
-    [string]$Description = "QuickNotesTxt"
+    [string]$Description = "GroundNotes"
 )
 
 $ErrorActionPreference = "Stop"
