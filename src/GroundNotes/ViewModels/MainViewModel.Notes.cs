@@ -69,6 +69,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task RefreshFromDiskAsync()
     {
+        DismissTitleSuggestions(clearContext: true);
+
         if (!HasSelectedFolder)
         {
             return;
@@ -128,6 +130,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void ApplyDocumentToEditor(NoteDocument note)
     {
+        DismissTitleSuggestions(clearContext: true);
         _isApplyingSelection = true;
         try
         {
@@ -148,6 +151,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         CancelScheduledSave();
         CancelInlineRename();
+        DismissTitleSuggestions(clearContext: true);
 
         _isApplyingSelection = true;
         try
@@ -264,12 +268,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         return status == "New note ready."
             || status == "Delete canceled."
+            || status == "Add some note content first."
             || status == "AI settings saved."
             || status == "AI request canceled."
             || status == "AI request failed."
             || status == "AI is disabled in settings."
             || status == "AI is already processing a prompt."
+            || status == "Open a note first."
             || status == "Select text first."
+            || status.StartsWith("Generated ", StringComparison.Ordinal)
             || status.StartsWith("Deleted ", StringComparison.Ordinal)
             || status.StartsWith("Renamed to ", StringComparison.Ordinal)
             || status.StartsWith("Editor font size: ", StringComparison.Ordinal)

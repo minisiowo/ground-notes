@@ -1118,6 +1118,22 @@ public partial class MainWindow : Window
         await vm.CommitRenameAsync(noteItem);
     }
 
+    private async void OnTitleSuggestionsContextTextBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!AiSendShortcut.IsSendGesture(e.Key, e.KeyModifiers))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+    }
+
     private string GetEditorText() => _editorHost.GetText();
 
     private void ApplyEditorEdit(MarkdownEditResult edit)

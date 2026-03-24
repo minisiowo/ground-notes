@@ -186,6 +186,23 @@
     <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
   </Style>
 
+  <Style Selector="Button.compactIconButton">
+    <Setter Property="MinWidth" Value="32" />
+    <Setter Property="MinHeight" Value="30" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.titleSuggestionButton">
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+
   <!-- ══ TextBox ═════════════════════════════════════════════ -->
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />

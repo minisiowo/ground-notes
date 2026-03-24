@@ -67,10 +67,11 @@ public partial class App : Application
         desktop.Exit += (_, _) => _openAiHttpClient?.Dispose();
         var aiCompletionsClient = new OpenAiCompletionsClient(_openAiHttpClient);
         var aiTextActionService = new OpenAiTextActionService(aiCompletionsClient);
+        var aiTitleSuggestionService = new OpenAiTitleSuggestionService(aiCompletionsClient);
         var aiChatService = new OpenAiChatService(aiCompletionsClient);
         var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
-        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, noteSearchServiceFactory);
+        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, noteSearchServiceFactory);
         mainWindow.DataContext = mainViewModel;
         mainWindow.SetWindowLayoutService(windowLayoutService);
 
