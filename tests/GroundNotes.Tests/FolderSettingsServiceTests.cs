@@ -170,6 +170,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
             "JetBrainsMono",
             "Bold",
             "Nord",
+            true,
             new WindowLayout(1200, 800, 50, 60, true, 320, false, true),
             ai));
 
@@ -177,6 +178,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         var syncSettings = _service.GetSettingsSync();
 
         Assert.Equal(asyncSettings, syncSettings);
+        Assert.True(syncSettings.ShowYamlFrontMatterInEditor);
         Assert.True(syncSettings.WindowLayout?.SidebarCalendarExpanded);
     }
 

@@ -32,6 +32,7 @@ public sealed record AppSettings(
     string? CodeFontName,
     string? CodeFontVariantName,
     string? ThemeName,
+    bool ShowYamlFrontMatterInEditor,
     WindowLayout? WindowLayout,
     AiSettings AiSettings);
 

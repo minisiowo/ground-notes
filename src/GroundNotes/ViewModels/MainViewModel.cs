@@ -50,6 +50,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _saveCts;
     private Task? _initializationTask;
     private bool _isApplyingSelection;
+    private bool _hasInvalidYamlFrontMatter;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
 
     [ObservableProperty]
@@ -69,6 +70,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private string _editorBody = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowStructuredMetadataEditors))]
+    [NotifyPropertyChangedFor(nameof(ShowEditorWatermark))]
+    private bool _showYamlFrontMatterInEditor;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -313,7 +319,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public bool ShowTagsWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorTags);
 
-    public bool ShowEditorWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorBody);
+    public bool ShowEditorWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorBody) && !ShowYamlFrontMatterInEditor;
+
+    public bool ShowStructuredMetadataEditors => !ShowYamlFrontMatterInEditor;
 
     public bool HasFooterStatusOverride => !string.IsNullOrWhiteSpace(StatusMessage) && !string.Equals(StatusMessage, "Ready.", StringComparison.Ordinal);
 
@@ -372,6 +380,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ShowTagsWatermark));
         OnPropertyChanged(nameof(ShowEditorWatermark));
         OnPropertyChanged(nameof(FooterStatusText));
+    }
+
+    partial void OnShowYamlFrontMatterInEditorChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowStructuredMetadataEditors));
+        OnPropertyChanged(nameof(ShowEditorWatermark));
     }
 
     partial void OnVisibleNotesChanged(ObservableCollection<NoteListItemViewModel> value) => OnPropertyChanged(nameof(HasNotes));
@@ -470,7 +484,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        UpdateCurrentNoteFromEditor();
+        if (!UpdateCurrentNoteFromEditor())
+        {
+            return;
+        }
+
         ScheduleSave();
     }
 
@@ -485,7 +503,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        UpdateCurrentNoteFromEditor();
+        if (!UpdateCurrentNoteFromEditor())
+        {
+            return;
+        }
+
         ScheduleSave();
     }
 
@@ -505,7 +527,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        UpdateCurrentNoteFromEditor();
+        if (!UpdateCurrentNoteFromEditor())
+        {
+            return;
+        }
+
         ScheduleSave();
     }
 
@@ -527,6 +553,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (!HasSelectedFolder)
         {
             StatusMessage = "Choose a folder first.";
+            return;
+        }
+
+        if (!await CanLeaveCurrentEditorStateAsync())
+        {
             return;
         }
 
@@ -768,6 +799,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
         EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize);
         EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor);
+        ShowYamlFrontMatterInEditor = settings.ShowYamlFrontMatterInEditor;
 
         _allFonts = _fontCatalogService.LoadBundledFonts();
         FontFamilyNames = _allFonts.Select(f => f.DisplayName).ToList();
@@ -830,6 +862,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task SetFolderAsync(string folderPath, bool focusEditorWhenReady = false)
     {
+        if (!await CanLeaveCurrentEditorStateAsync())
+        {
+            return;
+        }
+
         Directory.CreateDirectory(folderPath);
         SelectedCalendarDate = null;
         DisplayedCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);

@@ -32,7 +32,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        UpdateCurrentNoteFromEditor();
+        if (!UpdateCurrentNoteFromEditor())
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(CurrentNote.Body)
             && string.IsNullOrWhiteSpace(CurrentNote.Title)
             && CurrentNote.Tags.Count == 0)
@@ -83,7 +87,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        UpdateCurrentNoteFromEditor();
+        if (!UpdateCurrentNoteFromEditor())
+        {
+            return;
+        }
+
         var normalizedSuggestion = suggestion.Trim();
         if (string.Equals(CurrentNote.Title, normalizedSuggestion, StringComparison.Ordinal))
         {

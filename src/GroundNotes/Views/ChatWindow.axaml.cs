@@ -30,6 +30,7 @@ public partial class ChatWindow : Window
     private readonly EditorHostController _editorHost;
     private readonly WindowChromeController _windowChrome;
     private readonly ChatMentionPopupController _mentionPopup;
+    private readonly ToolPopupController _mentionPopupChrome;
     private IEditorLayoutState? _editorLayoutState;
     private bool _hasAppliedInitialEditorLayout;
     private ChatViewModel? _boundViewModel;
@@ -57,6 +58,7 @@ public partial class ChatWindow : Window
 
             vm.UpdateMentionSuggestions(InputTextBox.Text ?? string.Empty, InputTextBox.CaretIndex);
         });
+        _mentionPopupChrome = new ToolPopupController(MentionPopup, MentionPopupContent);
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -107,6 +109,9 @@ public partial class ChatWindow : Window
 
             _editorHost.Dispose();
         };
+
+        PositionChanged += (_, _) => _mentionPopupChrome.ScheduleRefresh();
+        SizeChanged += (_, _) => _mentionPopupChrome.ScheduleRefresh();
     }
 
     public void SetEditorLayoutState(IEditorLayoutState editorLayoutState)
@@ -144,6 +149,14 @@ public partial class ChatWindow : Window
         if (e.PropertyName == nameof(ChatViewModel.EditorBody))
         {
             SyncEditorText(vm.EditorBody);
+            return;
+        }
+
+        if (e.PropertyName is nameof(ChatViewModel.IsMentionPopupOpen)
+            or nameof(ChatViewModel.MentionSuggestions)
+            or nameof(ChatViewModel.SelectedMentionIndex))
+        {
+            _mentionPopupChrome.ScheduleRefresh(resetPlacement: e.PropertyName == nameof(ChatViewModel.IsMentionPopupOpen));
         }
     }
 

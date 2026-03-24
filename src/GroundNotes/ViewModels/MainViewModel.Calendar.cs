@@ -6,7 +6,7 @@ public partial class MainViewModel
 {
     private const double CalendarPanelChromeHeight = 72;
     private const double CalendarWeekHeaderHeight = 18;
-    private const double CalendarDayRowHeight = 31;
+    private const double CalendarDayRowHeight = 34;
 
     [RelayCommand]
     private void ToggleCalendar()

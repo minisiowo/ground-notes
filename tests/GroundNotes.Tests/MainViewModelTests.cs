@@ -411,6 +411,114 @@ public sealed class MainViewModelTests : IDisposable
         Assert.Equal(1.3, editorLayoutState.CurrentSettings.LineHeightFactor);
     }
 
+    [Fact]
+    public async Task ToggleYamlFrontMatterVisibilityCommand_ShowsFullDocument_AndPersistsSetting()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("note.md", "note", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["alpha"]);
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+        var settingsService = new FakeSettingsService();
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService, settingsService: settingsService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+
+        await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+
+        Assert.True(vm.ShowYamlFrontMatterInEditor);
+        Assert.Contains("---", vm.EditorBody, StringComparison.Ordinal);
+        Assert.Contains("title: note", vm.EditorBody, StringComparison.Ordinal);
+        Assert.Contains("tags: [\"alpha\"]", vm.EditorBody, StringComparison.Ordinal);
+        Assert.True(settingsService.GetSettingsSync().ShowYamlFrontMatterInEditor);
+    }
+
+    [Fact]
+    public async Task ToggleYamlFrontMatterVisibilityCommand_KeepsYamlMode_WhenFrontMatterIsInvalid()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("note.md", "note", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["alpha"]);
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+
+        await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+        vm.EditorBody = "---\ntitle note\n---\nbody";
+
+        await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+
+        Assert.True(vm.ShowYamlFrontMatterInEditor);
+        Assert.Contains("Invalid YAML frontmatter", vm.StatusMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvalidYamlDraft_CanBeDiscarded_WhenSwitchingToAnotherNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("first.md", "first", "first body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("second.md", "second", "second body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            ConfirmDiscardInvalidDraftResult = true
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.NewNoteCommand.ExecuteAsync(null);
+        await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+        vm.EditorBody = "---\ntitle broken\n---\nbody";
+
+        var second = Assert.Single(vm.VisibleNotes.Where(note => string.Equals(note.DisplayName, "second", StringComparison.Ordinal)));
+        vm.SelectedVisibleNote = second;
+        await WaitForConditionAsync(() => string.Equals(vm.CurrentNote?.FilePath, second.FilePath, StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(1, dialogService.ConfirmDiscardInvalidDraftCallCount);
+        Assert.Equal("second", vm.CurrentNote?.Title);
+        Assert.False(vm.ShowStructuredMetadataEditors);
+    }
+
+    [Fact]
+    public async Task InvalidYamlDraft_StaysOpen_WhenDiscardIsCancelled()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("first.md", "first", "first body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("second.md", "second", "second body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            ConfirmDiscardInvalidDraftResult = false
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.NewNoteCommand.ExecuteAsync(null);
+        await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+        vm.EditorBody = "---\ntitle broken\n---\nbody";
+
+        var second = Assert.Single(vm.VisibleNotes.Where(note => string.Equals(note.DisplayName, "second", StringComparison.Ordinal)));
+        vm.SelectedVisibleNote = second;
+        await Task.Delay(100);
+
+        Assert.Equal(1, dialogService.ConfirmDiscardInvalidDraftCallCount);
+        Assert.Null(vm.SelectedVisibleNote);
+        Assert.NotNull(vm.CurrentNote);
+        Assert.Contains("discard the draft", vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<MainViewModel> CreateViewModelAsync(
         FakeWorkspaceDialogService? dialogService = null,
         FakeChatViewModelFactory? chatViewModelFactory = null,
@@ -499,9 +607,13 @@ public sealed class MainViewModelTests : IDisposable
 
         public int ConfirmDeleteCallCount { get; private set; }
 
+        public int ConfirmDiscardInvalidDraftCallCount { get; private set; }
+
         public int ShowChatCallCount { get; private set; }
 
         public ChatViewModel? LastChatViewModel { get; private set; }
+
+        public bool ConfirmDiscardInvalidDraftResult { get; set; } = true;
 
         public void Attach(Avalonia.Controls.Window window)
         {
@@ -517,6 +629,12 @@ public sealed class MainViewModelTests : IDisposable
         {
             ConfirmDeleteCallCount++;
             return Task.FromResult(ConfirmDeleteResult);
+        }
+
+        public Task<bool> ConfirmDiscardInvalidDraftAsync()
+        {
+            ConfirmDiscardInvalidDraftCallCount++;
+            return Task.FromResult(ConfirmDiscardInvalidDraftResult);
         }
 
         public Task ShowChatAsync(ChatViewModel model)
@@ -722,7 +840,7 @@ public sealed class MainViewModelTests : IDisposable
 
     private sealed class FakeSettingsService : ISettingsService
     {
-        private AppSettings _settings = new(null, 12, 12, 4, 1.15, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultCodeFontKey, FontCatalogService.DefaultVariantKey, GroundNotes.Styles.AppTheme.Dark.Name, null, AiSettings.Default);
+        private AppSettings _settings = new(null, 12, 12, 4, 1.15, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultCodeFontKey, FontCatalogService.DefaultVariantKey, GroundNotes.Styles.AppTheme.Dark.Name, false, null, AiSettings.Default);
 
         public AppSettings GetSettingsSync() => _settings;
 

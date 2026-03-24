@@ -9,6 +9,8 @@ public interface IWorkspaceDialogService
 
     Task<bool> ConfirmDeleteAsync(string noteName);
 
+    Task<bool> ConfirmDiscardInvalidDraftAsync();
+
     Task ShowChatAsync(ChatViewModel model);
 
     Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> previewAsync);

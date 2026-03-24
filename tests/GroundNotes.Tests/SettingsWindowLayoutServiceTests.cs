@@ -35,6 +35,7 @@ public sealed class SettingsWindowLayoutServiceTests
             null,
             null,
             null,
+            false,
             null,
             AiSettings.Default);
 

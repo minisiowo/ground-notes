@@ -37,6 +37,16 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         return await dialog.ShowDialog<bool>(_owner);
     }
 
+    public async Task<bool> ConfirmDiscardInvalidDraftAsync()
+    {
+        var dialog = new ConfirmDeleteWindow(
+            "Discard invalid draft",
+            "Discard invalid draft?",
+            "This YAML draft is invalid and has not been saved. Discard it and continue?",
+            "Discard");
+        return await dialog.ShowDialog<bool>(_owner);
+    }
+
     public Task ShowChatAsync(ChatViewModel model)
     {
         var dialog = new ChatWindow
