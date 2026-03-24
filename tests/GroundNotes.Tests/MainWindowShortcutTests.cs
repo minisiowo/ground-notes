@@ -47,4 +47,28 @@ public sealed class MainWindowShortcutTests
         Assert.Equal(expected, result);
         Assert.Equal(expectedMoveDown, moveDown);
     }
+
+    [Theory]
+    [InlineData(Key.Enter, true)]
+    [InlineData(Key.Escape, false)]
+    [InlineData(Key.Space, false)]
+    [InlineData(Key.Tab, false)]
+    public void IsRenameTextBoxSubmitKey_MatchesExpectedKeys(Key key, bool expected)
+    {
+        var result = MainWindow.IsRenameTextBoxSubmitKey(key);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(Key.Escape, true)]
+    [InlineData(Key.Enter, false)]
+    [InlineData(Key.Space, false)]
+    [InlineData(Key.Tab, false)]
+    public void IsRenameTextBoxCancelKey_MatchesExpectedKeys(Key key, bool expected)
+    {
+        var result = MainWindow.IsRenameTextBoxCancelKey(key);
+
+        Assert.Equal(expected, result);
+    }
 }

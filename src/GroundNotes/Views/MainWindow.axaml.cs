@@ -117,8 +117,6 @@ public partial class MainWindow : Window
 
         SizeChanged += (_, _) => _slashCommandPopup.SchedulePositionUpdate();
 
-        AddHandler(KeyDownEvent, OnWindowTunnelKeyDownForLazyEditor, RoutingStrategies.Tunnel);
-        AddHandler(TextInputEvent, OnWindowTunnelTextInputForLazyEditor, RoutingStrategies.Tunnel);
     }
 
     public void SetWindowLayoutService(IWindowLayoutService windowLayoutService)
@@ -494,6 +492,11 @@ public partial class MainWindow : Window
         {
             Dispatcher.UIThread.Post(() => Focus(), DispatcherPriority.Input);
         }
+    }
+
+    private void FocusNotesListBox()
+    {
+        Dispatcher.UIThread.Post(() => NotesListBox.Focus(), DispatcherPriority.Input);
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -1091,17 +1094,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.Enter)
+        if (IsRenameTextBoxSubmitKey(e.Key))
         {
             e.Handled = true;
             await vm.CommitRenameAsync(noteItem);
-            Focus();
+            FocusNotesListBox();
         }
-        else if (e.Key == Key.Escape)
+        else if (IsRenameTextBoxCancelKey(e.Key))
         {
             e.Handled = true;
             vm.CancelRename(noteItem);
-            Focus();
+            FocusNotesListBox();
         }
     }
 
@@ -1157,6 +1160,10 @@ public partial class MainWindow : Window
 
         _editorHost.ApplyRuntimeLayout(settings);
     }
+
+    internal static bool IsRenameTextBoxSubmitKey(Key key) => key == Key.Enter;
+
+    internal static bool IsRenameTextBoxCancelKey(Key key) => key == Key.Escape;
 
     internal static bool IsToggleTaskShortcut(Key key, KeyModifiers modifiers)
     {
