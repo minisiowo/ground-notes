@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
     private readonly SlashCommandPopupController _slashCommandPopup;
+    private readonly ToolPopupController _titleSuggestionsPopup;
 
     public MainWindow()
     {
@@ -51,6 +52,7 @@ public partial class MainWindow : Window
             SlashCommandPopupContent,
             SlashCommandListBox,
             SlashCommandHintText);
+        _titleSuggestionsPopup = new ToolPopupController(TitleSuggestionsPopup, TitleSuggestionsPopupContent);
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -113,9 +115,14 @@ public partial class MainWindow : Window
             }
 
             _slashCommandPopup.SchedulePositionUpdate();
+            _titleSuggestionsPopup.ScheduleRefresh();
         };
 
-        SizeChanged += (_, _) => _slashCommandPopup.SchedulePositionUpdate();
+        SizeChanged += (_, _) =>
+        {
+            _slashCommandPopup.SchedulePositionUpdate();
+            _titleSuggestionsPopup.ScheduleRefresh();
+        };
 
     }
 
@@ -393,6 +400,14 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainViewModel.NotePickerResults))
         {
             UpdateNotePickerHeight();
+            return;
+        }
+
+        if (e.PropertyName is nameof(MainViewModel.IsTitleSuggestionsOpen)
+            or nameof(MainViewModel.TitleSuggestions)
+            or nameof(MainViewModel.IsGeneratingTitleSuggestions))
+        {
+            _titleSuggestionsPopup.ScheduleRefresh(resetPlacement: e.PropertyName == nameof(MainViewModel.IsTitleSuggestionsOpen));
             return;
         }
 
@@ -744,6 +759,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (IsToggleYamlEditorShortcut(e.Key, e.KeyModifiers) && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
+        {
+            e.Handled = true;
+            await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+            return;
+        }
+
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
             return;
@@ -897,6 +919,27 @@ public partial class MainWindow : Window
 
         if (_slashCommandPopup.HandleKeyDown(e, ApplyEditorEdit))
         {
+            return;
+        }
+
+        if (vm is not null && IsToggleYamlEditorShortcut(e.Key, e.KeyModifiers) && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
+        {
+            e.Handled = true;
+            await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+            return;
+        }
+
+        if (IsUndoShortcut(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            textEditor.Undo();
+            return;
+        }
+
+        if (IsRedoShortcut(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            textEditor.Redo();
             return;
         }
 
@@ -1186,6 +1229,54 @@ public partial class MainWindow : Window
     internal static bool IsRenameTextBoxSubmitKey(Key key) => key == Key.Enter;
 
     internal static bool IsRenameTextBoxCancelKey(Key key) => key == Key.Escape;
+
+    internal static bool IsUndoShortcut(Key key, KeyModifiers modifiers)
+    {
+        if (modifiers.HasFlag(KeyModifiers.Alt) || modifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return false;
+        }
+
+        if (!modifiers.HasFlag(KeyModifiers.Control) && !modifiers.HasFlag(KeyModifiers.Meta))
+        {
+            return false;
+        }
+
+        return key == Key.Z;
+    }
+
+    internal static bool IsRedoShortcut(Key key, KeyModifiers modifiers)
+    {
+        if (modifiers.HasFlag(KeyModifiers.Alt))
+        {
+            return false;
+        }
+
+        if (key == Key.Y)
+        {
+            return modifiers == KeyModifiers.Control;
+        }
+
+        if (key != Key.Z || !modifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return false;
+        }
+
+        return modifiers == (KeyModifiers.Control | KeyModifiers.Shift)
+            || modifiers == (KeyModifiers.Meta | KeyModifiers.Shift);
+    }
+
+    internal static bool IsToggleYamlEditorShortcut(Key key, KeyModifiers modifiers)
+    {
+        if (modifiers.HasFlag(KeyModifiers.Alt))
+        {
+            return false;
+        }
+
+        return key == Key.Y
+            && (modifiers == (KeyModifiers.Control | KeyModifiers.Shift)
+                || modifiers == (KeyModifiers.Meta | KeyModifiers.Shift));
+    }
 
     internal static bool IsToggleTaskShortcut(Key key, KeyModifiers modifiers)
     {

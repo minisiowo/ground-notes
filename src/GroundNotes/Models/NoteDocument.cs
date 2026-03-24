@@ -12,6 +12,8 @@ public sealed record NoteDocument
 
     public string Body { get; set; } = string.Empty;
 
+    public string? FrontMatterText { get; set; }
+
     public List<string> Tags { get; set; } = [];
 
     public DateTime CreatedAt { get; init; }

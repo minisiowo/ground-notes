@@ -325,6 +325,7 @@ public sealed class ChatViewModelTests
             null,
             null,
             null,
+            false,
             null,
             new AiSettings("api-key", "gpt-5.4-mini", true));
 

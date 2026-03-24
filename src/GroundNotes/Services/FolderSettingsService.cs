@@ -133,6 +133,7 @@ public sealed class FolderSettingsService : ISettingsService
             record.CodeFontName,
             record.CodeFontVariantName,
             record.ThemeName,
+            record.ShowYamlFrontMatterInEditor ?? false,
             record.WindowLayout is null
                 ? null
                 : new WindowLayout(
@@ -168,6 +169,7 @@ public sealed class FolderSettingsService : ISettingsService
             CodeFontName = settings.CodeFontName,
             CodeFontVariantName = settings.CodeFontVariantName,
             ThemeName = settings.ThemeName,
+            ShowYamlFrontMatterInEditor = settings.ShowYamlFrontMatterInEditor,
             WindowLayout = settings.WindowLayout is null
                 ? null
                 : new WindowLayoutRecord
@@ -243,6 +245,7 @@ public sealed class FolderSettingsService : ISettingsService
         public string? CodeFontName { get; set; }
         public string? CodeFontVariantName { get; set; }
         public string? ThemeName { get; set; }
+        public bool? ShowYamlFrontMatterInEditor { get; set; }
         public WindowLayoutRecord? WindowLayout { get; set; }
         public string? OpenAiApiKey { get; set; }
         public string? OpenAiModel { get; set; }

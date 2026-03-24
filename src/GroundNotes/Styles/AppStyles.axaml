@@ -71,6 +71,11 @@
     <Setter Property="CornerRadius" Value="1" />
   </Style>
 
+  <Style Selector="Border.toolPopupSurface">
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+  </Style>
+
   <Style Selector="Border.titleBarSurface">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
@@ -242,7 +247,7 @@
 
   <Style Selector="Button.calendarDayButton">
     <Setter Property="MinWidth" Value="0" />
-    <Setter Property="MinHeight" Value="26" />
+    <Setter Property="MinHeight" Value="30" />
     <Setter Property="Margin" Value="1" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="Background" Value="Transparent" />
@@ -758,7 +763,7 @@
     <Setter Property="Height" Value="4" />
     <Setter Property="CornerRadius" Value="2" />
     <Setter Property="Background" Value="{DynamicResource FocusBorderBrush}" />
-    <Setter Property="Margin" Value="0,2,0,0" />
+    <Setter Property="Margin" Value="0,0,0,0" />
   </Style>
 
   <Style Selector="Button.calendarDayButton.otherMonth Border.calendarDayDot">

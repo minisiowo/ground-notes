@@ -183,6 +183,32 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
+    public void BuildEditableDocumentText_AndTryParseEditableDocumentText_RoundTripRawFrontMatter()
+    {
+        var filePath = Path.Combine(_tempRoot, "editable.md");
+        var original = NotesRepository.ParseDocument(filePath, """
+            ---
+            title: editable
+            tags: ["alpha"]
+            custom: yes
+            createdAt: 2026-03-09T07:33:00.0000000+00:00
+            updatedAt: 2026-03-09T07:34:00.0000000+00:00
+            ---
+            body line
+            """);
+
+        var editable = NotesRepository.BuildEditableDocumentText(original);
+
+        Assert.Contains("custom: yes", editable, StringComparison.Ordinal);
+        Assert.True(NotesRepository.TryParseEditableDocumentText(original, editable, out var parsed, out var error));
+        Assert.Equal(string.Empty, error);
+        Assert.Equal("editable", parsed.Title);
+        Assert.Equal(["alpha"], parsed.Tags);
+        Assert.Equal("body line", parsed.Body);
+        Assert.Contains("custom: yes", parsed.FrontMatterText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SaveNoteAsync_AvoidsOverwritingExistingMarkdownStemWhenMigratingLegacyNote()
     {
         Directory.CreateDirectory(_tempRoot);

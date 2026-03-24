@@ -7,6 +7,36 @@ namespace GroundNotes.Tests;
 public sealed class MainWindowShortcutTests
 {
     [Theory]
+    [InlineData(Key.Z, KeyModifiers.Control, true)]
+    [InlineData(Key.Z, KeyModifiers.Meta, true)]
+    [InlineData(Key.Z, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    [InlineData(Key.Z, KeyModifiers.Control | KeyModifiers.Alt, false)]
+    [InlineData(Key.Y, KeyModifiers.Control, false)]
+    [InlineData(Key.Space, KeyModifiers.Control, false)]
+    public void IsUndoShortcut_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsUndoShortcut(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(Key.Y, KeyModifiers.Control, true)]
+    [InlineData(Key.Y, KeyModifiers.Meta, false)]
+    [InlineData(Key.Z, KeyModifiers.Control | KeyModifiers.Shift, true)]
+    [InlineData(Key.Z, KeyModifiers.Meta | KeyModifiers.Shift, true)]
+    [InlineData(Key.Z, KeyModifiers.Control, false)]
+    [InlineData(Key.Z, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift, false)]
+    [InlineData(Key.Z, KeyModifiers.Shift, false)]
+    [InlineData(Key.Space, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    public void IsRedoShortcut_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsRedoShortcut(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData(Key.Enter, KeyModifiers.Control, true)]
     [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Shift, false)]
     [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Alt, false)]
@@ -29,6 +59,19 @@ public sealed class MainWindowShortcutTests
     public void IsOpenSettingsGesture_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
     {
         var result = MainWindow.IsOpenSettingsGesture(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(Key.Y, KeyModifiers.Control | KeyModifiers.Shift, true)]
+    [InlineData(Key.Y, KeyModifiers.Meta | KeyModifiers.Shift, true)]
+    [InlineData(Key.Y, KeyModifiers.Control, false)]
+    [InlineData(Key.Y, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift, false)]
+    [InlineData(Key.Z, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    public void IsToggleYamlEditorShortcut_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsToggleYamlEditorShortcut(key, modifiers);
 
         Assert.Equal(expected, result);
     }

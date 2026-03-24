@@ -30,7 +30,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         NoteDocument? document;
         if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteItem.FilePath, StringComparison.OrdinalIgnoreCase))
         {
-            UpdateCurrentNoteFromEditor();
+            if (!UpdateCurrentNoteFromEditor())
+            {
+                CancelRename(noteItem);
+                return;
+            }
+
             document = CurrentNote;
         }
         else
@@ -118,6 +123,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task LoadSelectedNoteAsync(string filePath)
     {
+        if (!await CanLeaveCurrentEditorStateAsync(filePath))
+        {
+            return;
+        }
+
         var note = await _notesRepository.LoadNoteAsync(filePath);
         if (note is null)
         {
@@ -136,10 +146,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _isApplyingSelection = true;
         try
         {
+            _hasInvalidYamlFrontMatter = false;
             CurrentNote = note;
             EditorTitle = note.Title;
             EditorTags = string.Join(", ", note.Tags);
-            EditorBody = note.Body;
+            EditorBody = BuildEditorText(note);
             HasUnsavedChanges = false;
             LastSavedText = FormatLastSavedText(note.UpdatedAt);
         }
@@ -158,6 +169,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _isApplyingSelection = true;
         try
         {
+            _hasInvalidYamlFrontMatter = false;
             CurrentNote = null;
             SelectedNoteSummary = null;
             SelectedVisibleNote = null;
@@ -219,18 +231,55 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return true;
     }
 
-    private void UpdateCurrentNoteFromEditor()
+    private bool UpdateCurrentNoteFromEditor()
     {
         if (CurrentNote is null)
         {
-            return;
+            return false;
         }
 
-        CurrentNote.Title = string.IsNullOrWhiteSpace(EditorTitle) ? CurrentNote.OriginalTitle : EditorTitle.Trim();
-        CurrentNote.Body = EditorBody;
-        CurrentNote.Tags = ParseTags(EditorTags);
+        if (ShowYamlFrontMatterInEditor)
+        {
+            var hadInvalidYamlFrontMatter = _hasInvalidYamlFrontMatter;
+            if (!NotesRepository.TryParseEditableDocumentText(CurrentNote, EditorBody, out var parsedDocument, out var errorMessage))
+            {
+                _hasInvalidYamlFrontMatter = true;
+                HasUnsavedChanges = true;
+                HasConflict = false;
+                StatusMessage = errorMessage;
+                return false;
+            }
+
+            _hasInvalidYamlFrontMatter = false;
+            CurrentNote = parsedDocument;
+
+            _isApplyingSelection = true;
+            try
+            {
+                EditorTitle = parsedDocument.Title;
+                EditorTags = string.Join(", ", parsedDocument.Tags);
+            }
+            finally
+            {
+                _isApplyingSelection = false;
+            }
+
+            if (hadInvalidYamlFrontMatter && StatusMessage.StartsWith("Invalid YAML frontmatter", StringComparison.Ordinal))
+            {
+                StatusMessage = "Ready.";
+            }
+        }
+        else
+        {
+            _hasInvalidYamlFrontMatter = false;
+            CurrentNote.Title = string.IsNullOrWhiteSpace(EditorTitle) ? CurrentNote.OriginalTitle : EditorTitle.Trim();
+            CurrentNote.Body = EditorBody;
+            CurrentNote.Tags = ParseTags(EditorTags);
+        }
+
         HasUnsavedChanges = true;
         HasConflict = false;
+        return true;
     }
 
     private void ScheduleSave()
@@ -291,6 +340,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         if (CurrentNote is null || !HasSelectedFolder)
         {
+            return;
+        }
+
+        if (_hasInvalidYamlFrontMatter)
+        {
+            StatusMessage = "Invalid YAML frontmatter. Fix it before saving.";
             return;
         }
 
@@ -494,6 +549,45 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    [RelayCommand]
+    private async Task ToggleYamlFrontMatterVisibilityAsync()
+    {
+        if (!HasSelectedFolder)
+        {
+            StatusMessage = "Choose a folder first.";
+            return;
+        }
+
+        var nextValue = !ShowYamlFrontMatterInEditor;
+        if (CurrentNote is not null)
+        {
+            if (!UpdateCurrentNoteFromEditor())
+            {
+                return;
+            }
+
+            _isApplyingSelection = true;
+            try
+            {
+                ShowYamlFrontMatterInEditor = nextValue;
+                EditorBody = BuildEditorText(CurrentNote);
+            }
+            finally
+            {
+                _isApplyingSelection = false;
+            }
+        }
+        else
+        {
+            ShowYamlFrontMatterInEditor = nextValue;
+        }
+
+        await PersistSettingsAsync(settings => settings with { ShowYamlFrontMatterInEditor = ShowYamlFrontMatterInEditor });
+        StatusMessage = ShowYamlFrontMatterInEditor
+            ? "YAML frontmatter visible."
+            : "YAML frontmatter hidden.";
+    }
+
     private static NoteSummary BuildSummary(NoteDocument document)
     {
         return NoteSummary.FromDocument(document);
@@ -515,6 +609,86 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private static string FormatLastSavedText(DateTimeOffset updatedAt)
     {
         return $"Last saved: {updatedAt.LocalDateTime:yyyy-MM-dd HH:mm}";
+    }
+
+    private string BuildEditorText(NoteDocument note)
+    {
+        return ShowYamlFrontMatterInEditor
+            ? NotesRepository.BuildEditableDocumentText(note)
+            : note.Body;
+    }
+
+    private bool IsUnsavedInvalidYamlDraft()
+    {
+        if (!_hasInvalidYamlFrontMatter || CurrentNote is null)
+        {
+            return false;
+        }
+
+        if (!CurrentNote.IsAutoCreated)
+        {
+            return false;
+        }
+
+        return !_allNotes.Any(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task<bool> CanLeaveCurrentEditorStateAsync(string? nextFilePath = null)
+    {
+        if (!_hasInvalidYamlFrontMatter || CurrentNote is null)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(nextFilePath)
+            && string.Equals(CurrentNote.FilePath, nextFilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (IsUnsavedInvalidYamlDraft())
+        {
+            var shouldDiscard = await _workspaceDialogService.ConfirmDiscardInvalidDraftAsync();
+            if (!shouldDiscard)
+            {
+                RestoreSelectionAfterBlockedLeave();
+                StatusMessage = "Invalid YAML frontmatter. Fix it or discard the draft to continue.";
+                return false;
+            }
+
+            ClearEditor();
+            StatusMessage = "Invalid YAML draft discarded.";
+            return true;
+        }
+
+        RestoreSelectionAfterBlockedLeave();
+        StatusMessage = "Invalid YAML frontmatter. Fix it before switching notes.";
+        return false;
+    }
+
+    private void RestoreSelectionAfterBlockedLeave()
+    {
+        if (CurrentNote is null)
+        {
+            return;
+        }
+
+        if (_allNotes.Any(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectSummaryByPath(CurrentNote.FilePath);
+            return;
+        }
+
+        _isApplyingSelection = true;
+        try
+        {
+            SelectedNoteSummary = null;
+            SelectedVisibleNote = null;
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
     }
 
     private void OnNoteChanged(object? sender, NoteFileChangedEventArgs e)

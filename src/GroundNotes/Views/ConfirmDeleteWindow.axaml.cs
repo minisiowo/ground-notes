@@ -12,7 +12,7 @@ public partial class ConfirmDeleteWindow : Window
     public ConfirmDeleteWindow()
     {
         InitializeComponent();
-        DataContext = new ConfirmationDialogViewModel("Delete note", string.Empty);
+        DataContext = new ConfirmationDialogViewModel("Delete note", "Delete note?", string.Empty, "Delete");
         _dialogController = new DialogWindowController(this, () => Close(false), () => this.FindControl<Button>("DeleteButton"));
         _dialogController.Attach();
         Closed += (_, _) => _dialogController.Detach();
@@ -20,7 +20,12 @@ public partial class ConfirmDeleteWindow : Window
 
     public ConfirmDeleteWindow(string noteName) : this()
     {
-        DataContext = new ConfirmationDialogViewModel("Delete note", $"Delete '{noteName}' permanently?");
+        DataContext = new ConfirmationDialogViewModel("Delete note", "Delete note?", $"Delete '{noteName}' permanently?", "Delete");
+    }
+
+    public ConfirmDeleteWindow(string title, string heading, string message, string confirmButtonText) : this()
+    {
+        DataContext = new ConfirmationDialogViewModel(title, heading, message, confirmButtonText);
     }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e) => _dialogController.OnTitleBarPointerPressed(e);

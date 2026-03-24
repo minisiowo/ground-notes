@@ -97,6 +97,7 @@ public sealed class NotesRepository : INotesRepository
         persisted.FilePath = targetPath;
         persisted.Id = targetPath;
         persisted.OriginalTitle = persisted.Title;
+        persisted.FrontMatterText = MergeStructuredFieldsIntoFrontMatter(persisted.FrontMatterText, persisted);
 
         var serialized = Serialize(persisted);
         await File.WriteAllTextAsync(targetPath, serialized, Encoding.UTF8, cancellationToken);
@@ -192,19 +193,7 @@ public sealed class NotesRepository : INotesRepository
 
     public static string Serialize(NoteDocument document)
     {
-        var builder = new StringBuilder();
-        builder.AppendLine("---");
-        builder.AppendLine($"title: {EscapeValue(document.Title)}");
-        builder.AppendLine($"tags: [{string.Join(", ", document.Tags.Select(EscapeTag))}]");
-        builder.AppendLine($"createdAt: {document.CreatedAt:O}");
-        builder.AppendLine($"updatedAt: {document.UpdatedAt:O}");
-        builder.AppendLine("---");
-        if (!string.IsNullOrEmpty(document.Body))
-        {
-            builder.Append(document.Body);
-        }
-
-        return builder.ToString();
+        return BuildEditableDocumentText(document);
     }
 
     public static NoteDocument ParseDocument(string filePath, string content)
@@ -224,6 +213,7 @@ public sealed class NotesRepository : INotesRepository
             Title = parsed.Title,
             OriginalTitle = parsed.Title,
             Body = parsed.Body,
+            FrontMatterText = parsed.FrontMatterText,
             Tags = parsed.Tags,
             CreatedAt = parsed.CreatedAt,
             UpdatedAt = parsed.UpdatedAt,
@@ -243,13 +233,86 @@ public sealed class NotesRepository : INotesRepository
         var title = Path.GetFileNameWithoutExtension(filePath);
         var tags = new List<string>();
         var body = normalized;
+        string? frontMatterText = null;
 
-        if (TryReadFrontMatter(normalized, ref title, ref tags, ref createdAt, ref updatedAt, out var parsedBody))
+        if (TryReadFrontMatter(normalized, ref title, ref tags, ref createdAt, ref updatedAt, out var parsedBody, out frontMatterText))
         {
             body = parsedBody;
         }
 
-        return new ParsedNoteContent(title, tags, body, createdAt, updatedAt);
+        return new ParsedNoteContent(title, tags, body, createdAt, updatedAt, frontMatterText);
+    }
+
+    public static string BuildEditableDocumentText(NoteDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var builder = new StringBuilder();
+        builder.AppendLine("---");
+        builder.AppendLine(MergeStructuredFieldsIntoFrontMatter(document.FrontMatterText, document));
+        builder.AppendLine("---");
+
+        if (!string.IsNullOrEmpty(document.Body))
+        {
+            builder.Append(document.Body);
+        }
+
+        return builder.ToString();
+    }
+
+    public static bool TryParseEditableDocumentText(NoteDocument baseDocument, string editorText, out NoteDocument parsedDocument, out string errorMessage)
+    {
+        ArgumentNullException.ThrowIfNull(baseDocument);
+
+        var normalized = editorText.Replace("\r\n", "\n");
+        if (!normalized.StartsWith("---\n", StringComparison.Ordinal) && normalized != "---")
+        {
+            parsedDocument = baseDocument;
+            errorMessage = "Invalid YAML frontmatter. The document must start with ---.";
+            return false;
+        }
+
+        var title = baseDocument.Title;
+        var tags = new List<string>(baseDocument.Tags);
+        var createdAt = baseDocument.CreatedAt;
+        var updatedAt = baseDocument.UpdatedAt;
+
+        if (!TryReadFrontMatter(normalized, ref title, ref tags, ref createdAt, ref updatedAt, out var body, out var frontMatterText))
+        {
+            parsedDocument = baseDocument;
+            errorMessage = "Invalid YAML frontmatter. Fix it before leaving YAML mode or saving.";
+            return false;
+        }
+
+        parsedDocument = baseDocument with
+        {
+            Title = string.IsNullOrWhiteSpace(title) ? baseDocument.Title : title,
+            OriginalTitle = baseDocument.OriginalTitle,
+            Body = body,
+            Tags = tags,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+            FrontMatterText = frontMatterText
+        };
+
+        errorMessage = string.Empty;
+        return true;
+    }
+
+    public static string MergeStructuredFieldsIntoFrontMatter(string? frontMatterText, NoteDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var lines = string.IsNullOrWhiteSpace(frontMatterText)
+            ? new List<string>()
+            : frontMatterText.Replace("\r\n", "\n").Split('\n').ToList();
+
+        UpsertFrontMatterLine(lines, "title", EscapeValue(document.Title));
+        UpsertFrontMatterLine(lines, "tags", $"[{string.Join(", ", document.Tags.Select(EscapeTag))}]");
+        UpsertFrontMatterLine(lines, "createdAt", document.CreatedAt.ToString("O"));
+        UpsertFrontMatterLine(lines, "updatedAt", document.UpdatedAt.ToString("O"));
+
+        return string.Join('\n', lines);
     }
 
     private static NoteDocument Clone(NoteDocument document)
@@ -337,9 +400,11 @@ public sealed class NotesRepository : INotesRepository
         ref List<string> tags,
         ref DateTime createdAt,
         ref DateTime updatedAt,
-        out string body)
+        out string body,
+        out string? frontMatterText)
     {
         body = normalizedContent;
+        frontMatterText = null;
         var lines = normalizedContent.Split('\n');
         if (lines.Length < 3 || lines[0] != "---")
         {
@@ -393,8 +458,44 @@ public sealed class NotesRepository : INotesRepository
             }
         }
 
+        frontMatterText = string.Join('\n', lines.Skip(1).Take(closingIndex - 1));
         body = string.Join('\n', lines.Skip(closingIndex + 1));
         return true;
+    }
+
+    private static void UpsertFrontMatterLine(List<string> lines, string key, string value)
+    {
+        var replacement = $"{key}: {value}";
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (TryReadFrontMatterKey(lines[i], out var existingKey) && string.Equals(existingKey, key, StringComparison.Ordinal))
+            {
+                lines[i] = replacement;
+                return;
+            }
+        }
+
+        lines.Add(replacement);
+    }
+
+    private static bool TryReadFrontMatterKey(string line, out string key)
+    {
+        key = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return false;
+        }
+
+        var separatorIndex = line.IndexOf(':');
+        if (separatorIndex <= 0)
+        {
+            return false;
+        }
+
+        key = line[..separatorIndex].Trim();
+        return key.Length > 0;
     }
 
     private static int? ScorePickerMatch(NoteSummary note, IReadOnlyList<string> queryTokens)
@@ -596,5 +697,6 @@ public sealed class NotesRepository : INotesRepository
         List<string> Tags,
         string Body,
         DateTime CreatedAt,
-        DateTime UpdatedAt);
+        DateTime UpdatedAt,
+        string? FrontMatterText);
 }

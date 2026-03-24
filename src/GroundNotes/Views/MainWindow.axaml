@@ -255,16 +255,18 @@
                                 Classes.hasNotes="{Binding HasNotes}"
                                 Command="{Binding #RootWindow.DataContext.SelectCalendarDayCommand}"
                                 CommandParameter="{Binding}">
-                          <Grid RowDefinitions="Auto,Auto"
+                          <Grid RowDefinitions="*,8"
                                 HorizontalAlignment="Stretch"
-                                VerticalAlignment="Center">
+                                VerticalAlignment="Stretch">
                             <TextBlock Classes="calendarDayText"
                                        HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
                                        Text="{Binding DayNumberText}" />
                             <Border Grid.Row="1"
                                     Classes="calendarDayDot"
                                     IsVisible="{Binding HasNotes}"
-                                    HorizontalAlignment="Center" />
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center" />
                           </Grid>
                         </Button>
                       </DataTemplate>
@@ -308,12 +310,16 @@
                 HorizontalAlignment="Center" />
       </Border>
 
-      <Grid Grid.Column="2" RowDefinitions="Auto,*" x:Name="EditorPanel">
+      <Grid Grid.Column="2"
+            RowDefinitions="Auto,*"
+            x:Name="EditorPanel"
+            Margin="8,12,14,14">
 
         <Grid Grid.Row="0"
               x:Name="TitleTagsGrid"
               ColumnDefinitions="3*,*"
-              Margin="8,12,14,10"
+              Margin="0,0,0,10"
+              IsVisible="{Binding ShowStructuredMetadataEditors}"
               IsEnabled="{Binding HasSelectedFolder}">
           <Grid x:Name="TitleSuggestionsAnchor"
                 ColumnDefinitions="*,Auto">
@@ -342,14 +348,16 @@
                       ToolTip.Tip="Suggest 3 AI titles"
                       Content="AI"
                       Command="{Binding GenerateTitleSuggestionsCommand}" />
-              <Popup PlacementTarget="{Binding #EditorTitleAnchor}"
+              <Popup x:Name="TitleSuggestionsPopup"
+                     PlacementTarget="{Binding #EditorTitleAnchor}"
                      Placement="AnchorAndGravity"
                      PlacementAnchor="BottomLeft"
                      PlacementGravity="BottomRight"
                      VerticalOffset="6"
                      IsLightDismissEnabled="True"
                      IsOpen="{Binding IsTitleSuggestionsOpen, Mode=TwoWay}">
-                <Border Classes="sectionSurface"
+                <Border x:Name="TitleSuggestionsPopupContent"
+                        Classes="sectionSurface toolPopupSurface"
                         Width="{Binding #EditorTitleAnchor.Bounds.Width}"
                         MaxWidth="520"
                         MaxHeight="320"
@@ -357,9 +365,8 @@
                         BorderThickness="1"
                         CornerRadius="1"
                         BoxShadow="0 4 12 0 #40000000">
-                  <Grid RowDefinitions="Auto,Auto,Auto">
-                    <Border Grid.Row="0"
-                            Margin="4,2,4,6"
+                  <StackPanel VerticalAlignment="Top">
+                    <Border Margin="4,2,4,6"
                             Padding="4,2"
                             Background="{DynamicResource SurfaceRaisedBrush}"
                             CornerRadius="1">
@@ -367,8 +374,7 @@
                                  FontWeight="SemiBold"
                                  Text="AI title suggestions" />
                     </Border>
-                    <StackPanel Grid.Row="1"
-                                Spacing="4">
+                    <StackPanel Spacing="4">
                       <Button IsVisible="{Binding IsGeneratingTitleSuggestions}"
                               Classes="titleSuggestionButton"
                               HorizontalContentAlignment="Left"
@@ -386,15 +392,15 @@
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
                     </StackPanel>
-                    <Border Grid.Row="2"
-                            Margin="0,8,0,0"
+                    <Border Margin="0,8,0,0"
                             Padding="0,8,0,0"
                             BorderThickness="0,1,0,0"
                             BorderBrush="{DynamicResource BorderBrushBase}">
                       <Grid RowDefinitions="Auto,Auto,Auto"
                             ColumnDefinitions="*,Auto"
                             ColumnSpacing="8"
-                            RowSpacing="6">
+                            RowSpacing="6"
+                            VerticalAlignment="Top">
                         <TextBlock Grid.Row="0"
                                    Grid.ColumnSpan="2"
                                    Classes="sidebarFooterStatus"
@@ -422,7 +428,7 @@
                                    Text="Ctrl/Cmd+Enter to send." />
                       </Grid>
                     </Border>
-                  </Grid>
+                  </StackPanel>
                 </Border>
               </Popup>
             </Grid>
@@ -446,7 +452,7 @@
           </Grid>
         </Grid>
 
-         <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="8,0,14,14" BorderThickness="1">
+         <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="0" BorderThickness="1">
            <Grid>
               <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="{DynamicResource AppFontSizeLarge}" Text="Choose a folder to start writing markdown notes." TextWrapping="Wrap" />
              <ae:TextEditor Classes="editorTextBox"
