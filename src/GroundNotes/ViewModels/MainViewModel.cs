@@ -36,6 +36,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IChatViewModelFactory _chatViewModelFactory;
     private readonly INoteSearchService _noteSearchService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
+    private HashSet<DateTime> _calendarNoteDates = [];
     private readonly Guid _mutationOriginId = Guid.NewGuid();
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontFamilyOption> _allFonts =
@@ -92,6 +93,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _sidebarCollapsed;
 
     public string SidebarToggleIcon => SidebarCollapsed ? "›" : "‹";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CalendarPanelMaxHeight))]
+    [NotifyPropertyChangedFor(nameof(CalendarPanelOpacity))]
+    private bool _isCalendarExpanded;
+
+    [ObservableProperty]
+    private DateTime _displayedCalendarMonth = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasActiveDateFilter))]
+    [NotifyPropertyChangedFor(nameof(CalendarTriggerText))]
+    private DateTime? _selectedCalendarDate;
+
+    [ObservableProperty]
+    private IReadOnlyList<CalendarDayViewModel> _visibleCalendarDays = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CalendarPanelMaxHeight))]
+    private int _calendarWeekRowCount = 6;
 
     [ObservableProperty]
     private SortOption _selectedSortOption = SortOption.LastModified;
@@ -229,6 +250,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _noteMutationService.NoteMutated += OnNoteMutated;
 
         SortOptions = Enum.GetValues<SortOption>();
+        RefreshCalendarDays();
     }
 
     public event EventHandler? FocusEditorRequested;
@@ -250,6 +272,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool HasTitleSuggestions => TitleSuggestions.Count > 0;
 
     public bool CanEditTitleSuggestionsContext => !IsGeneratingTitleSuggestions;
+
+    public bool HasActiveDateFilter => SelectedCalendarDate is not null;
+
+    public double CalendarPanelMaxHeight => IsCalendarExpanded
+        ? CalendarPanelChromeHeight + CalendarWeekHeaderHeight + (CalendarWeekRowCount * CalendarDayRowHeight)
+        : 0;
+
+    public double CalendarPanelOpacity => IsCalendarExpanded ? 1 : 0;
+
+    public string CalendarHeaderText => DisplayedCalendarMonth.ToString("MMMM yyyy");
+
+    public IReadOnlyList<string> CalendarWeekdayHeaders { get; } = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    public string CalendarTriggerText => SelectedCalendarDate is DateTime date
+        ? $"Calendar · {date:yyyy-MM-dd}"
+        : "Calendar filter";
 
     public bool HasNotePickerResults => NotePickerResults.Count > 0;
 
@@ -299,6 +337,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool HasActiveTagFilter => !string.IsNullOrWhiteSpace(SelectedTag) && !string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal);
 
     partial void OnSelectedSortOptionChanged(SortOption value) => RefreshVisibleNotes();
+
+    partial void OnDisplayedCalendarMonthChanged(DateTime value)
+    {
+        OnPropertyChanged(nameof(CalendarHeaderText));
+        RefreshCalendarDays();
+    }
+
+    partial void OnSelectedCalendarDateChanged(DateTime? value)
+    {
+        RefreshVisibleNotes();
+        RefreshCalendarDays();
+    }
+
+    partial void OnIsCalendarExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CalendarPanelMaxHeight));
+        OnPropertyChanged(nameof(CalendarPanelOpacity));
+    }
 
     partial void OnNotePickerQueryChanged(string value)
     {
@@ -775,6 +831,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private async Task SetFolderAsync(string folderPath, bool focusEditorWhenReady = false)
     {
         Directory.CreateDirectory(folderPath);
+        SelectedCalendarDate = null;
+        DisplayedCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         NotesFolder = folderPath;
         await PersistSettingsAsync(settings => settings with { NotesFolder = folderPath });
         _fileWatcherService.Watch(folderPath);

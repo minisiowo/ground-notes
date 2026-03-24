@@ -126,44 +126,153 @@
                   Classes="sectionSurface"
                   BorderThickness="1"
                   Padding="2,2">
-            <ListBox x:Name="NotesListBox"
-                     HorizontalAlignment="Stretch"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                     ItemsSource="{Binding VisibleNotes}"
-                     SelectedItem="{Binding SelectedVisibleNote}">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="viewModels:NoteListItemViewModel">
-                  <Grid HorizontalAlignment="Stretch">
-                    <Border Classes="fileRow"
+            <Grid RowDefinitions="*,Auto,Auto">
+              <ListBox x:Name="NotesListBox"
+                       Grid.Row="0"
+                       HorizontalAlignment="Stretch"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                       ItemsSource="{Binding VisibleNotes}"
+                       SelectedItem="{Binding SelectedVisibleNote}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="viewModels:NoteListItemViewModel">
+                    <Grid HorizontalAlignment="Stretch">
+                      <Border Classes="fileRow"
+                              HorizontalAlignment="Stretch"
+                              Padding="8,5"
+                              BorderThickness="1">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Rename"
+                                      Command="{Binding #RootWindow.DataContext.StartRenameNoteCommand}"
+                                      CommandParameter="{Binding}" />
+                            <MenuItem Header="Delete"
+                                      Command="{Binding #RootWindow.DataContext.DeleteNoteCommand}"
+                                      CommandParameter="{Binding}" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
+                        <Grid>
+                          <TextBlock Classes="fileRowText"
+                                     IsVisible="{Binding IsRenaming, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+                                     Text="{Binding DisplayName}"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBox Classes="fileRowEditor"
+                                   IsVisible="{Binding IsRenaming}"
+                                   Text="{Binding RenameText}"
+                                   KeyDown="OnRenameTextBoxKeyDown"
+                                   LostFocus="OnRenameTextBoxLostFocus" />
+                        </Grid>
+                      </Border>
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+
+              <Button Grid.Row="1"
+                      Classes="calendarToggleButton"
+                      Margin="0,4,0,0"
+                      HorizontalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch"
+                      IsEnabled="{Binding HasSelectedFolder}"
+                      Command="{Binding ToggleCalendarCommand}">
+                <TextBlock Classes="metaText"
+                           Text="{Binding CalendarTriggerText}"
+                           VerticalAlignment="Center" />
+              </Button>
+
+              <Border Grid.Row="2"
+                      Classes="calendarPanel"
+                      MaxHeight="{Binding CalendarPanelMaxHeight}"
+                      Opacity="{Binding CalendarPanelOpacity}"
+                      ClipToBounds="True"
+                      IsEnabled="{Binding HasSelectedFolder}">
+                <Border.Transitions>
+                  <Transitions>
+                    <DoubleTransition Property="MaxHeight"
+                                      Duration="0:0:0.16"
+                                      Easing="CubicEaseOut" />
+                    <DoubleTransition Property="Opacity"
+                                      Duration="0:0:0.12"
+                                      Easing="CubicEaseOut" />
+                  </Transitions>
+                </Border.Transitions>
+                <StackPanel Margin="6"
+                            Spacing="8">
+                  <Grid RowDefinitions="Auto,Auto"
+                        ColumnDefinitions="Auto,*,Auto"
+                        RowSpacing="6"
+                        VerticalAlignment="Center">
+                    <Button Classes="calendarNavButton"
+                            Command="{Binding ShowPreviousCalendarMonthCommand}"
+                            Content="‹" />
+                    <TextBlock Grid.Column="1"
+                               Classes="titleBarText"
+                               Margin="8,0"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               TextAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               Text="{Binding CalendarHeaderText}" />
+                    <Button Grid.Column="2"
+                            Classes="calendarNavButton"
+                            Command="{Binding ShowNextCalendarMonthCommand}"
+                            Content="›" />
+                    <Button Grid.Row="1"
+                            Grid.ColumnSpan="3"
+                            Classes="calendarTodayButton"
                             HorizontalAlignment="Stretch"
-                            Padding="8,5"
-                            BorderThickness="1">
-                      <Border.ContextMenu>
-                        <ContextMenu>
-                          <MenuItem Header="Rename"
-                                    Command="{Binding #RootWindow.DataContext.StartRenameNoteCommand}"
-                                    CommandParameter="{Binding}" />
-                          <MenuItem Header="Delete"
-                                    Command="{Binding #RootWindow.DataContext.DeleteNoteCommand}"
-                                    CommandParameter="{Binding}" />
-                        </ContextMenu>
-                      </Border.ContextMenu>
-                      <Grid>
-                        <TextBlock Classes="fileRowText"
-                                   IsVisible="{Binding IsRenaming, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
-                                   Text="{Binding DisplayName}"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBox Classes="fileRowEditor"
-                                 IsVisible="{Binding IsRenaming}"
-                                 Text="{Binding RenameText}"
-                                 KeyDown="OnRenameTextBoxKeyDown"
-                                 LostFocus="OnRenameTextBoxLostFocus" />
-                      </Grid>
-                    </Border>
+                            Command="{Binding JumpCalendarToTodayCommand}"
+                            Content="Today" />
                   </Grid>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
+
+                  <ItemsControl ItemsSource="{Binding CalendarWeekdayHeaders}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate>
+                        <TextBlock Classes="sidebarFooterStatus"
+                                   HorizontalAlignment="Center"
+                                   Text="{Binding}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <ItemsControl ItemsSource="{Binding VisibleCalendarDays}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <UniformGrid Columns="7" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="viewModels:CalendarDayViewModel">
+                        <Button Classes="calendarDayButton"
+                                Classes.selected="{Binding IsSelected}"
+                                Classes.today="{Binding IsToday}"
+                                Classes.otherMonth="{Binding IsCurrentMonth, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
+                                Classes.hasNotes="{Binding HasNotes}"
+                                Command="{Binding #RootWindow.DataContext.SelectCalendarDayCommand}"
+                                CommandParameter="{Binding}">
+                          <Grid RowDefinitions="Auto,Auto"
+                                HorizontalAlignment="Stretch"
+                                VerticalAlignment="Center">
+                            <TextBlock Classes="calendarDayText"
+                                       HorizontalAlignment="Center"
+                                       Text="{Binding DayNumberText}" />
+                            <Border Grid.Row="1"
+                                    Classes="calendarDayDot"
+                                    IsVisible="{Binding HasNotes}"
+                                    HorizontalAlignment="Center" />
+                          </Grid>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </Grid>
           </Border>
 
           <TextBlock Grid.Row="6"
@@ -172,12 +281,18 @@
                      Text="{Binding FooterStatusText}"
                      TextWrapping="Wrap" />
 
-          <Button Grid.Row="7"
-                  Margin="0,8,0,0"
-                  IsVisible="{Binding HasActiveTagFilter}"
-                  Command="{Binding ClearTagFilterCommand}"
-                  HorizontalAlignment="Stretch"
-                  Content="Clear Tag Filter" />
+          <StackPanel Grid.Row="7"
+                      Margin="0,8,0,0"
+                      Spacing="8">
+            <Button IsVisible="{Binding HasActiveDateFilter}"
+                    Command="{Binding ClearDateFilterCommand}"
+                    HorizontalAlignment="Stretch"
+                    Content="Clear Date Filter" />
+            <Button IsVisible="{Binding HasActiveTagFilter}"
+                    Command="{Binding ClearTagFilterCommand}"
+                    HorizontalAlignment="Stretch"
+                    Content="Clear Tag Filter" />
+          </StackPanel>
         </Grid>
       </Border>
 

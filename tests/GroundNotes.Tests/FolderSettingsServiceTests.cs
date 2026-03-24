@@ -170,13 +170,14 @@ public sealed class FolderSettingsServiceTests : IDisposable
             "JetBrainsMono",
             "Bold",
             "Nord",
-            new WindowLayout(1200, 800, 50, 60, true, 320, false),
+            new WindowLayout(1200, 800, 50, 60, true, 320, false, true),
             ai));
 
         var asyncSettings = await _service.GetSettingsAsync();
         var syncSettings = _service.GetSettingsSync();
 
         Assert.Equal(asyncSettings, syncSettings);
+        Assert.True(syncSettings.WindowLayout?.SidebarCalendarExpanded);
     }
 
     public void Dispose()

@@ -35,4 +35,12 @@ public sealed record AppSettings(
     WindowLayout? WindowLayout,
     AiSettings AiSettings);
 
-public sealed record WindowLayout(double Width, double Height, double X, double Y, bool IsMaximized, double? SidebarWidth = null, bool? SidebarCollapsed = null);
+public sealed record WindowLayout(
+    double Width,
+    double Height,
+    double X,
+    double Y,
+    bool IsMaximized,
+    double? SidebarWidth = null,
+    bool? SidebarCollapsed = null,
+    bool? SidebarCalendarExpanded = null);

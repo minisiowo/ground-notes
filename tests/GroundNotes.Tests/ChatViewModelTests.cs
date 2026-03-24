@@ -406,7 +406,7 @@ public sealed class ChatViewModelTests
             return Task.CompletedTask;
         }
 
-        public IReadOnlyList<NoteSummary> QueryNotes(IEnumerable<NoteSummary> notes, string searchText, string? selectedTag, SortOption sortOption)
+        public IReadOnlyList<NoteSummary> QueryNotes(IEnumerable<NoteSummary> notes, string searchText, string? selectedTag, DateTime? selectedDate, SortOption sortOption)
             => notes.ToList();
 
         public IReadOnlyList<NoteSummary> QueryNotesForPicker(IEnumerable<NoteSummary> notes, string searchText, int maxResults)

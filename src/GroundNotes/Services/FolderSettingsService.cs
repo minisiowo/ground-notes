@@ -142,7 +142,8 @@ public sealed class FolderSettingsService : ISettingsService
                     record.WindowLayout.Y,
                     record.WindowLayout.IsMaximized,
                     record.WindowLayout.SidebarWidth,
-                    record.WindowLayout.SidebarCollapsed),
+                    record.WindowLayout.SidebarCollapsed,
+                    record.WindowLayout.SidebarCalendarExpanded),
             new AiSettings(
                 record.OpenAiApiKey ?? string.Empty,
                 record.OpenAiModel ?? string.Empty,
@@ -177,7 +178,8 @@ public sealed class FolderSettingsService : ISettingsService
                     Y = settings.WindowLayout.Y,
                     IsMaximized = settings.WindowLayout.IsMaximized,
                     SidebarWidth = settings.WindowLayout.SidebarWidth,
-                    SidebarCollapsed = settings.WindowLayout.SidebarCollapsed
+                    SidebarCollapsed = settings.WindowLayout.SidebarCollapsed,
+                    SidebarCalendarExpanded = settings.WindowLayout.SidebarCalendarExpanded
                 },
             OpenAiApiKey = settings.AiSettings.ApiKey,
             OpenAiModel = settings.AiSettings.DefaultModel,
@@ -258,5 +260,6 @@ public sealed class FolderSettingsService : ISettingsService
         public bool IsMaximized { get; set; }
         public double? SidebarWidth { get; set; }
         public bool? SidebarCollapsed { get; set; }
+        public bool? SidebarCalendarExpanded { get; set; }
     }
 }

@@ -83,6 +83,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _allNotes.Add(summary);
         }
 
+        RefreshCalendarNoteDates();
+        RefreshCalendarDays();
         RefreshAvailableTags();
         RefreshVisibleNotes();
 
@@ -297,6 +299,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SuppressWatcher();
             await _notesRepository.DeleteNoteIfExistsAsync(CurrentNote.FilePath, cancellationToken);
             RemoveSummary(CurrentNote.FilePath);
+            RefreshCalendarNoteDates();
+            RefreshCalendarDays();
             RefreshAvailableTags();
             RefreshVisibleNotes();
             ClearEditor();
@@ -363,7 +367,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             var effectiveTag = string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal) ? null : SelectedTag;
             var currentItems = VisibleNotes.ToDictionary(note => note.FilePath, StringComparer.OrdinalIgnoreCase);
-            var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedSortOption);
+            var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedCalendarDate, SelectedSortOption);
             var nextItems = nextNotes.Select(note =>
             {
                 if (!currentItems.TryGetValue(note.FilePath, out var existing))
@@ -452,16 +456,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void ReplaceSummary(string previousPath, NoteSummary summary)
     {
-        RemoveSummary(previousPath);
+        RemoveSummary(previousPath, refreshCalendarNoteDates: false);
         _allNotes.Add(summary);
+        RefreshCalendarNoteDates();
     }
 
-    private void RemoveSummary(string filePath)
+    private void RemoveSummary(string filePath, bool refreshCalendarNoteDates = true)
     {
         var existing = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
         if (existing is not null)
         {
             _allNotes.Remove(existing);
+            if (refreshCalendarNoteDates)
+            {
+                RefreshCalendarNoteDates();
+            }
         }
     }
 
@@ -538,6 +547,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         ReplaceSummary(e.PreviousPath, BuildSummary(e.Document));
+        RefreshCalendarDays();
         RefreshAvailableTags();
         RefreshVisibleNotes();
 
@@ -633,6 +643,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         RefreshAvailableTags();
         RefreshVisibleNotes();
+        RefreshCalendarDays();
 
         if (refreshFallback)
         {
@@ -681,6 +692,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             RefreshAvailableTags();
             RefreshVisibleNotes();
+            RefreshCalendarDays();
         }
 
         var deletedOpenNote = CurrentNote is not null && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase);
