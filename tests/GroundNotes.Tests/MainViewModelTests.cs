@@ -259,6 +259,122 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SelectCalendarDayCommand_FiltersByCreatedDate_AndSecondClickClearsFilter()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("march-9.md", "march-9", "release planning", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("march-10.md", "march-10", "postmortem", createdAt: new DateTime(2026, 3, 10, 9, 15, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.DisplayedCalendarMonth = new DateTime(2026, 3, 1);
+
+        var march9 = Assert.Single(vm.VisibleCalendarDays.Where(day => day.Date == new DateTime(2026, 3, 9)));
+
+        vm.SelectCalendarDayCommand.Execute(march9);
+
+        Assert.Equal(new DateTime(2026, 3, 9), vm.SelectedCalendarDate);
+        Assert.Equal("march-9", Assert.Single(vm.VisibleNotes).DisplayName);
+
+        vm.SelectCalendarDayCommand.Execute(march9);
+
+        Assert.Null(vm.SelectedCalendarDate);
+        Assert.Equal(2, vm.VisibleNotes.Count);
+    }
+
+    [Fact]
+    public async Task DateFilter_CombinesWithSearch()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("release-ship-plan.md", "release-ship-plan", "ship checklist", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("incident-ship-log.md", "incident-ship-log", "ship checklist", createdAt: new DateTime(2026, 3, 10, 9, 15, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.DisplayedCalendarMonth = new DateTime(2026, 3, 1);
+        vm.SearchText = "ship";
+
+        var march10 = Assert.Single(vm.VisibleCalendarDays.Where(day => day.Date == new DateTime(2026, 3, 10)));
+
+        vm.SelectCalendarDayCommand.Execute(march10);
+
+        var match = Assert.Single(vm.VisibleNotes);
+        Assert.Equal("incident-ship-log", match.DisplayName);
+    }
+
+    [Fact]
+    public async Task VisibleCalendarDays_UseAllNotesInsteadOfFilteredVisibleNotes()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("unique-focus.md", "unique-focus", "unique search token", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("hidden.md", "hidden", "something else", createdAt: new DateTime(2026, 3, 10, 9, 15, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.DisplayedCalendarMonth = new DateTime(2026, 3, 1);
+        vm.SearchText = "unique";
+
+        var march10 = Assert.Single(vm.VisibleCalendarDays.Where(day => day.Date == new DateTime(2026, 3, 10)));
+
+        Assert.True(march10.HasNotes);
+        Assert.Single(vm.VisibleNotes);
+    }
+
+    [Fact]
+    public async Task SearchTextChange_DoesNotRebuildCalendarDays_WhenNotesAreUnchanged()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("release-alpha.md", "release-alpha", "release notes", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "incident report", createdAt: new DateTime(2026, 3, 10, 9, 15, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.DisplayedCalendarMonth = new DateTime(2026, 3, 1);
+
+        var before = vm.VisibleCalendarDays;
+
+        vm.SearchText = "release";
+
+        Assert.Same(before, vm.VisibleCalendarDays);
+        Assert.Single(vm.VisibleNotes);
+    }
+
+    [Fact]
+    public async Task DisplayedCalendarMonth_UsesActualWeekCountForVisibleDays()
+    {
+        using var vm = await CreateViewModelAsync();
+
+        vm.DisplayedCalendarMonth = new DateTime(2021, 2, 1);
+        Assert.Equal(28, vm.VisibleCalendarDays.Count);
+
+        vm.DisplayedCalendarMonth = new DateTime(2026, 3, 1);
+        Assert.Equal(42, vm.VisibleCalendarDays.Count);
+
+        vm.DisplayedCalendarMonth = new DateTime(2026, 4, 1);
+        Assert.Equal(35, vm.VisibleCalendarDays.Count);
+    }
+
+    [Fact]
     public async Task ApplySettingsPreview_AppliesCodeFontImmediately()
     {
         var appearanceService = new FakeAppAppearanceService();
@@ -346,6 +462,23 @@ public sealed class MainViewModelTests : IDisposable
 
             await Task.Delay(20);
         }
+    }
+
+    private async Task WriteNoteAsync(string fileName, string title, string body, DateTime createdAt, string[]? tags = null)
+    {
+        tags ??= [];
+        var content =
+            $"""
+            ---
+            title: {title}
+            tags: [{string.Join(", ", tags)}]
+            createdAt: {createdAt:O}
+            updatedAt: {createdAt.AddMinutes(1):O}
+            ---
+            {body}
+            """;
+
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, fileName), content);
     }
 
     public void Dispose()

@@ -16,7 +16,7 @@ public interface INotesRepository
 
     Task DeleteNoteIfExistsAsync(string filePath, CancellationToken cancellationToken = default);
 
-    IReadOnlyList<NoteSummary> QueryNotes(IEnumerable<NoteSummary> notes, string searchText, string? selectedTag, SortOption sortOption);
+    IReadOnlyList<NoteSummary> QueryNotes(IEnumerable<NoteSummary> notes, string searchText, string? selectedTag, DateTime? selectedDate, SortOption sortOption);
 
     IReadOnlyList<NoteSummary> QueryNotesForPicker(IEnumerable<NoteSummary> notes, string searchText, int maxResults);
 }

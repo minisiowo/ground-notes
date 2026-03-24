@@ -203,6 +203,74 @@
     <Setter Property="HorizontalContentAlignment" Value="Left" />
   </Style>
 
+  <Style Selector="Button.calendarToggleButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="6,7" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="Button.calendarToggleButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
+  <Style Selector="Button.calendarToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Button.calendarToggleButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Button.calendarNavButton">
+    <Setter Property="MinWidth" Value="28" />
+    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+  </Style>
+
+  <Style Selector="Button.calendarTodayButton">
+    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="Padding" Value="8,2" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton">
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="MinHeight" Value="26" />
+    <Setter Property="Margin" Value="1" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton.today /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource SecondaryTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton.selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+  </Style>
+
   <!-- ══ TextBox ═════════════════════════════════════════════ -->
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
@@ -660,6 +728,41 @@
   <Style Selector="TextBlock.pickerPreviewText">
     <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
     <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.calendarDayText">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton.today TextBlock.calendarDayText">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton.otherMonth TextBlock.calendarDayText">
+    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton.selected TextBlock.calendarDayText">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Border.calendarPanel">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="Padding" Value="0,4,0,4" />
+  </Style>
+
+  <Style Selector="Border.calendarDayDot">
+    <Setter Property="Width" Value="4" />
+    <Setter Property="Height" Value="4" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="Background" Value="{DynamicResource FocusBorderBrush}" />
+    <Setter Property="Margin" Value="0,2,0,0" />
+  </Style>
+
+  <Style Selector="Button.calendarDayButton.otherMonth Border.calendarDayDot">
+    <Setter Property="Background" Value="{DynamicResource MutedTextBrush}" />
   </Style>
 
   <Style Selector="ListBoxItem:pointerover Border.fileRow">

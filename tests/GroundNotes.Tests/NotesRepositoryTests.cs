@@ -224,7 +224,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "deploy prod", "prod", SortOption.Title);
+        var queried = _repository.QueryNotes(notes, "deploy prod", "prod", null, SortOption.Title);
 
         Assert.Equal(new[] { "deploy-checklist", "incident-log" }, queried.Select(note => note.Title).ToArray());
     }
@@ -250,7 +250,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "deploy", null, SortOption.Title);
+        var queried = _repository.QueryNotes(notes, "deploy", null, null, SortOption.Title);
 
         Assert.Equal(new[] { "deploy-beta", "deploy-zeta" }, queried.Select(note => note.Title).ToArray());
     }
@@ -280,7 +280,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "roadmap", null, SortOption.LastModified);
+        var queried = _repository.QueryNotes(notes, "roadmap", null, null, SortOption.LastModified);
 
         Assert.Equal(new[] { "roadmap", "weekly-roadmap-notes", "project-roadmap" }, queried.Select(note => note.Title).ToArray());
     }
@@ -306,7 +306,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, string.Empty, null, SortOption.Title);
+        var queried = _repository.QueryNotes(notes, string.Empty, null, null, SortOption.Title);
 
         Assert.Equal(new[] { "Alpha", "Zulu" }, queried.Select(note => note.Title).ToArray());
     }
@@ -325,9 +325,36 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "roadmap", null, SortOption.LastModified);
+        var queried = _repository.QueryNotes(notes, "roadmap", null, null, SortOption.LastModified);
 
         Assert.Empty(queried);
+    }
+
+    [Fact]
+    public void QueryNotes_FiltersByCreatedDateIgnoringTime()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "morning.txt"),
+                Title = "morning",
+                CreatedAt = new DateTime(2026, 3, 9, 7, 33, 0),
+                UpdatedAt = new DateTime(2026, 3, 9, 8, 0, 0)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "evening.txt"),
+                Title = "evening",
+                CreatedAt = new DateTime(2026, 3, 10, 19, 10, 0),
+                UpdatedAt = new DateTime(2026, 3, 10, 19, 20, 0)
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, string.Empty, null, new DateTime(2026, 3, 9, 23, 59, 0), SortOption.Title);
+
+        var match = Assert.Single(queried);
+        Assert.Equal("morning", match.Title);
     }
 
     [Fact]

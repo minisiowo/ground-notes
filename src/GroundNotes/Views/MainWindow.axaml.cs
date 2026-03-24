@@ -190,6 +190,11 @@ public partial class MainWindow : Window
             vm.SidebarCollapsed = true;
         }
 
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.IsCalendarExpanded = layout.SidebarCalendarExpanded == true;
+        }
+
         if (layout.IsMaximized)
         {
             WindowState = WindowState.Maximized;
@@ -267,7 +272,8 @@ public partial class MainWindow : Window
             ? _sidebarWidthBeforeCollapse
             : SidebarCol.Width.Value;
 
-        return new WindowLayout(width, height, x, y, isMaximized, sidebarWidth, sidebarCollapsed);
+        var isCalendarExpanded = vm?.IsCalendarExpanded ?? false;
+        return new WindowLayout(width, height, x, y, isMaximized, sidebarWidth, sidebarCollapsed, isCalendarExpanded);
     }
 
     private double? _lastNormalWidth;
