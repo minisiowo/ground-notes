@@ -246,7 +246,7 @@
                        FontFamily="{DynamicResource TerminalFont}"
                        FontSize="{Binding EditorFontSize}"
                         Foreground="{DynamicResource PlaceholderTextBrush}"
-                        Text="Start typing. A note will be created automatically on the first keystroke."
+                        Text="Click here to start typing. A note will be created automatically when you first edit the body."
                         TextWrapping="Wrap" />
              <Popup x:Name="SlashCommandPopup"
                     IsOpen="False"
