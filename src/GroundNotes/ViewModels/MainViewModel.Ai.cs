@@ -12,6 +12,108 @@ namespace GroundNotes.ViewModels;
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
     [RelayCommand]
+    private async Task GenerateTitleSuggestionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsAiEnabled)
+        {
+            StatusMessage = "AI is disabled in settings.";
+            return;
+        }
+
+        if (!HasSelectedFolder || CurrentNote is null)
+        {
+            StatusMessage = "Open a note first.";
+            return;
+        }
+
+        if (IsAiBusy || IsGeneratingTitleSuggestions)
+        {
+            StatusMessage = "AI is already processing a prompt.";
+            return;
+        }
+
+        UpdateCurrentNoteFromEditor();
+        if (string.IsNullOrWhiteSpace(CurrentNote.Body)
+            && string.IsNullOrWhiteSpace(CurrentNote.Title)
+            && CurrentNote.Tags.Count == 0)
+        {
+            StatusMessage = "Add some note content first.";
+            return;
+        }
+
+        IsGeneratingTitleSuggestions = true;
+        StatusMessage = "Generating title suggestions...";
+
+        try
+        {
+            var suggestions = await _aiTitleSuggestionService.GetSuggestionsAsync(
+                CurrentNote,
+                BuildAiSettings(),
+                TitleSuggestionsContext,
+                cancellationToken);
+            TitleSuggestions = suggestions;
+            IsTitleSuggestionsOpen = TitleSuggestions.Count > 0;
+            StatusMessage = TitleSuggestions.Count > 0
+                ? $"Generated {TitleSuggestions.Count} title suggestions."
+                : "AI returned no usable title suggestions.";
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "AI request canceled.";
+        }
+        catch (AiServiceException ex)
+        {
+            StatusMessage = ex.Message;
+        }
+        catch (HttpRequestException)
+        {
+            StatusMessage = "AI request failed.";
+        }
+        finally
+        {
+            IsGeneratingTitleSuggestions = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ApplyTitleSuggestionAsync(string? suggestion)
+    {
+        if (string.IsNullOrWhiteSpace(suggestion) || CurrentNote is null || !HasSelectedFolder)
+        {
+            return;
+        }
+
+        UpdateCurrentNoteFromEditor();
+        var normalizedSuggestion = suggestion.Trim();
+        if (string.Equals(CurrentNote.Title, normalizedSuggestion, StringComparison.Ordinal))
+        {
+            DismissTitleSuggestions(clearContext: true);
+            return;
+        }
+
+        CancelScheduledSave();
+        CurrentNote.Title = normalizedSuggestion;
+
+        NoteDocument renamed;
+        SuppressWatcher();
+        using (BeginMutationScope())
+        {
+            renamed = await _noteMutationService.SaveAsync(NotesFolder, CurrentNote, CancellationToken.None);
+        }
+
+        DismissTitleSuggestions(clearContext: true);
+        ApplyDocumentToEditor(renamed);
+        SelectSummaryByPath(renamed.FilePath);
+        StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
+    }
+
+    [RelayCommand]
+    private void CloseTitleSuggestions()
+    {
+        DismissTitleSuggestions(clearContext: false);
+    }
+
+    [RelayCommand]
     private async Task OpenChatAsync()
     {
         if (!HasSelectedFolder)
@@ -123,5 +225,28 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var result = await _aiPromptCatalogService.LoadPromptsAsync(HasSelectedFolder ? NotesFolder : null);
         AiPrompts = result.Prompts;
         return result;
+    }
+
+    private void ClearTitleSuggestions() => DismissTitleSuggestions(clearContext: false);
+
+    private void DismissTitleSuggestions(bool clearContext)
+    {
+        if (TitleSuggestions.Count == 0 && !IsTitleSuggestionsOpen)
+        {
+            if (clearContext)
+            {
+                TitleSuggestionsContext = string.Empty;
+            }
+
+            return;
+        }
+
+        TitleSuggestions = [];
+        IsTitleSuggestionsOpen = false;
+
+        if (clearContext)
+        {
+            TitleSuggestionsContext = string.Empty;
+        }
     }
 }

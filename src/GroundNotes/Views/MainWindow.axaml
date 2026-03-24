@@ -43,7 +43,14 @@
                 Background="Transparent"
                 Padding="8,0"
                 VerticalAlignment="Center"
-                HorizontalAlignment="Stretch" />
+                HorizontalAlignment="Stretch">
+          <TextBlock Classes="metaText"
+                     VerticalAlignment="Center"
+                     HorizontalAlignment="Stretch"
+                     Text="{Binding NotesFolder}"
+                     TextWrapping="NoWrap"
+                     TextTrimming="CharacterEllipsis" />
+        </Border>
         <Button Grid.Column="2"
                 Classes="titleBarButton"
                 Click="OnMinimizeClick"
@@ -91,7 +98,10 @@
                   Content="Ask AI (Chat)"
                   Command="{Binding OpenChatCommand}" />
 
-          <TextBlock Grid.Row="2" Classes="metaText" Margin="0,0,0,10" Text="{Binding NotesFolder}" TextWrapping="Wrap" />
+          <Border Grid.Row="2"
+                  Margin="0,0,0,10"
+                  BorderThickness="0,1,0,0"
+                  BorderBrush="{DynamicResource BorderBrushBase}" />
 
           <TextBox x:Name="SidebarSearchTextBox"
                    Grid.Row="3"
@@ -190,21 +200,117 @@
               ColumnDefinitions="3*,*"
               Margin="8,12,14,10"
               IsEnabled="{Binding HasSelectedFolder}">
-          <Grid>
-            <TextBox x:Name="EditorTitleTextBox"
-                     Classes="editorFont"
-                     Text="{Binding EditorTitle}"
-                     VerticalContentAlignment="Center" />
-            <TextBlock Margin="8,0"
-                       Classes="editorPlaceholderText"
-                       IsHitTestVisible="False"
-                       IsVisible="{Binding ShowTitleWatermark}"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource TerminalFont}"
-                       FontSize="{DynamicResource AppFontSize}"
-                       Foreground="{DynamicResource PlaceholderTextBrush}"
-                       Text="Title"
-                       TextWrapping="NoWrap" />
+          <Grid x:Name="TitleSuggestionsAnchor"
+                ColumnDefinitions="*,Auto">
+            <Grid x:Name="EditorTitleAnchor">
+              <TextBox x:Name="EditorTitleTextBox"
+                       Classes="editorFont"
+                       Text="{Binding EditorTitle}"
+                       VerticalContentAlignment="Center" />
+              <TextBlock Margin="8,0"
+                         Classes="editorPlaceholderText"
+                         IsHitTestVisible="False"
+                         IsVisible="{Binding ShowTitleWatermark}"
+                         VerticalAlignment="Center"
+                         FontFamily="{DynamicResource TerminalFont}"
+                         FontSize="{DynamicResource AppFontSize}"
+                         Foreground="{DynamicResource PlaceholderTextBrush}"
+                         Text="Title"
+                         TextWrapping="NoWrap" />
+            </Grid>
+            <Grid Grid.Column="1"
+                  Margin="8,0,0,0">
+              <Button x:Name="GenerateTitleSuggestionsButton"
+                      Classes="compactIconButton"
+                      Width="32"
+                      Padding="0"
+                      ToolTip.Tip="Suggest 3 AI titles"
+                      Content="AI"
+                      Command="{Binding GenerateTitleSuggestionsCommand}" />
+              <Popup PlacementTarget="{Binding #EditorTitleAnchor}"
+                     Placement="AnchorAndGravity"
+                     PlacementAnchor="BottomLeft"
+                     PlacementGravity="BottomRight"
+                     VerticalOffset="6"
+                     IsLightDismissEnabled="True"
+                     IsOpen="{Binding IsTitleSuggestionsOpen, Mode=TwoWay}">
+                <Border Classes="sectionSurface"
+                        Width="{Binding #EditorTitleAnchor.Bounds.Width}"
+                        MaxWidth="520"
+                        MaxHeight="320"
+                        Padding="6"
+                        BorderThickness="1"
+                        CornerRadius="1"
+                        BoxShadow="0 4 12 0 #40000000">
+                  <Grid RowDefinitions="Auto,Auto,Auto">
+                    <Border Grid.Row="0"
+                            Margin="4,2,4,6"
+                            Padding="4,2"
+                            Background="{DynamicResource SurfaceRaisedBrush}"
+                            CornerRadius="1">
+                      <TextBlock Classes="sidebarFooterStatus"
+                                 FontWeight="SemiBold"
+                                 Text="AI title suggestions" />
+                    </Border>
+                    <StackPanel Grid.Row="1"
+                                Spacing="4">
+                      <Button IsVisible="{Binding IsGeneratingTitleSuggestions}"
+                              Classes="titleSuggestionButton"
+                              HorizontalContentAlignment="Left"
+                              Content="Generating..."
+                              IsEnabled="False" />
+                      <ItemsControl ItemsSource="{Binding TitleSuggestions}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="x:String">
+                            <Button Classes="titleSuggestionButton"
+                                    HorizontalContentAlignment="Left"
+                                    Command="{Binding #RootWindow.DataContext.ApplyTitleSuggestionCommand}"
+                                    CommandParameter="{Binding .}"
+                                    Content="{Binding .}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                    <Border Grid.Row="2"
+                            Margin="0,8,0,0"
+                            Padding="0,8,0,0"
+                            BorderThickness="0,1,0,0"
+                            BorderBrush="{DynamicResource BorderBrushBase}">
+                      <Grid RowDefinitions="Auto,Auto,Auto"
+                            ColumnDefinitions="*,Auto"
+                            ColumnSpacing="8"
+                            RowSpacing="6">
+                        <TextBlock Grid.Row="0"
+                                   Grid.ColumnSpan="2"
+                                   Classes="sidebarFooterStatus"
+                                   Text="Add a hint if you want the next titles to lean in a specific direction." />
+                        <TextBox x:Name="TitleSuggestionsContextTextBox"
+                                 Grid.Row="1"
+                                 Classes="editorFont"
+                                 MinHeight="30"
+                                 AcceptsReturn="False"
+                                 Text="{Binding TitleSuggestionsContext}"
+                                 VerticalContentAlignment="Center"
+                                 KeyDown="OnTitleSuggestionsContextTextBoxKeyDown"
+                                 IsEnabled="{Binding CanEditTitleSuggestionsContext}" />
+                        <Button Grid.Row="1"
+                                Grid.Column="1"
+                                Classes="secondaryButton"
+                                MinWidth="72"
+                                VerticalAlignment="Bottom"
+                                Content="Send"
+                                IsEnabled="{Binding CanEditTitleSuggestionsContext}"
+                                Command="{Binding GenerateTitleSuggestionsCommand}" />
+                        <TextBlock Grid.Row="2"
+                                   Grid.ColumnSpan="2"
+                                   Classes="sidebarFooterStatus"
+                                   Text="Ctrl/Cmd+Enter to send." />
+                      </Grid>
+                    </Border>
+                  </Grid>
+                </Border>
+              </Popup>
+            </Grid>
           </Grid>
           <Grid Grid.Column="1"
                 Margin="8,0,0,0">

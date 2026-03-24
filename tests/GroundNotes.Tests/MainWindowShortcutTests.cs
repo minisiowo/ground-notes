@@ -71,4 +71,18 @@ public sealed class MainWindowShortcutTests
 
         Assert.Equal(expected, result);
     }
+
+    [Theory]
+    [InlineData(Key.Enter, KeyModifiers.Control, true)]
+    [InlineData(Key.Enter, KeyModifiers.Meta, true)]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    [InlineData(Key.Enter, KeyModifiers.Alt, false)]
+    [InlineData(Key.Enter, KeyModifiers.None, false)]
+    [InlineData(Key.Tab, KeyModifiers.Control, false)]
+    public void IsAiSendGesture_MatchesExpectedKeys(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = AiSendShortcut.IsSendGesture(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
 }

@@ -110,6 +110,155 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateTitleSuggestionsCommand_LoadsSuggestionsForCurrentNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "note.md");
+        await File.WriteAllTextAsync(notePath, "body");
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["project-outline", "meeting-summary", "deployment-checklist"]
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService, aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        Assert.Equal(["project-outline", "meeting-summary", "deployment-checklist"], vm.TitleSuggestions);
+        Assert.True(vm.IsTitleSuggestionsOpen);
+        Assert.NotNull(aiTitleSuggestionService.LastDocument);
+        Assert.Equal("note", aiTitleSuggestionService.LastDocument!.Title);
+        Assert.Equal("body", aiTitleSuggestionService.LastDocument.Body);
+        Assert.Equal(string.Empty, aiTitleSuggestionService.LastAdditionalContext);
+    }
+
+    [Fact]
+    public async Task GenerateTitleSuggestionsCommand_PassesAdditionalContextAndKeepsItForNextRound()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "note.md");
+        await File.WriteAllTextAsync(notePath, "body");
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["project-outline", "meeting-summary", "deployment-checklist"]
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService, aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        vm.TitleSuggestionsContext = "Focus on release planning and make it shorter.";
+
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        Assert.Equal("Focus on release planning and make it shorter.", aiTitleSuggestionService.LastAdditionalContext);
+        Assert.Equal("Focus on release planning and make it shorter.", vm.TitleSuggestionsContext);
+    }
+
+    [Fact]
+    public async Task ApplyTitleSuggestionCommand_RenamesCurrentNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "note.md");
+        await File.WriteAllTextAsync(notePath, "body");
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["project-outline", "meeting-summary", "deployment-checklist"]
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService, aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        await vm.ApplyTitleSuggestionCommand.ExecuteAsync("project-outline");
+
+        Assert.Equal("project-outline", vm.CurrentNote?.Title);
+        Assert.Equal("project-outline", vm.EditorTitle);
+        Assert.False(vm.IsTitleSuggestionsOpen);
+        Assert.Empty(vm.TitleSuggestions);
+        Assert.Equal(string.Empty, vm.TitleSuggestionsContext);
+        Assert.Contains(vm.VisibleNotes, note => string.Equals(note.DisplayName, "project-outline", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ChangingSelectedNote_ClearsTitleSuggestionContext()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "first.md"), "first body");
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "second.md"), "second body");
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var first = Assert.Single(vm.VisibleNotes.Where(note => string.Equals(note.DisplayName, "first", StringComparison.Ordinal)));
+        var second = Assert.Single(vm.VisibleNotes.Where(note => string.Equals(note.DisplayName, "second", StringComparison.Ordinal)));
+
+        vm.SelectedVisibleNote = first;
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        vm.TitleSuggestionsContext = "Prefer concise release note naming.";
+
+        vm.SelectedVisibleNote = second;
+        await WaitForConditionAsync(() => string.Equals(vm.CurrentNote?.FilePath, second.FilePath, StringComparison.OrdinalIgnoreCase));
+
+        Assert.Equal(string.Empty, vm.TitleSuggestionsContext);
+    }
+
+    [Fact]
+    public async Task GenerateTitleSuggestionsCommand_DoesNotRunWhenAiDisabled()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "note.md");
+        await File.WriteAllTextAsync(notePath, "body");
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+        var settingsService = new FakeSettingsService();
+        await settingsService.SetAiSettingsAsync(new AiSettings("secret", "gpt-5.4-mini", false));
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["project-outline", "meeting-summary", "deployment-checklist"]
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService, settingsService: settingsService, aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.TitleSuggestions);
+        Assert.Equal("AI is disabled in settings.", vm.StatusMessage);
+        Assert.Null(aiTitleSuggestionService.LastDocument);
+    }
+
+    [Fact]
     public async Task ApplySettingsPreview_AppliesCodeFontImmediately()
     {
         var appearanceService = new FakeAppAppearanceService();
@@ -150,15 +299,18 @@ public sealed class MainViewModelTests : IDisposable
         FakeWorkspaceDialogService? dialogService = null,
         FakeChatViewModelFactory? chatViewModelFactory = null,
         FakeAppAppearanceService? appearanceService = null,
-        FakeEditorLayoutState? editorLayoutState = null)
+        FakeEditorLayoutState? editorLayoutState = null,
+        FakeSettingsService? settingsService = null,
+        FakeAiTitleSuggestionService? aiTitleSuggestionService = null)
     {
         dialogService ??= new FakeWorkspaceDialogService();
         chatViewModelFactory ??= new FakeChatViewModelFactory();
         appearanceService ??= new FakeAppAppearanceService();
         editorLayoutState ??= new FakeEditorLayoutState();
+        settingsService ??= new FakeSettingsService();
+        aiTitleSuggestionService ??= new FakeAiTitleSuggestionService();
 
         var repository = new NotesRepository();
-        var settingsService = new FakeSettingsService();
         var fileWatcherService = new FakeFileWatcherService();
         var noteMutationService = new NoteMutationService(repository);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
@@ -170,6 +322,7 @@ public sealed class MainViewModelTests : IDisposable
             new FakeFontCatalogService(),
             new FakeAiPromptCatalogService(),
             new FakeAiTextActionService(),
+            aiTitleSuggestionService,
             noteMutationService,
             dialogService,
             appearanceService,
@@ -400,6 +553,29 @@ public sealed class MainViewModelTests : IDisposable
         public Task<string> RunPromptAsync(AiPromptDefinition prompt, string selectedText, AiSettings settings, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(selectedText);
+        }
+    }
+
+    private sealed class FakeAiTitleSuggestionService : IAiTitleSuggestionService
+    {
+        public IReadOnlyList<string> Suggestions { get; set; } = [];
+
+        public NoteDocument? LastDocument { get; private set; }
+
+        public string? LastAdditionalContext { get; private set; }
+
+        public Task<IReadOnlyList<string>> GetSuggestionsAsync(NoteDocument document, AiSettings settings, string? additionalContext = null, CancellationToken cancellationToken = default)
+        {
+            LastDocument = new NoteDocument
+            {
+                FilePath = document.FilePath,
+                Title = document.Title,
+                OriginalTitle = document.OriginalTitle,
+                Body = document.Body,
+                Tags = [.. document.Tags]
+            };
+            LastAdditionalContext = additionalContext;
+            return Task.FromResult(Suggestions);
         }
     }
 

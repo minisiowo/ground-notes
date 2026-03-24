@@ -28,6 +28,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IFontCatalogService _fontCatalogService;
     private readonly IAiPromptCatalogService _aiPromptCatalogService;
     private readonly IAiTextActionService _aiTextActionService;
+    private readonly IAiTitleSuggestionService _aiTitleSuggestionService;
     private readonly INoteMutationService _noteMutationService;
     private readonly IWorkspaceDialogService _workspaceDialogService;
     private readonly IAppAppearanceService _appearanceService;
@@ -182,6 +183,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isAiBusy;
 
+    [ObservableProperty]
+    private bool _isGeneratingTitleSuggestions;
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _titleSuggestions = [];
+
+    [ObservableProperty]
+    private bool _isTitleSuggestionsOpen;
+
+    [ObservableProperty]
+    private string _titleSuggestionsContext = string.Empty;
+
     public MainViewModel(
         INotesRepository notesRepository,
         ISettingsService settingsService,
@@ -190,6 +203,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IFontCatalogService fontCatalogService,
         IAiPromptCatalogService aiPromptCatalogService,
         IAiTextActionService aiTextActionService,
+        IAiTitleSuggestionService aiTitleSuggestionService,
         INoteMutationService noteMutationService,
         IWorkspaceDialogService workspaceDialogService,
         IAppAppearanceService appearanceService,
@@ -204,6 +218,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _fontCatalogService = fontCatalogService;
         _aiPromptCatalogService = aiPromptCatalogService;
         _aiTextActionService = aiTextActionService;
+        _aiTitleSuggestionService = aiTitleSuggestionService;
         _noteMutationService = noteMutationService;
         _workspaceDialogService = workspaceDialogService;
         _appearanceService = appearanceService;
@@ -231,6 +246,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool HasNotes => VisibleNotes.Count > 0;
 
     public bool HasAiPrompts => AiPrompts.Count > 0;
+
+    public bool HasTitleSuggestions => TitleSuggestions.Count > 0;
+
+    public bool CanEditTitleSuggestionsContext => !IsGeneratingTitleSuggestions;
 
     public bool HasNotePickerResults => NotePickerResults.Count > 0;
 
@@ -305,6 +324,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnAiPromptsChanged(IReadOnlyList<AiPromptDefinition> value) => OnPropertyChanged(nameof(HasAiPrompts));
 
+    partial void OnTitleSuggestionsChanged(IReadOnlyList<string> value) => OnPropertyChanged(nameof(HasTitleSuggestions));
+
+    partial void OnIsGeneratingTitleSuggestionsChanged(bool value) => OnPropertyChanged(nameof(CanEditTitleSuggestionsContext));
+
     partial void OnNotePickerTotalMatchCountChanged(int value)
     {
         OnPropertyChanged(nameof(IsNotePickerTruncated));
@@ -353,6 +376,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedNoteSummaryChanged(NoteSummary? value)
     {
+        DismissTitleSuggestions(clearContext: true);
+
         if (_isApplyingSelection)
         {
             return;
@@ -382,6 +407,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(ShowTitleWatermark));
         ClearTransientStatusOnEdit();
+        DismissTitleSuggestions(clearContext: false);
 
         if (_isApplyingSelection || !HasSelectedFolder || CurrentNote is null)
         {
@@ -396,6 +422,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(ShowTagsWatermark));
         ClearTransientStatusOnEdit();
+        DismissTitleSuggestions(clearContext: false);
 
         if (_isApplyingSelection || !HasSelectedFolder || CurrentNote is null)
         {
@@ -410,6 +437,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(ShowEditorWatermark));
         ClearTransientStatusOnEdit();
+        DismissTitleSuggestions(clearContext: false);
 
         if (_isApplyingSelection || !HasSelectedFolder)
         {

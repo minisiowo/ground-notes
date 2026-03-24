@@ -418,7 +418,7 @@ public partial class ChatWindow : Window
             return;
         }
 
-        if (e.Key == Key.Enter && e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        if (AiSendShortcut.IsSendGesture(e.Key, e.KeyModifiers))
         {
              if (vm.SendMessageCommand.CanExecute(null))
              {
