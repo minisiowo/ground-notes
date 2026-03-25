@@ -10,6 +10,7 @@ using AvaloniaEdit;
 using GroundNotes.Editors;
 using GroundNotes.Models;
 using GroundNotes.Services;
+using GroundNotes.Styles;
 using GroundNotes.ViewModels;
 
 namespace GroundNotes.Views;
@@ -34,6 +35,8 @@ public partial class ChatWindow : Window
     private IEditorLayoutState? _editorLayoutState;
     private bool _hasAppliedInitialEditorLayout;
     private ChatViewModel? _boundViewModel;
+
+    public Func<Task>? ShowKeyboardShortcutsHelpAsync { get; set; }
 
     public ChatWindow()
     {
@@ -70,6 +73,8 @@ public partial class ChatWindow : Window
         ChatTextEditor.TextChanged += OnEditorTextChanged;
         InputTextBox.TextChanged += OnInputTextChanged;
         InputTextBox.AddHandler(KeyDownEvent, OnInputKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnWindowShortcutKeyDown, RoutingStrategies.Tunnel);
+        Opened += (_, _) => ThemeService.SyncScrollBarClassFromMainWindow(this);
 
         DataContextChanged += OnDataContextChanged;
         
@@ -360,6 +365,22 @@ public partial class ChatWindow : Window
     private void OnWindowPointerExited(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerExited();
 
     private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnWindowPointerPressed(e);
+
+    private async void OnWindowShortcutKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (ShowKeyboardShortcutsHelpAsync is null)
+        {
+            return;
+        }
+
+        if (!MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        {
+            return;
+        }
+
+        e.Handled = true;
+        await ShowKeyboardShortcutsHelpAsync();
+    }
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
     {

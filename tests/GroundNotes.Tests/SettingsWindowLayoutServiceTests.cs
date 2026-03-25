@@ -36,6 +36,7 @@ public sealed class SettingsWindowLayoutServiceTests
             null,
             null,
             false,
+            true,
             null,
             AiSettings.Default);
 
@@ -72,12 +73,6 @@ public sealed class SettingsWindowLayoutServiceTests
         public Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(Settings.AiSettings);
-        }
-
-        public Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default)
-        {
-            Settings = Settings with { AiSettings = settings };
-            return Task.CompletedTask;
         }
     }
 }

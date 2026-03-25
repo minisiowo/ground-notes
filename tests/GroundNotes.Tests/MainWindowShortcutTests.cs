@@ -64,6 +64,19 @@ public sealed class MainWindowShortcutTests
     }
 
     [Theory]
+    [InlineData(Key.Oem2, KeyModifiers.Control | KeyModifiers.Shift, true)]
+    [InlineData(Key.Oem2, KeyModifiers.Meta | KeyModifiers.Shift, true)]
+    [InlineData(Key.Oem2, KeyModifiers.Control, false)]
+    [InlineData(Key.Oem2, KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt, false)]
+    [InlineData(Key.OemComma, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    public void IsShowShortcutsHelpGesture_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsShowShortcutsHelpGesture(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData(Key.Y, KeyModifiers.Control | KeyModifiers.Shift, true)]
     [InlineData(Key.Y, KeyModifiers.Meta | KeyModifiers.Shift, true)]
     [InlineData(Key.Y, KeyModifiers.Control, false)]

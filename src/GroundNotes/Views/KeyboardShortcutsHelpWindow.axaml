@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="using:GroundNotes.Models"
+        xmlns:views="using:GroundNotes.Views"
+        x:Class="GroundNotes.Views.KeyboardShortcutsHelpWindow"
+        Title="Keyboard shortcuts"
+        Width="520"
+        Height="580"
+        MinWidth="400"
+        MinHeight="360"
+        CanResize="True"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppBackgroundBrush}">
+  <Grid RowDefinitions="Auto,*">
+    <views:TitleBarControl Grid.Row="0"
+                           Title="Keyboard shortcuts"
+                           TitleBarPointerPressed="OnTitleBarPointerPressed"
+                           CloseRequested="OnCloseRequested" />
+
+    <Border Grid.Row="1"
+            Classes="sectionSurface"
+            Margin="12"
+            Padding="14"
+            BorderThickness="1">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Hidden">
+        <ItemsControl ItemsSource="{Binding Sections}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="models:KeyboardShortcutSection">
+              <StackPanel Margin="0,0,0,18">
+                <TextBlock FontSize="{DynamicResource AppFontSizeLarge}"
+                           FontWeight="SemiBold"
+                           Margin="0,0,0,8"
+                           Text="{Binding Title}" />
+                <ItemsControl ItemsSource="{Binding Entries}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="models:KeyboardShortcutEntry">
+                      <Grid Margin="0,2,0,2" ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Text="{Binding Description}"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1"
+                                   Classes="metaText"
+                                   Margin="12,0,0,0"
+                                   Text="{Binding ShortcutDisplay}"
+                                   TextAlignment="Right"
+                                   VerticalAlignment="Center" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+  </Grid>
+</Window>

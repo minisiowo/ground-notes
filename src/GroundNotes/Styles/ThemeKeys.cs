@@ -43,6 +43,7 @@ public static class ThemeKeys
     public const string MarkdownCodeBlockBackgroundBrush = "MarkdownCodeBlockBackgroundBrush";
     public const string TitleBarButtonHoverBrush = "TitleBarButtonHoverBrush";
     public const string TitleBarCloseHoverBrush = "TitleBarCloseHoverBrush";
+    public const string MenuSurfaceBrush = "MenuSurfaceBrush";
 
     // ── Font size resources ────────────────────────────────────
     public const string TerminalFont = "TerminalFont";
@@ -132,6 +133,7 @@ public static class ThemeKeys
     public const string MenuFlyoutItemForeground = "MenuFlyoutItemForeground";
     public const string MenuFlyoutItemForegroundPointerOver = "MenuFlyoutItemForegroundPointerOver";
     public const string MenuFlyoutItemForegroundPressed = "MenuFlyoutItemForegroundPressed";
+    public const string MenuFlyoutBoxShadow = "MenuFlyoutBoxShadow";
 
     // ── Focus visual ───────────────────────────────────────────
     public const string FocusStrokeColorOuter = "FocusStrokeColorOuter";

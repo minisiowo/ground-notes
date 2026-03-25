@@ -3,7 +3,7 @@ using GroundNotes.Models;
 
 namespace GroundNotes.ViewModels;
 
-public sealed partial class NoteListItemViewModel : ObservableObject
+public sealed partial class NoteListItemViewModel : ViewModelBase
 {
     public NoteListItemViewModel(NoteSummary summary)
     {

@@ -15,8 +15,6 @@ public interface ISettingsService
     Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default);
 
     Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default);
-
-    Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default);
 }
 
 public sealed record AppSettings(
@@ -33,6 +31,7 @@ public sealed record AppSettings(
     string? CodeFontVariantName,
     string? ThemeName,
     bool ShowYamlFrontMatterInEditor,
+    bool ShowScrollBars,
     WindowLayout? WindowLayout,
     AiSettings AiSettings);
 

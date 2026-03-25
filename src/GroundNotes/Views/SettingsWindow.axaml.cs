@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using GroundNotes.Models;
+using GroundNotes.Styles;
 using GroundNotes.ViewModels;
 
 namespace GroundNotes.Views;
@@ -12,12 +13,15 @@ public partial class SettingsWindow : Window
 
     public Func<SettingsDialogModel, Task>? PreviewSettingsAsync { get; set; }
 
+    public Func<Task>? ShowKeyboardShortcutsHelpAsync { get; set; }
+
     public SettingsWindow()
     {
         InitializeComponent();
         _dialogController = new DialogWindowController(this, () => Close(null), () => ThemeComboBox);
         _dialogController.Attach();
         Closed += (_, _) => _dialogController.Detach();
+        Opened += (_, _) => ThemeService.SyncScrollBarClassFromMainWindow(this);
     }
 
     public SettingsWindow(SettingsDialogModel model) : this()
@@ -54,15 +58,27 @@ public partial class SettingsWindow : Window
         Close(_viewModel?.BuildModel());
     }
 
+    private void OnCancelRequested(object? sender, EventArgs e)
+    {
+        _dialogController.OnCloseRequested();
+    }
+
     private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         _dialogController.OnCloseRequested();
     }
 
-    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    private async void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (_dialogController.HandleEscape(e))
         {
+            return;
+        }
+
+        if (ShowKeyboardShortcutsHelpAsync is not null && MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            await ShowKeyboardShortcutsHelpAsync();
             return;
         }
 

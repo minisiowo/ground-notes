@@ -326,6 +326,7 @@ public sealed class ChatViewModelTests
             null,
             null,
             false,
+            true,
             null,
             new AiSettings("api-key", "gpt-5.4-mini", true));
 
@@ -342,8 +343,6 @@ public sealed class ChatViewModelTests
         public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 
     private sealed class FakeNotesRepository : INotesRepository

@@ -74,6 +74,7 @@ public sealed class SettingsViewModelTests
             4,
             1.15,
             true,
+            true,
             string.Empty,
             "gpt-5.4-mini",
             string.Empty,

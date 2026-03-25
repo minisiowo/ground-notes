@@ -3,6 +3,7 @@ using System.Text;
 using GroundNotes.Models;
 using GroundNotes.Services;
 using Xunit;
+using GroundNotes.Tests.Helpers;
 
 namespace GroundNotes.Tests;
 
@@ -105,23 +106,5 @@ public sealed class OpenAiTitleSuggestionServiceTests
             new AiSettings(string.Empty, "gpt-5.4-mini", true)));
 
         Assert.Equal(AiServiceErrorKind.MissingApiKey, ex.Kind);
-    }
-
-    private sealed class FakeHttpMessageHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
-
-        public FakeHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
-        {
-            _responseFactory = responseFactory;
-        }
-
-        public string RequestBody { get; private set; } = string.Empty;
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            RequestBody = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
-            return _responseFactory(request);
-        }
     }
 }

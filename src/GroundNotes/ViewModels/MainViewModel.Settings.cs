@@ -12,6 +12,12 @@ namespace GroundNotes.ViewModels;
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
     [RelayCommand]
+    private Task ShowKeyboardShortcutsHelpAsync()
+    {
+        return _workspaceDialogService.ShowKeyboardShortcutsHelpAsync(null);
+    }
+
+    [RelayCommand]
     private async Task OpenSettingsAsync()
     {
         var original = BuildSettingsDialogModel();
@@ -44,6 +50,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             UiFontSize,
             EditorIndentSize,
             EditorLineHeightFactor,
+            ShowScrollBars,
             IsAiEnabled,
             OpenAiApiKey,
             SelectedAiModel,
@@ -57,7 +64,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ApplyThemeSelection(model.SelectedThemeName, persist: true);
 
         var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
-            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? _allFonts[0];
         var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
             ?? GetDefaultFontVariant(sidebarFontFamily);
@@ -65,7 +72,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await PersistSidebarFontSelectionAsync(sidebarFontFamily.Key, sidebarVariant.Key);
 
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
-            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? _allFonts[0];
         var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
             ?? GetDefaultFontVariant(fontFamily);
@@ -73,7 +80,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await PersistFontSelectionAsync(fontFamily.Key, variant.Key);
 
         var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
-            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultCodeFontKey)
             ?? fontFamily;
         var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
             ?? GetDefaultFontVariant(codeFontFamily);
@@ -111,6 +118,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EditorLineHeightFactor = persistedEditorLineHeightFactor;
         }
 
+        ShowScrollBars = model.ShowScrollBars;
+        _appearanceService.ApplyScrollBars(model.ShowScrollBars);
+
         await PersistSettingsAsync(settings => settings with
         {
             ThemeName = model.SelectedThemeName,
@@ -124,6 +134,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             UiFontSize = persistedUiFontSize,
             EditorIndentSize = persistedEditorIndentSize,
             EditorLineHeightFactor = persistedEditorLineHeightFactor,
+            ShowScrollBars = model.ShowScrollBars,
             AiSettings = BuildAiSettings()
         });
     }
@@ -137,7 +148,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
-            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? _allFonts[0];
         var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
             ?? GetDefaultFontVariant(sidebarFontFamily);
@@ -148,7 +159,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
-            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? _allFonts[0];
         var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
             ?? GetDefaultFontVariant(fontFamily);
@@ -159,7 +170,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
-            ?? _allFonts.FirstOrDefault(font => string.Equals(font.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultCodeFontKey)
             ?? fontFamily;
         var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
             ?? GetDefaultFontVariant(codeFontFamily);
@@ -192,5 +203,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             EditorLineHeightFactor = editorLineHeightFactor;
         }
+
+        if (ShowScrollBars != model.ShowScrollBars)
+        {
+            ShowScrollBars = model.ShowScrollBars;
+        }
+
+        _appearanceService.ApplyScrollBars(model.ShowScrollBars);
     }
 }

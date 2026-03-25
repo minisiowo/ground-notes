@@ -5,10 +5,7 @@ namespace GroundNotes.Services;
 
 public sealed class FolderSettingsService : ISettingsService
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
+    private static JsonSerializerOptions s_jsonOptions => JsonDefaults.ReadOptions;
 
     private readonly string _settingsFilePath;
     private readonly SemaphoreSlim _settingsLock = new(1, 1);
@@ -102,12 +99,6 @@ public sealed class FolderSettingsService : ISettingsService
         return settings.AiSettings;
     }
 
-    public Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default)
-    {
-        var normalized = AiSettings.Normalize(settings);
-        return UpdateSettingsAsync(current => current with { AiSettings = normalized }, cancellationToken);
-    }
-
     private static AppSettings NormalizeSettings(AppSettings settings)
     {
         return settings with
@@ -134,6 +125,7 @@ public sealed class FolderSettingsService : ISettingsService
             record.CodeFontVariantName,
             record.ThemeName,
             record.ShowYamlFrontMatterInEditor ?? false,
+            record.ShowScrollBars ?? true,
             record.WindowLayout is null
                 ? null
                 : new WindowLayout(
@@ -170,6 +162,7 @@ public sealed class FolderSettingsService : ISettingsService
             CodeFontVariantName = settings.CodeFontVariantName,
             ThemeName = settings.ThemeName,
             ShowYamlFrontMatterInEditor = settings.ShowYamlFrontMatterInEditor,
+            ShowScrollBars = settings.ShowScrollBars,
             WindowLayout = settings.WindowLayout is null
                 ? null
                 : new WindowLayoutRecord
@@ -246,6 +239,7 @@ public sealed class FolderSettingsService : ISettingsService
         public string? CodeFontVariantName { get; set; }
         public string? ThemeName { get; set; }
         public bool? ShowYamlFrontMatterInEditor { get; set; }
+        public bool? ShowScrollBars { get; set; }
         public WindowLayoutRecord? WindowLayout { get; set; }
         public string? OpenAiApiKey { get; set; }
         public string? OpenAiModel { get; set; }

@@ -516,7 +516,6 @@ public partial class ChatViewModel : ViewModelBase
         return messages;
     }
 
-    [RelayCommand]
     private void AddNoteToContext(NoteSummary note)
     {
         if (note is null)

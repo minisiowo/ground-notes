@@ -38,6 +38,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SelectedUiFontSize = Math.Round(model.UiFontSize).ToString("0");
         SelectedIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize).ToString(CultureInfo.InvariantCulture);
         SelectedLineHeight = EditorDisplaySettings.FormatLineHeight(model.EditorLineHeightFactor);
+        ShowScrollBars = model.ShowScrollBars;
         IsAiEnabled = model.IsAiEnabled;
         ApiKey = model.ApiKey;
         DefaultModel = model.DefaultModel;
@@ -105,6 +106,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _selectedLineHeight = "1.15";
 
     [ObservableProperty]
+    private bool _showScrollBars = true;
+
+    [ObservableProperty]
     private bool _isAiEnabled = true;
 
     [ObservableProperty]
@@ -135,6 +139,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ParseSize(SelectedUiFontSize, 12),
             ParseIndentSize(SelectedIndentSize),
             ParseLineHeight(SelectedLineHeight),
+            ShowScrollBars,
             IsAiEnabled,
             ApiKey.Trim(),
             string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel.Trim(),
@@ -176,6 +181,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     partial void OnSelectedIndentSizeChanged(string value) => RaisePreviewRequested();
 
     partial void OnSelectedLineHeightChanged(string value) => RaisePreviewRequested();
+
+    partial void OnShowScrollBarsChanged(bool value) => RaisePreviewRequested();
 
     partial void OnIsAiEnabledChanged(bool value) => RaisePreviewRequested();
 

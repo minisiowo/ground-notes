@@ -48,7 +48,8 @@ public static class ThemeBuilder
             overrides?.MarkdownCodeBlockForeground ?? Blend(palette.PrimaryText, palette.AccentSoft, theme.IsLight ? 0.08 : 0.15),
             overrides?.MarkdownCodeBlockBackground ?? Blend(palette.PaneBackground, palette.AccentSoft, theme.IsLight ? 0.08 : 0.14),
             overrides?.TitleBarButtonHover ?? palette.SurfaceHover,
-            overrides?.TitleBarCloseHover ?? palette.Danger);
+            overrides?.TitleBarCloseHover ?? palette.Danger,
+            Blend(palette.PaneBackground, palette.SurfaceRaised, theme.IsLight ? 0.38 : 0.52));
     }
 
     public static ThemeResourceSet BuildResources(AppTheme theme)
@@ -92,6 +93,7 @@ public static class ThemeBuilder
             [ThemeKeys.MarkdownCodeBlockBackgroundBrush] = ToBrush(tokens.MarkdownCodeBlockBackground),
             [ThemeKeys.TitleBarButtonHoverBrush] = ToBrush(tokens.TitleBarButtonHover),
             [ThemeKeys.TitleBarCloseHoverBrush] = ToBrush(tokens.TitleBarCloseHover),
+            [ThemeKeys.MenuSurfaceBrush] = ToBrush(tokens.MenuSurface),
         };
 
         var colors = new Dictionary<string, Color>

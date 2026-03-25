@@ -14,4 +14,6 @@ public interface IAppAppearanceService
     void ApplySidebarFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
 
     void ApplyCodeFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
+
+    void ApplyScrollBars(bool show);
 }

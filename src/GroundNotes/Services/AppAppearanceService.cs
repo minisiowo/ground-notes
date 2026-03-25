@@ -30,4 +30,9 @@ public sealed class AppAppearanceService : IAppAppearanceService
     {
         ThemeService.ApplyCodeFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
     }
+
+    public void ApplyScrollBars(bool show)
+    {
+        ThemeService.ApplyScrollBars(show);
+    }
 }

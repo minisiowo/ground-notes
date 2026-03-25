@@ -69,8 +69,8 @@ public partial class App : Application
         var aiTextActionService = new OpenAiTextActionService(aiCompletionsClient);
         var aiTitleSuggestionService = new OpenAiTitleSuggestionService(aiCompletionsClient);
         var aiChatService = new OpenAiChatService(aiCompletionsClient);
-        var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
+        var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService, noteSearchServiceFactory);
         var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, noteSearchServiceFactory);
         mainWindow.DataContext = mainViewModel;
         mainWindow.SetWindowLayoutService(windowLayoutService);
@@ -83,6 +83,7 @@ public partial class App : Application
         }
 
         desktop.MainWindow = mainWindow;
+        _appearanceService.ApplyScrollBars(startup.Settings.ShowScrollBars);
 
         try
         {

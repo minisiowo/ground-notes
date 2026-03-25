@@ -1,4 +1,3 @@
-using System.Text.Json;
 using GroundNotes.Models;
 using GroundNotes.Styles;
 
@@ -50,31 +49,13 @@ public sealed class StartupStateService : IStartupStateService
 
     private static BundledFontFamilyOption? ResolveFontFamilyByKey(IReadOnlyList<BundledFontFamilyOption> fonts, string? key)
     {
-        if (string.IsNullOrWhiteSpace(key))
-        {
-            return null;
-        }
-
-        return fonts.FirstOrDefault(font => string.Equals(font.Key, key, StringComparison.Ordinal));
+        return FontResolutionHelper.FindByKey(fonts, key);
     }
 
     private static BundledFontVariantOption ResolveFontVariant(BundledFontFamilyOption family, string? variantKey)
     {
-        if (!string.IsNullOrWhiteSpace(variantKey))
-        {
-            var exact = family.StandardVariants.FirstOrDefault(variant =>
-                string.Equals(variant.Key, variantKey, StringComparison.Ordinal)
-                || string.Equals(variant.DisplayName, variantKey, StringComparison.Ordinal));
-            if (exact is not null)
-            {
-                return exact;
-            }
-        }
-
-        return family.StandardVariants.FirstOrDefault(variant => string.Equals(variant.DisplayName, FontCatalogService.DefaultVariantKey, StringComparison.Ordinal))
-            ?? family.StandardVariants.FirstOrDefault(variant => string.Equals(variant.DisplayName, "Medium", StringComparison.Ordinal))
-            ?? family.StandardVariants.FirstOrDefault(variant => string.Equals(variant.DisplayName, "Light", StringComparison.Ordinal))
-            ?? family.StandardVariants[0];
+        return FontResolutionHelper.ResolveVariant(family, variantKey)
+               ?? FontResolutionHelper.GetDefaultVariant(family);
     }
 
     private static AppTheme? ResolveTheme(string? themeName)
@@ -90,18 +71,18 @@ public sealed class StartupStateService : IStartupStateService
             return builtInTheme;
         }
 
-        var themesDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GroundNotes", "themes");
-        if (!Directory.Exists(themesDirectory))
+        var themeLoader = new ThemeLoaderService();
+        if (!Directory.Exists(themeLoader.ThemesDirectory))
         {
             return null;
         }
 
-        foreach (var file in Directory.EnumerateFiles(themesDirectory, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(themeLoader.ThemesDirectory, "*.json"))
         {
             try
             {
                 var json = File.ReadAllText(file);
-                var theme = JsonSerializer.Deserialize<AppTheme>(json);
+                var theme = ThemeLoaderService.DeserializeTheme(json);
                 if (theme is not null && string.Equals(theme.Name, themeName, StringComparison.Ordinal))
                 {
                     return theme;

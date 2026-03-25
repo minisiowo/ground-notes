@@ -131,18 +131,6 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SetAiSettingsAsync_RoundTripsThroughSettingsFile()
-    {
-        var expected = new AiSettings("  secret  ", "  gpt-5.4-mini  ", true, "  proj_123  ", "  org_456  ");
-
-        await _service.SetAiSettingsAsync(expected);
-
-        var settings = await _service.GetAiSettingsAsync();
-
-        Assert.Equal(new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456"), settings);
-    }
-
-    [Fact]
     public void GetSettingsSync_ReturnsDefaultsWhenSettingsFileDoesNotExist()
     {
         var settings = _service.GetSettingsSync();
@@ -151,6 +139,44 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Null(settings.ThemeName);
         Assert.Null(settings.WindowLayout);
         Assert.Equal(AiSettings.Default, settings.AiSettings);
+        Assert.True(settings.ShowScrollBars);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_DefaultsShowScrollBars_WhenMissingInJson()
+    {
+        var legacySettings = JsonSerializer.Serialize(new { notesFolder = "notes" });
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.True(settings.ShowScrollBars);
+    }
+
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsShowScrollBars()
+    {
+        await _service.SaveSettingsAsync(new AppSettings(
+            "notes",
+            12,
+            12,
+            4,
+            1.15,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            "Dark",
+            false,
+            false,
+            null,
+            AiSettings.Default));
+
+        var loaded = await _service.GetSettingsAsync();
+
+        Assert.False(loaded.ShowScrollBars);
     }
 
     [Fact]
@@ -170,6 +196,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
             "JetBrainsMono",
             "Bold",
             "Nord",
+            true,
             true,
             new WindowLayout(1200, 800, 50, 60, true, 320, false, true),
             ai));

@@ -55,10 +55,17 @@ public sealed class WindowDialogService : IWorkspaceDialogService
             Width = ChatWindowDefaultWidth,
             Height = ChatWindowDefaultHeight
         };
+        dialog.ShowKeyboardShortcutsHelpAsync = () => ShowKeyboardShortcutsHelpAsync(dialog);
         dialog.SetEditorLayoutState(_editorLayoutState);
 
         dialog.Show(_owner);
         return Task.CompletedTask;
+    }
+
+    public async Task ShowKeyboardShortcutsHelpAsync(Window? owner = null)
+    {
+        var dialog = new KeyboardShortcutsHelpWindow();
+        await dialog.ShowDialog(owner ?? _owner);
     }
 
     public async Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> previewAsync)
@@ -73,6 +80,8 @@ public sealed class WindowDialogService : IWorkspaceDialogService
                     return Task.CompletedTask;
                 }
         };
+
+        dialog.ShowKeyboardShortcutsHelpAsync = () => ShowKeyboardShortcutsHelpAsync(dialog);
 
         return await dialog.ShowDialog<SettingsDialogModel?>(_owner);
     }
