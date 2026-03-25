@@ -14,6 +14,7 @@ public sealed record SettingsDialogModel(
     double UiFontSize,
     int EditorIndentSize,
     double EditorLineHeightFactor,
+    bool ShowScrollBars,
     bool IsAiEnabled,
     string ApiKey,
     string DefaultModel,

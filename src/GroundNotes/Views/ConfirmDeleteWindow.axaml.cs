@@ -35,7 +35,12 @@ public partial class ConfirmDeleteWindow : Window
         Close(true);
     }
 
-    private void OnCancelClick(object? sender, RoutedEventArgs e)
+    private void OnCancelClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        _dialogController.OnCloseRequested();
+    }
+
+    private void OnTitleBarCloseRequested(object? sender, EventArgs e)
     {
         _dialogController.OnCloseRequested();
     }

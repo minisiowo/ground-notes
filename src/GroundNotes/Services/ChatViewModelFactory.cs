@@ -9,17 +9,20 @@ public sealed class ChatViewModelFactory : IChatViewModelFactory
     private readonly INotesRepository _notesRepository;
     private readonly ISettingsService _settingsService;
     private readonly INoteMutationService _noteMutationService;
+    private readonly INoteSearchServiceFactory _noteSearchServiceFactory;
 
     public ChatViewModelFactory(
         IAiChatService aiChatService,
         INotesRepository notesRepository,
         ISettingsService settingsService,
-        INoteMutationService noteMutationService)
+        INoteMutationService noteMutationService,
+        INoteSearchServiceFactory noteSearchServiceFactory)
     {
         _aiChatService = aiChatService;
         _notesRepository = notesRepository;
         _settingsService = settingsService;
         _noteMutationService = noteMutationService;
+        _noteSearchServiceFactory = noteSearchServiceFactory;
     }
 
     public ChatViewModel Create(
@@ -29,7 +32,7 @@ public sealed class ChatViewModelFactory : IChatViewModelFactory
         NoteSummary? originNote,
         IEnumerable<NoteSummary>? initialNotes)
     {
-        var noteSearchService = new NoteSearchService(_notesRepository, allNotesProvider);
+        var noteSearchService = _noteSearchServiceFactory.Create(allNotesProvider);
 
         return new ChatViewModel(
             _aiChatService,

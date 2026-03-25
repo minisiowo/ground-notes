@@ -448,7 +448,7 @@ public partial class MainWindow : Window
             SidebarCol.Width = new GridLength(0, GridUnitType.Pixel);
             SplitterCol.Width = new GridLength(0, GridUnitType.Pixel);
             SidebarBorder.IsVisible = false;
-            UpdateEditorMargins(collapsed: true);
+            EditorPanel.Margin = new Thickness(14, 14, 14, 14);
         }
         else
         {
@@ -456,15 +456,8 @@ public partial class MainWindow : Window
             SidebarCol.Width = new GridLength(_sidebarWidthBeforeCollapse, GridUnitType.Pixel);
             SplitterCol.Width = new GridLength(6, GridUnitType.Pixel);
             SidebarBorder.IsVisible = true;
-            UpdateEditorMargins(collapsed: false);
+            EditorPanel.Margin = new Thickness(8, 14, 14, 14);
         }
-    }
-
-    private void UpdateEditorMargins(bool collapsed)
-    {
-        var left = collapsed ? 14.0 : 8.0;
-        TitleTagsGrid.Margin = new Thickness(left, 12, 14, 10);
-        EditorBorder.Margin = new Thickness(left, 0, 14, 14);
     }
 
     private void UpdateNotePickerHeight()
@@ -759,6 +752,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            await vm.ShowKeyboardShortcutsHelpCommand.ExecuteAsync(null);
+            return;
+        }
+
         if (IsToggleYamlEditorShortcut(e.Key, e.KeyModifiers) && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
         {
             e.Handled = true;
@@ -819,20 +819,11 @@ public partial class MainWindow : Window
         }
     }
 
-    internal static bool IsOpenSettingsGesture(Key key, KeyModifiers modifiers)
-    {
-        if (modifiers.HasFlag(KeyModifiers.Alt) || modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            return false;
-        }
+    internal static bool IsOpenSettingsGesture(Key key, KeyModifiers modifiers) =>
+        InputGestureHelper.IsOpenSettingsGesture(key, modifiers);
 
-        if (!modifiers.HasFlag(KeyModifiers.Control) && !modifiers.HasFlag(KeyModifiers.Meta))
-        {
-            return false;
-        }
-
-        return key == Key.OemComma;
-    }
+    internal static bool IsShowShortcutsHelpGesture(Key key, KeyModifiers modifiers) =>
+        InputGestureHelper.IsShowShortcutsHelpGesture(key, modifiers);
 
     private void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
@@ -919,6 +910,13 @@ public partial class MainWindow : Window
 
         if (_slashCommandPopup.HandleKeyDown(e, ApplyEditorEdit))
         {
+            return;
+        }
+
+        if (vm is not null && IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            await vm.ShowKeyboardShortcutsHelpCommand.ExecuteAsync(null);
             return;
         }
 
@@ -1226,90 +1224,26 @@ public partial class MainWindow : Window
         _editorHost.ApplyRuntimeLayout(settings);
     }
 
-    internal static bool IsRenameTextBoxSubmitKey(Key key) => key == Key.Enter;
+    internal static bool IsRenameTextBoxSubmitKey(Key key) =>
+        InputGestureHelper.IsRenameTextBoxSubmitKey(key);
 
-    internal static bool IsRenameTextBoxCancelKey(Key key) => key == Key.Escape;
+    internal static bool IsRenameTextBoxCancelKey(Key key) =>
+        InputGestureHelper.IsRenameTextBoxCancelKey(key);
 
-    internal static bool IsUndoShortcut(Key key, KeyModifiers modifiers)
-    {
-        if (modifiers.HasFlag(KeyModifiers.Alt) || modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            return false;
-        }
+    internal static bool IsUndoShortcut(Key key, KeyModifiers modifiers) =>
+        InputGestureHelper.IsUndoShortcut(key, modifiers);
 
-        if (!modifiers.HasFlag(KeyModifiers.Control) && !modifiers.HasFlag(KeyModifiers.Meta))
-        {
-            return false;
-        }
+    internal static bool IsRedoShortcut(Key key, KeyModifiers modifiers) =>
+        InputGestureHelper.IsRedoShortcut(key, modifiers);
 
-        return key == Key.Z;
-    }
+    internal static bool IsToggleYamlEditorShortcut(Key key, KeyModifiers modifiers) =>
+        InputGestureHelper.IsToggleYamlEditorShortcut(key, modifiers);
 
-    internal static bool IsRedoShortcut(Key key, KeyModifiers modifiers)
-    {
-        if (modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            return false;
-        }
+    internal static bool IsToggleTaskShortcut(Key key, KeyModifiers modifiers) =>
+        InputGestureHelper.IsToggleTaskShortcut(key, modifiers);
 
-        if (key == Key.Y)
-        {
-            return modifiers == KeyModifiers.Control;
-        }
-
-        if (key != Key.Z || !modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            return false;
-        }
-
-        return modifiers == (KeyModifiers.Control | KeyModifiers.Shift)
-            || modifiers == (KeyModifiers.Meta | KeyModifiers.Shift);
-    }
-
-    internal static bool IsToggleYamlEditorShortcut(Key key, KeyModifiers modifiers)
-    {
-        if (modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            return false;
-        }
-
-        return key == Key.Y
-            && (modifiers == (KeyModifiers.Control | KeyModifiers.Shift)
-                || modifiers == (KeyModifiers.Meta | KeyModifiers.Shift));
-    }
-
-    internal static bool IsToggleTaskShortcut(Key key, KeyModifiers modifiers)
-    {
-        return key == Key.Enter
-            && modifiers.HasFlag(KeyModifiers.Control)
-            && !modifiers.HasFlag(KeyModifiers.Shift)
-            && !modifiers.HasFlag(KeyModifiers.Alt);
-    }
-
-    internal static bool IsMoveLineShortcut(Key key, KeyModifiers modifiers, out bool moveDown)
-    {
-        moveDown = false;
-
-        if (!modifiers.HasFlag(KeyModifiers.Control)
-            || !modifiers.HasFlag(KeyModifiers.Shift)
-            || modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            return false;
-        }
-
-        if (key == Key.Up)
-        {
-            return true;
-        }
-
-        if (key == Key.Down)
-        {
-            moveDown = true;
-            return true;
-        }
-
-        return false;
-    }
+    internal static bool IsMoveLineShortcut(Key key, KeyModifiers modifiers, out bool moveDown) =>
+        InputGestureHelper.IsMoveLineShortcut(key, modifiers, out moveDown);
 
     private void OnEditorCaretPositionChanged(object? sender, EventArgs e)
     {

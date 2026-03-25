@@ -133,20 +133,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private BundledFontFamilyOption? GetFontFamilyByDisplayName(string displayName)
     {
-        return _allFonts.FirstOrDefault(font => string.Equals(font.DisplayName, displayName, StringComparison.Ordinal));
+        return FontResolutionHelper.FindByDisplayName(_allFonts, displayName);
     }
 
     private static BundledFontVariantOption? ResolveFontVariant(BundledFontFamilyOption fontFamily, string variantDisplayName)
     {
-        return fontFamily.StandardVariants.FirstOrDefault(variant => string.Equals(variant.DisplayName, variantDisplayName, StringComparison.Ordinal));
+        return FontResolutionHelper.ResolveVariant(fontFamily, variantDisplayName);
     }
 
     private static BundledFontVariantOption GetDefaultFontVariant(BundledFontFamilyOption fontFamily)
     {
-        return ResolveFontVariant(fontFamily, FontCatalogService.DefaultVariantKey)
-            ?? ResolveFontVariant(fontFamily, "Medium")
-            ?? ResolveFontVariant(fontFamily, "Light")
-            ?? fontFamily.StandardVariants[0];
+        return FontResolutionHelper.GetDefaultVariant(fontFamily);
     }
 
     private void ApplyFontSelection(

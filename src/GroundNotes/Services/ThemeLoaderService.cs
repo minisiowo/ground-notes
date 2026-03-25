@@ -6,10 +6,7 @@ namespace GroundNotes.Services;
 
 public sealed class ThemeLoaderService : IThemeLoaderService
 {
-    private static readonly JsonSerializerOptions s_readOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-    };
+    private static JsonSerializerOptions s_readOptions => JsonDefaults.ReadOptions;
 
     private static readonly JsonSerializerOptions s_writeOptions = new()
     {
@@ -87,7 +84,7 @@ public sealed class ThemeLoaderService : IThemeLoaderService
         await JsonSerializer.SerializeAsync(stream, exportDocument, s_writeOptions);
     }
 
-    private static AppTheme? DeserializeTheme(string json)
+    internal static AppTheme? DeserializeTheme(string json)
     {
         AppTheme? v2Theme = null;
         try

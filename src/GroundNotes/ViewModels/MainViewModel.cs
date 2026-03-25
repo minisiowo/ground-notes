@@ -77,6 +77,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _showYamlFrontMatterInEditor;
 
     [ObservableProperty]
+    private bool _showScrollBars = true;
+
+    [ObservableProperty]
     private string _searchText = string.Empty;
 
     [ObservableProperty]
@@ -786,7 +789,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await DeleteNoteAsync(noteItem);
     }
 
-    [RelayCommand]
     public Task InitializeAsync()
     {
         return _initializationTask ??= InitializeAsyncCore();
@@ -800,6 +802,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize);
         EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor);
         ShowYamlFrontMatterInEditor = settings.ShowYamlFrontMatterInEditor;
+        ShowScrollBars = settings.ShowScrollBars;
 
         _allFonts = _fontCatalogService.LoadBundledFonts();
         FontFamilyNames = _allFonts.Select(f => f.DisplayName).ToList();
@@ -831,24 +834,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             StatusMessage = BuildPromptLoadStatus(promptLoad);
         }
 
-        var initialFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.FontName, StringComparison.Ordinal))
-            ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+        var initialFont = FontResolutionHelper.FindByKey(_allFonts, settings.FontName)
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? _allFonts[0];
-
         var initialVariant = ResolveFontVariant(initialFont, settings.FontVariantName ?? string.Empty)
             ?? GetDefaultFontVariant(initialFont);
-
         ApplyFontSelection(initialFont, initialVariant, persist: false);
 
-        var initialSidebarFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.SidebarFontName, StringComparison.Ordinal))
-            ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultFontKey, StringComparison.Ordinal))
+        var initialSidebarFont = FontResolutionHelper.FindByKey(_allFonts, settings.SidebarFontName)
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? initialFont;
         var initialSidebarVariant = ResolveFontVariant(initialSidebarFont, settings.SidebarFontVariantName ?? string.Empty)
             ?? GetDefaultFontVariant(initialSidebarFont);
         ApplySidebarFontSelection(initialSidebarFont, initialSidebarVariant, persist: false);
 
-        var initialCodeFont = _allFonts.FirstOrDefault(f => string.Equals(f.Key, settings.CodeFontName, StringComparison.Ordinal))
-            ?? _allFonts.FirstOrDefault(f => string.Equals(f.Key, FontCatalogService.DefaultCodeFontKey, StringComparison.Ordinal))
+        var initialCodeFont = FontResolutionHelper.FindByKey(_allFonts, settings.CodeFontName)
+            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultCodeFontKey)
             ?? initialFont;
         var initialCodeVariant = ResolveFontVariant(initialCodeFont, settings.CodeFontVariantName ?? string.Empty)
             ?? GetDefaultFontVariant(initialCodeFont);

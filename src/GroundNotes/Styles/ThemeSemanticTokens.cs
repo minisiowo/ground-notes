@@ -36,4 +36,5 @@ public sealed record ThemeSemanticTokens(
     string MarkdownCodeBlockForeground,
     string MarkdownCodeBlockBackground,
     string TitleBarButtonHover,
-    string TitleBarCloseHover);
+    string TitleBarCloseHover,
+    string MenuSurface);

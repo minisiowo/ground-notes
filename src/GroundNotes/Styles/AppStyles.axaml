@@ -520,21 +520,40 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
+  <!-- ══ ToolTip ═══════════════════════════════════════════════ -->
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+    <Setter Property="Padding" Value="8,5" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="ToolTip /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
   <!-- ══ ContextMenu / MenuItem ══════════════════════════════ -->
   <Style Selector="ContextMenu">
     <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="ContextMenu /template/ Border">
     <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="BoxShadow" Value="{DynamicResource MenuFlyoutBoxShadow}" />
   </Style>
 
   <Style Selector="ContextMenu /template/ ScrollViewer">
@@ -546,15 +565,16 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter /template/ Border">
     <Setter Property="Background" Value="{DynamicResource MenuFlyoutPresenterBackground}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="BoxShadow" Value="{DynamicResource MenuFlyoutBoxShadow}" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter /template/ ScrollViewer">
@@ -566,7 +586,7 @@
   </Style>
 
   <Style Selector="MenuItem">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
@@ -590,7 +610,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Popup Border">
@@ -608,7 +628,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Popup /template/ Border">
@@ -665,9 +685,10 @@
   </Style>
 
   <Style Selector="Separator /template/ Border">
-    <Setter Property="Background" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="Background" Value="{DynamicResource SecondaryTextBrush}" />
     <Setter Property="Height" Value="1" />
-    <Setter Property="Margin" Value="12,4" />
+    <Setter Property="Margin" Value="12,6" />
+    <Setter Property="Opacity" Value="0.45" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ ContentPresenter">
@@ -795,6 +816,43 @@
   <!-- ══ ScrollBar ═══════════════════════════════════════════ -->
   <Style Selector="ScrollViewer /template/ ScrollBar">
     <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="Window.scrollBarsHidden ScrollViewer /template/ ScrollBar">
+    <Setter Property="Width" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Window.scrollBarsHidden ComboBox /template/ Popup ScrollViewer /template/ ScrollBar">
+    <Setter Property="Width" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Window.scrollBarsHidden ContextMenu /template/ ScrollViewer /template/ ScrollBar">
+    <Setter Property="Width" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Window.scrollBarsHidden MenuFlyoutPresenter /template/ ScrollViewer /template/ ScrollBar">
+    <Setter Property="Width" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Window.scrollBarsHidden MenuItem /template/ Popup ScrollViewer /template/ ScrollBar">
+    <Setter Property="Width" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Window.scrollBarsHidden MenuItem /template/ Popup /template/ ScrollViewer /template/ ScrollBar">
+    <Setter Property="Width" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="IsVisible" Value="False" />
   </Style>
 
   <!-- ══ Sidebar Resize Handle ═══════════════════════════════ -->

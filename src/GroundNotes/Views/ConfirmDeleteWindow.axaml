@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:GroundNotes.Views"
         x:Class="GroundNotes.Views.ConfirmDeleteWindow"
         Title="Confirm Delete"
         Width="420"
@@ -11,24 +12,10 @@
         KeyDown="OnWindowKeyDown"
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*">
-    <Border Grid.Row="0"
-            Classes="titleBarSurface"
-            BorderThickness="0,0,0,1"
-            PointerPressed="OnTitleBarPointerPressed">
-      <Grid ColumnDefinitions="*,Auto">
-        <Border Grid.Column="0"
-                Background="Transparent"
-                Padding="12,6">
-          <TextBlock Classes="titleBarText" Text="{Binding Title}" VerticalAlignment="Center" />
-        </Border>
-        <Button Grid.Column="1"
-                Classes="titleBarButton titleBarCloseButton"
-                Click="OnCancelClick"
-                Content="X"
-                Width="42"
-                Height="30" />
-      </Grid>
-    </Border>
+    <views:TitleBarControl Grid.Row="0"
+                           Title="{Binding Title}"
+                           TitleBarPointerPressed="OnTitleBarPointerPressed"
+                           CloseRequested="OnTitleBarCloseRequested" />
 
     <Border Grid.Row="1" Classes="sectionSurface" Margin="12" Padding="14" BorderThickness="1">
       <Grid RowDefinitions="Auto,*,Auto">

@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using GroundNotes.Models;
 using GroundNotes.ViewModels;
 
@@ -12,6 +13,8 @@ public interface IWorkspaceDialogService
     Task<bool> ConfirmDiscardInvalidDraftAsync();
 
     Task ShowChatAsync(ChatViewModel model);
+
+    Task ShowKeyboardShortcutsHelpAsync(Window? owner = null);
 
     Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> previewAsync);
 }

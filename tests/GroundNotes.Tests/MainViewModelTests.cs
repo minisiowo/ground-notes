@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Avalonia.Controls;
 using GroundNotes.Models;
 using GroundNotes.Services;
 using GroundNotes.ViewModels;
@@ -26,6 +27,23 @@ public sealed class MainViewModelTests : IDisposable
         Assert.Equal(1, dialogService.PickFolderCallCount);
         Assert.Equal(_tempRoot, vm.NotesFolder);
         Assert.Equal("Ready.", vm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task ShowKeyboardShortcutsHelpCommand_UsesDialogService()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.ShowKeyboardShortcutsHelpCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, dialogService.ShowKeyboardShortcutsHelpCallCount);
     }
 
     [Fact]
@@ -240,7 +258,7 @@ public sealed class MainViewModelTests : IDisposable
             FolderToPick = _tempRoot
         };
         var settingsService = new FakeSettingsService();
-        await settingsService.SetAiSettingsAsync(new AiSettings("secret", "gpt-5.4-mini", false));
+        await settingsService.UpdateSettingsAsync(s => s with { AiSettings = new AiSettings("secret", "gpt-5.4-mini", false) });
         var aiTitleSuggestionService = new FakeAiTitleSuggestionService
         {
             Suggestions = ["project-outline", "meeting-summary", "deployment-checklist"]
@@ -395,6 +413,7 @@ public sealed class MainViewModelTests : IDisposable
             12,
             2,
             1.3,
+            true,
             true,
             string.Empty,
             "gpt-5.4-mini",
@@ -611,6 +630,8 @@ public sealed class MainViewModelTests : IDisposable
 
         public int ShowChatCallCount { get; private set; }
 
+        public int ShowKeyboardShortcutsHelpCallCount { get; private set; }
+
         public ChatViewModel? LastChatViewModel { get; private set; }
 
         public bool ConfirmDiscardInvalidDraftResult { get; set; } = true;
@@ -641,6 +662,12 @@ public sealed class MainViewModelTests : IDisposable
         {
             ShowChatCallCount++;
             LastChatViewModel = model;
+            return Task.CompletedTask;
+        }
+
+        public Task ShowKeyboardShortcutsHelpAsync(Window? owner = null)
+        {
+            ShowKeyboardShortcutsHelpCallCount++;
             return Task.CompletedTask;
         }
 
@@ -712,6 +739,10 @@ public sealed class MainViewModelTests : IDisposable
             ApplyCodeFontCallCount++;
             LastCodeFontFamilyName = fontFamily.DisplayName;
             LastCodeFontVariantName = fontVariant.DisplayName;
+        }
+
+        public void ApplyScrollBars(bool show)
+        {
         }
     }
 
@@ -840,7 +871,7 @@ public sealed class MainViewModelTests : IDisposable
 
     private sealed class FakeSettingsService : ISettingsService
     {
-        private AppSettings _settings = new(null, 12, 12, 4, 1.15, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultCodeFontKey, FontCatalogService.DefaultVariantKey, GroundNotes.Styles.AppTheme.Dark.Name, false, null, AiSettings.Default);
+        private AppSettings _settings = new(null, 12, 12, 4, 1.15, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultFontKey, FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultCodeFontKey, FontCatalogService.DefaultVariantKey, GroundNotes.Styles.AppTheme.Dark.Name, false, true, null, AiSettings.Default);
 
         public AppSettings GetSettingsSync() => _settings;
 
@@ -864,11 +895,5 @@ public sealed class MainViewModelTests : IDisposable
         }
 
         public Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default) => Task.FromResult(_settings.AiSettings);
-
-        public Task SetAiSettingsAsync(AiSettings settings, CancellationToken cancellationToken = default)
-        {
-            _settings = _settings with { AiSettings = settings };
-            return Task.CompletedTask;
-        }
     }
 }

@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Media;
 using Avalonia.Styling;
 
@@ -193,15 +195,23 @@ public static class ThemeService
         Set(app, ThemeKeys.ListViewItemForegroundPointerOver, tokens.AppText);
         Set(app, ThemeKeys.ListViewItemForegroundSelected, tokens.AppText);
 
-        // MenuItem / ContextMenu
-        Set(app, ThemeKeys.MenuFlyoutPresenterBackground, tokens.PaneBackground);
+        // MenuItem / ContextMenu (Fluent resources; surface distinct from panes)
+        Set(app, ThemeKeys.MenuFlyoutPresenterBackground, tokens.MenuSurface);
         Set(app, ThemeKeys.MenuFlyoutPresenterBorderBrush, tokens.BorderBase);
-        Set(app, ThemeKeys.MenuFlyoutItemBackground, tokens.PaneBackground);
+        Set(app, ThemeKeys.MenuFlyoutItemBackground, "#00000000");
         Set(app, ThemeKeys.MenuFlyoutItemBackgroundPointerOver, tokens.SurfaceHover);
         Set(app, ThemeKeys.MenuFlyoutItemBackgroundPressed, tokens.SurfacePressed);
         Set(app, ThemeKeys.MenuFlyoutItemForeground, tokens.AppText);
         Set(app, ThemeKeys.MenuFlyoutItemForegroundPointerOver, tokens.AppText);
         Set(app, ThemeKeys.MenuFlyoutItemForegroundPressed, tokens.AppText);
+        // BoxShadow must be BoxShadows — a string resource breaks DynamicResource assignment and can crash/freeze.
+        SetValue(
+            app,
+            ThemeKeys.MenuFlyoutBoxShadow,
+            BoxShadows.Parse(
+                theme.IsLight
+                    ? "0 3 10 0 #22000000"
+                    : "0 4 12 0 #40000000"));
 
         // Focus visual
         Set(app, ThemeKeys.FocusStrokeColorOuter, tokens.FocusBorder);
@@ -257,5 +267,60 @@ public static class ThemeService
         }
 
         app.Resources[key] = value;
+    }
+
+    public static void ApplyScrollBars(bool show)
+    {
+        ApplyScrollBarsToWindow(GetMainWindow(), show);
+        SyncScrollBarsFromMainToSecondaryWindows();
+    }
+
+    public static void SyncScrollBarClassFromMainWindow(Window secondaryWindow)
+    {
+        var main = GetMainWindow();
+        if (main is null)
+        {
+            return;
+        }
+
+        ApplyScrollBarsToWindow(secondaryWindow, !main.Classes.Contains("scrollBarsHidden"));
+    }
+
+    private static void SyncScrollBarsFromMainToSecondaryWindows()
+    {
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return;
+        }
+
+        foreach (var w in desktop.Windows)
+        {
+            if (w is Window window && !ReferenceEquals(window, desktop.MainWindow))
+            {
+                SyncScrollBarClassFromMainWindow(window);
+            }
+        }
+    }
+
+    private static Window? GetMainWindow()
+    {
+        return (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow as Window;
+    }
+
+    private static void ApplyScrollBarsToWindow(Window? window, bool show)
+    {
+        if (window is null)
+        {
+            return;
+        }
+
+        if (show)
+        {
+            window.Classes.Remove("scrollBarsHidden");
+        }
+        else if (!window.Classes.Contains("scrollBarsHidden"))
+        {
+            window.Classes.Add("scrollBarsHidden");
+        }
     }
 }

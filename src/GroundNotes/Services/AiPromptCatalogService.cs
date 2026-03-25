@@ -5,10 +5,7 @@ namespace GroundNotes.Services;
 
 public sealed class AiPromptCatalogService : IAiPromptCatalogService
 {
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
+    private static JsonSerializerOptions s_jsonOptions => JsonDefaults.ReadOptions;
 
     private readonly SemaphoreSlim _builtInCacheLock = new(1, 1);
     private AiPromptCatalogLoadResult? _cachedBuiltInPrompts;

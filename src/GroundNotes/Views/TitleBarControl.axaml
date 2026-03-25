@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="GroundNotes.Views.TitleBarControl">
+  <Border Classes="titleBarSurface"
+          BorderThickness="0,0,0,1"
+          PointerPressed="OnBorderPointerPressed">
+    <Grid ColumnDefinitions="*,Auto">
+      <Border Grid.Column="0"
+              Background="Transparent"
+              Padding="12,6">
+        <TextBlock Classes="titleBarText"
+                   Text="{Binding Title, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                   VerticalAlignment="Center" />
+      </Border>
+      <Button Grid.Column="1"
+              Classes="titleBarButton titleBarCloseButton"
+              Click="OnCloseButtonClick"
+              Content="X"
+              Width="42"
+              Height="30" />
+    </Grid>
+  </Border>
+</UserControl>

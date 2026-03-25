@@ -313,7 +313,7 @@
       <Grid Grid.Column="2"
             RowDefinitions="Auto,*"
             x:Name="EditorPanel"
-            Margin="8,12,14,14">
+            Margin="8,14,14,14">
 
         <Grid Grid.Row="0"
               x:Name="TitleTagsGrid"

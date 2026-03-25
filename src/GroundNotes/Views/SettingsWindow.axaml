@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:GroundNotes.Views"
         x:Class="GroundNotes.Views.SettingsWindow"
         Title="Settings"
         Width="620"
@@ -14,24 +15,10 @@
         WindowStartupLocation="CenterOwner">
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Title Bar -->
-    <Border Grid.Row="0"
-            Classes="titleBarSurface"
-            BorderThickness="0,0,0,1"
-            PointerPressed="OnTitleBarPointerPressed">
-      <Grid ColumnDefinitions="*,Auto">
-        <Border Grid.Column="0"
-                Background="Transparent"
-                Padding="16,10">
-          <TextBlock Classes="titleBarText" Text="Settings" VerticalAlignment="Center" />
-        </Border>
-        <Button Grid.Column="1"
-                Classes="titleBarButton titleBarCloseButton"
-                Click="OnCancelClick"
-                Content="X"
-                Width="46"
-                Height="34" />
-      </Grid>
-    </Border>
+    <views:TitleBarControl Grid.Row="0"
+                           Title="Settings"
+                           TitleBarPointerPressed="OnTitleBarPointerPressed"
+                           CloseRequested="OnCancelRequested" />
 
     <!-- Content -->
     <TabControl Grid.Row="1" Margin="0">
@@ -90,6 +77,18 @@
                     <TextBlock Classes="settingsDescription" Text="Adjust spacing between editor lines, including wrapped lines." />
                   </StackPanel>
                   <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding LineHeights}" SelectedItem="{Binding SelectedLineHeight}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Show scrollbars" />
+                    <TextBlock Classes="settingsDescription" Text="Lists and editors. When off, scroll with the mouse wheel or trackpad." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding ShowScrollBars}" />
                 </Grid>
               </Border>
             </StackPanel>

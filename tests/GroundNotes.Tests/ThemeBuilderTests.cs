@@ -43,6 +43,19 @@ public sealed class ThemeBuilderTests
     }
 
     [Fact]
+    public void BuildTokens_MenuSurfaceDiffersFromPaneBackground()
+    {
+        var tokens = ThemeBuilder.BuildTokens(new AppTheme
+        {
+            Name = "Test",
+            IsLight = false,
+            Palette = CreatePalette()
+        });
+
+        Assert.NotEqual(tokens.PaneBackground, tokens.MenuSurface);
+    }
+
+    [Fact]
     public void BuildResources_ContainsMarkdownLinkResourcesAndAccentColors()
     {
         var resources = ThemeBuilder.BuildResources(new AppTheme
@@ -54,6 +67,7 @@ public sealed class ThemeBuilderTests
 
         Assert.Contains(ThemeKeys.MarkdownLinkLabelBrush, resources.Brushes.Keys);
         Assert.Contains(ThemeKeys.MarkdownLinkUrlBrush, resources.Brushes.Keys);
+        Assert.Contains(ThemeKeys.MenuSurfaceBrush, resources.Brushes.Keys);
         Assert.Contains(ThemeKeys.SystemAccentColor, resources.Colors.Keys);
         Assert.Contains(ThemeKeys.SystemAccentColorLight1, resources.Colors.Keys);
     }
