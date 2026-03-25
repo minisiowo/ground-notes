@@ -393,11 +393,13 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task ApplySettingsPreview_AppliesCodeFontImmediately()
+    public async Task ApplySettingsLive_AppliesCodeFontImmediately()
     {
         var appearanceService = new FakeAppAppearanceService();
         var editorLayoutState = new FakeEditorLayoutState();
         using var vm = await CreateViewModelAsync(appearanceService: appearanceService, editorLayoutState: editorLayoutState);
+
+        var callsBefore = appearanceService.ApplyCodeFontCallCount;
 
         var model = new SettingsDialogModel(
             ["Default"],
@@ -421,9 +423,9 @@ public sealed class MainViewModelTests : IDisposable
             string.Empty,
             string.Empty);
 
-        vm.ApplySettingsPreview(model);
+        vm.ApplySettingsLive(model);
 
-        Assert.Equal(1, appearanceService.ApplyCodeFontCallCount);
+        Assert.Equal(callsBefore + 1, appearanceService.ApplyCodeFontCallCount);
         Assert.Equal("JetBrains Mono", appearanceService.LastCodeFontFamilyName);
         Assert.Equal(FontCatalogService.DefaultVariantKey, appearanceService.LastCodeFontVariantName);
         Assert.Equal(2, editorLayoutState.CurrentSettings.IndentationSize);
@@ -671,9 +673,9 @@ public sealed class MainViewModelTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> previewSettingsAsync)
+        public Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange)
         {
-            return Task.FromResult<SettingsDialogModel?>(null);
+            return Task.CompletedTask;
         }
     }
 

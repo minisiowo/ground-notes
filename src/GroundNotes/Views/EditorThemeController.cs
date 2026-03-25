@@ -13,19 +13,25 @@ internal sealed class EditorThemeController : IDisposable
 {
     private readonly TextEditor _editor;
     private readonly MarkdownColorizingTransformer _colorizer;
+    private readonly CodeBlockBackgroundRenderer _codeBlockRenderer;
+    private readonly CodeBlockIndentGenerator _codeBlockIndentGenerator;
     private EditorAppearanceSignature _lastAppearanceSignature;
 
     public EditorThemeController(TextEditor editor, MarkdownColorizingTransformer colorizer)
     {
         _editor = editor;
         _colorizer = colorizer;
+        _codeBlockRenderer = new CodeBlockBackgroundRenderer(colorizer);
+        _codeBlockIndentGenerator = new CodeBlockIndentGenerator(colorizer);
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
 
         ConfigureEditorOptions(_editor.Options);
         _editor.Options.WordWrapIndentation = 0;
-        _editor.Options.InheritWordWrapIndentation = false;
+        _editor.Options.InheritWordWrapIndentation = true;
+        _editor.TextArea.TextView.ElementGenerators.Add(_codeBlockIndentGenerator);
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
+        _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.ResourcesChanged += OnEditorResourcesChanged;
 
         _lastAppearanceSignature = CaptureAppearanceSignature();
@@ -46,6 +52,7 @@ internal sealed class EditorThemeController : IDisposable
     {
         _lastAppearanceSignature = CaptureAppearanceSignature();
         _colorizer.InvalidateResourceCache();
+        _codeBlockRenderer.InvalidateBrush();
         ApplySelectionTheme();
         _editor.TextArea.TextView.InvalidateVisual();
     }
@@ -71,6 +78,7 @@ internal sealed class EditorThemeController : IDisposable
         _lastAppearanceSignature = currentSignature;
         ApplyEditorOptions(currentSignature);
         _colorizer.InvalidateResourceCache();
+        _codeBlockRenderer.InvalidateBrush();
         ApplySelectionTheme();
 
         var textView = _editor.TextArea.TextView;
@@ -95,7 +103,9 @@ internal sealed class EditorThemeController : IDisposable
     {
         _editor.ResourcesChanged -= OnEditorResourcesChanged;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
+        _editor.TextArea.TextView.ElementGenerators.Remove(_codeBlockIndentGenerator);
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
+        _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
     }
 
     private void OnColorizerRedrawRequested(object? sender, int startLine)

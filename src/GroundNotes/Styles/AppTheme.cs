@@ -118,29 +118,37 @@ public sealed class AppTheme
             SecondaryText = "#A0A0A0",
             MutedText = "#6E6E6E",
             PlaceholderText = "#5E5E5E",
-            Accent = "#E0A15C",
-            AccentSoft = "#D9B77D",
-            SelectionBackground = "#1A1A1A",
-            TextSelectionBrush = "#222222",
-            EditorTextSelectionBrush = "#55E0A15C",
-            Success = "#9FBF9F",
-            Warning = "#D3A96B",
-            Danger = "#8B1A1A",
+            Accent = "#CBA6F7",
+            AccentSoft = "#F5C2E7",
+            SelectionBackground = "#342A46",
+            TextSelectionBrush = "#342A46",
+            EditorTextSelectionBrush = "#66CBA6F7",
+            Success = "#A6E3A1",
+            Warning = "#F9E2AF",
+            Danger = "#F38BA8",
         },
         Overrides = new ThemeTokenOverrides
         {
-            SelectionBorder = "#888888",
-            FocusBorder = "#999999",
-            MarkdownHeading2 = "#B88A52",
-            MarkdownHeading3 = "#9FBF9F",
-            MarkdownLinkLabel = "#F0C68A",
-            MarkdownBlockquote = "#BFB7A6",
-            MarkdownFenceMarker = "#6A625A",
-            MarkdownInlineCodeForeground = "#F0C68A",
-            MarkdownInlineCodeBackground = "#111111",
-            MarkdownCodeBlockForeground = "#F4D4A6",
-            MarkdownCodeBlockBackground = "#141414",
-            TitleBarButtonHover = "#141414",
+            SelectionBorder = "#F5C2E7",
+            FocusBorder = "#CBA6F7",
+            MarkdownHeading1 = "#CBA6F7",
+            MarkdownHeading2 = "#F5C2E7",
+            MarkdownHeading3 = "#F2CDCD",
+            MarkdownLinkLabel = "#F5C2E7",
+            MarkdownLinkUrl = "#B9A1D2",
+            MarkdownTaskDone = "#A6E3A1",
+            MarkdownTaskPending = "#F9E2AF",
+            MarkdownStrikethrough = "#6C7690",
+            MarkdownRule = "#3C3550",
+            MarkdownBlockquote = "#D6C6E7",
+            MarkdownFenceMarker = "#9B88B8",
+            MarkdownFenceInfo = "#F5C2E7",
+            MarkdownInlineCodeForeground = "#F5C2E7",
+            MarkdownInlineCodeBackground = "#211B2C",
+            MarkdownCodeBlockForeground = "#CDD6F4",
+            MarkdownCodeBlockBackground = "#1B1625",
+            TitleBarButtonHover = "#221C2E",
+            TitleBarCloseHover = "#E06C92",
         }
     };
 
@@ -284,8 +292,58 @@ public sealed class AppTheme
         }
     };
 
+    public static AppTheme FlexokiDark { get; } = new()
+    {
+        Name = "Flexoki Dark",
+        IsLight = false,
+        Palette = new ThemePalette
+        {
+            AppBackground = "#100F0F",
+            PaneBackground = "#1C1B1A",
+            SurfaceBackground = "#100F0F",
+            SurfaceHover = "#282726",
+            SurfacePressed = "#0C0B0B",
+            SurfaceRaised = "#1C1B1A",
+            BorderBase = "#343331",
+            PrimaryText = "#CECDC3",
+            SecondaryText = "#878580",
+            MutedText = "#6F6E69",
+            PlaceholderText = "#575653",
+            Accent = "#3AA99F",
+            AccentSoft = "#DA702C",
+            SelectionBackground = "#1A2A28",
+            TextSelectionBrush = "#1F2D2B",
+            EditorTextSelectionBrush = "#663AA99F",
+            Success = "#879A39",
+            Warning = "#D0A215",
+            Danger = "#D14D41",
+        },
+        Overrides = new ThemeTokenOverrides
+        {
+            SelectionBorder = "#3AA99F",
+            FocusBorder = "#3AA99F",
+            MarkdownHeading1 = "#3AA99F",
+            MarkdownHeading2 = "#4385BE",
+            MarkdownHeading3 = "#8B7EC8",
+            MarkdownLinkLabel = "#3AA99F",
+            MarkdownLinkUrl = "#6F6E69",
+            MarkdownTaskDone = "#879A39",
+            MarkdownTaskPending = "#D0A215",
+            MarkdownStrikethrough = "#575653",
+            MarkdownRule = "#343331",
+            MarkdownBlockquote = "#878580",
+            MarkdownFenceMarker = "#403E3C",
+            MarkdownFenceInfo = "#3AA99F",
+            MarkdownInlineCodeForeground = "#CE5D97",
+            MarkdownInlineCodeBackground = "#282726",
+            MarkdownCodeBlockForeground = "#CECDC3",
+            MarkdownCodeBlockBackground = "#282726",
+            TitleBarButtonHover = "#282726",
+        }
+    };
+
     /// <summary>
     /// Returns all built-in themes.
     /// </summary>
-    public static IReadOnlyList<AppTheme> BuiltInThemes { get; } = [Dark, Claude, CatppuccinMochaMidnight, AmoledBlack, Light, FlexokiLight];
+    public static IReadOnlyList<AppTheme> BuiltInThemes { get; } = [Dark, Claude, CatppuccinMochaMidnight, AmoledBlack, Light, FlexokiLight, FlexokiDark];
 }

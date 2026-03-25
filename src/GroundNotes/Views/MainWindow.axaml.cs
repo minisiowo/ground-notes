@@ -413,7 +413,8 @@ public partial class MainWindow : Window
 
         if (e.PropertyName is nameof(MainViewModel.AiPrompts)
             or nameof(MainViewModel.IsAiBusy)
-            or nameof(MainViewModel.SelectedAiModel))
+            or nameof(MainViewModel.SelectedAiModel)
+            or nameof(MainViewModel.IsAiEnabled))
         {
             RebuildEditorContextFlyout();
             return;
@@ -546,8 +547,15 @@ public partial class MainWindow : Window
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", EditorTextEditor.CanCut, async (_, _) => await CutEditorSelectionAsync()));
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", EditorTextEditor.CanCopy, async (_, _) => await CopyEditorSelectionAsync()));
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", EditorTextEditor.CanPaste, (_, _) => EditorTextEditor.Paste()));
-        _editorContextFlyout.Items.Add(new Separator());
-        AddAiMenuSection();
+
+        if (DataContext is MainViewModel { IsAiEnabled: true })
+        {
+            _editorContextFlyout.Items.Add(new Separator());
+            AddAiMenuSection();
+            _editorContextFlyout.Items.Add(new Separator());
+        }
+
+        AddSettingsMenuItem();
     }
 
     private MenuItem CreateEditorMenuItem(string header, bool isEnabled, EventHandler<RoutedEventArgs> onClick)
@@ -605,8 +613,6 @@ public partial class MainWindow : Window
             }
         }
 
-        _editorContextFlyout.Items.Add(new Separator());
-
         var reloadItem = new MenuItem
         {
             Header = "Reload Prompts",
@@ -614,6 +620,12 @@ public partial class MainWindow : Window
         };
         reloadItem.Click += async (_, _) => await vm.ReloadAiPromptsCommand.ExecuteAsync(null);
         _editorContextFlyout.Items.Add(reloadItem);
+    }
+
+    private void AddSettingsMenuItem()
+    {
+        if (DataContext is not MainViewModel vm)
+            return;
 
         var settingsItem = new MenuItem
         {

@@ -20,18 +20,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task OpenSettingsAsync()
     {
-        var original = BuildSettingsDialogModel();
-        var updated = await _workspaceDialogService.ShowSettingsAsync(original, ApplySettingsPreview);
-        if (updated is null)
-        {
-            ApplySettingsPreview(original);
-            IsSettingsPreviewActive = false;
-            return;
-        }
-
+        var model = BuildSettingsDialogModel();
+        IsSettingsPreviewActive = true;
+        await _workspaceDialogService.ShowSettingsAsync(model, ApplySettingsLive);
         IsSettingsPreviewActive = false;
-        await ApplySettingsAsync(updated);
-        StatusMessage = "Settings saved.";
     }
 
     private SettingsDialogModel BuildSettingsDialogModel()
@@ -59,9 +51,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             CurrentAiPromptsDirectory);
     }
 
-    private async Task ApplySettingsAsync(SettingsDialogModel model)
+
+
+    internal void ApplySettingsLive(SettingsDialogModel model)
     {
-        ApplyThemeSelection(model.SelectedThemeName, persist: true);
+        ApplyThemeSelection(model.SelectedThemeName, persist: false);
 
         var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
@@ -69,7 +63,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
             ?? GetDefaultFontVariant(sidebarFontFamily);
         ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
-        await PersistSidebarFontSelectionAsync(sidebarFontFamily.Key, sidebarVariant.Key);
 
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
@@ -77,7 +70,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
             ?? GetDefaultFontVariant(fontFamily);
         ApplyFontSelection(fontFamily, variant, persist: false);
-        await PersistFontSelectionAsync(fontFamily.Key, variant.Key);
 
         var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultCodeFontKey)
@@ -85,34 +77,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
             ?? GetDefaultFontVariant(codeFontFamily);
         ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
-        await PersistCodeFontSelectionAsync(codeFontFamily.Key, codeVariant.Key);
-
-        ApplyAiSettings(new AiSettings(
-            model.ApiKey,
-            model.DefaultModel,
-            model.IsAiEnabled,
-            model.ProjectId,
-            model.OrganizationId));
 
         var persistedEditorFontSize = ClampEditorFontSize(model.EditorFontSize);
-        var persistedUiFontSize = ClampUiFontSize(model.UiFontSize);
-        var persistedEditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize);
-        var persistedEditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(model.EditorLineHeightFactor);
         if (!EditorFontSize.Equals(persistedEditorFontSize))
         {
             EditorFontSize = persistedEditorFontSize;
         }
 
+        var persistedUiFontSize = ClampUiFontSize(model.UiFontSize);
         if (!UiFontSize.Equals(persistedUiFontSize))
         {
             UiFontSize = persistedUiFontSize;
         }
 
+        var persistedEditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize);
         if (EditorIndentSize != persistedEditorIndentSize)
         {
             EditorIndentSize = persistedEditorIndentSize;
         }
 
+        var persistedEditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(model.EditorLineHeightFactor);
         if (Math.Abs(EditorLineHeightFactor - persistedEditorLineHeightFactor) > 0.0001)
         {
             EditorLineHeightFactor = persistedEditorLineHeightFactor;
@@ -121,7 +105,14 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowScrollBars = model.ShowScrollBars;
         _appearanceService.ApplyScrollBars(model.ShowScrollBars);
 
-        await PersistSettingsAsync(settings => settings with
+        ApplyAiSettings(new AiSettings(
+            model.ApiKey,
+            model.DefaultModel,
+            model.IsAiEnabled,
+            model.ProjectId,
+            model.OrganizationId));
+
+        _ = PersistSettingsAsync(settings => settings with
         {
             ThemeName = model.SelectedThemeName,
             SidebarFontName = sidebarFontFamily.Key,
@@ -137,78 +128,5 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ShowScrollBars = model.ShowScrollBars,
             AiSettings = BuildAiSettings()
         });
-    }
-
-    public void ApplySettingsPreview(SettingsDialogModel model)
-    {
-        IsSettingsPreviewActive = true;
-        if (!string.Equals(SelectedThemeName, model.SelectedThemeName, StringComparison.Ordinal))
-        {
-            ApplyThemeSelection(model.SelectedThemeName, persist: false);
-        }
-
-        var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
-            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
-            ?? _allFonts[0];
-        var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
-            ?? GetDefaultFontVariant(sidebarFontFamily);
-        if (!string.Equals(SelectedSidebarFontFamilyName, sidebarFontFamily.DisplayName, StringComparison.Ordinal)
-            || !string.Equals(SelectedSidebarFontVariantName, sidebarVariant.DisplayName, StringComparison.Ordinal))
-        {
-            ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
-        }
-
-        var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
-            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
-            ?? _allFonts[0];
-        var variant = ResolveFontVariant(fontFamily, model.SelectedFontVariantName)
-            ?? GetDefaultFontVariant(fontFamily);
-        if (!string.Equals(SelectedFontFamilyName, fontFamily.DisplayName, StringComparison.Ordinal)
-            || !string.Equals(SelectedFontVariantName, variant.DisplayName, StringComparison.Ordinal))
-        {
-            ApplyFontSelection(fontFamily, variant, persist: false);
-        }
-
-        var codeFontFamily = GetFontFamilyByDisplayName(model.SelectedCodeFontFamilyName)
-            ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultCodeFontKey)
-            ?? fontFamily;
-        var codeVariant = ResolveFontVariant(codeFontFamily, model.SelectedCodeFontVariantName)
-            ?? GetDefaultFontVariant(codeFontFamily);
-        if (!string.Equals(SelectedCodeFontFamilyName, codeFontFamily.DisplayName, StringComparison.Ordinal)
-            || !string.Equals(SelectedCodeFontVariantName, codeVariant.DisplayName, StringComparison.Ordinal))
-        {
-            ApplyCodeFontSelection(codeFontFamily, codeVariant, persist: false);
-        }
-
-        var editorFontSize = ClampEditorFontSize(model.EditorFontSize);
-        if (!EditorFontSize.Equals(editorFontSize))
-        {
-            EditorFontSize = editorFontSize;
-        }
-
-        var uiFontSize = ClampUiFontSize(model.UiFontSize);
-        if (!UiFontSize.Equals(uiFontSize))
-        {
-            UiFontSize = uiFontSize;
-        }
-
-        var editorIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize);
-        if (EditorIndentSize != editorIndentSize)
-        {
-            EditorIndentSize = editorIndentSize;
-        }
-
-        var editorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(model.EditorLineHeightFactor);
-        if (Math.Abs(EditorLineHeightFactor - editorLineHeightFactor) > 0.0001)
-        {
-            EditorLineHeightFactor = editorLineHeightFactor;
-        }
-
-        if (ShowScrollBars != model.ShowScrollBars)
-        {
-            ShowScrollBars = model.ShowScrollBars;
-        }
-
-        _appearanceService.ApplyScrollBars(model.ShowScrollBars);
     }
 }

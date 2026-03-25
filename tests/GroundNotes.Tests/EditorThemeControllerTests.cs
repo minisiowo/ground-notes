@@ -18,5 +18,6 @@ public sealed class EditorThemeControllerTests
         Assert.False(options.EnableHyperlinks);
         Assert.False(options.EnableEmailHyperlinks);
         Assert.False(options.RequireControlModifierForHyperlinkClick);
+        Assert.False(options.WordWrapIndentation > 0);
     }
 }

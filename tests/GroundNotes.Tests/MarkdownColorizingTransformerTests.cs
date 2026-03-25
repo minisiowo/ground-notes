@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using AvaloniaEdit.Document;
 using GroundNotes.Editors;
 using Xunit;
 
@@ -16,6 +17,21 @@ public sealed class MarkdownColorizingTransformerTests
         colorizer.InvalidateResourceCache();
 
         Assert.Null(GetResourceCache(colorizer));
+    }
+
+    [Fact]
+    public void QueryIsFencedCodeLine_ReturnsTrueForFenceContentAndBlankInnerLines()
+    {
+        using var colorizer = new MarkdownColorizingTransformer();
+        var document = new TextDocument("before\n```csharp\ncode\n\nmore\n```\nafter");
+
+        Assert.False(colorizer.QueryIsFencedCodeLine(document, 1));
+        Assert.True(colorizer.QueryIsFencedCodeLine(document, 2));
+        Assert.True(colorizer.QueryIsFencedCodeLine(document, 3));
+        Assert.True(colorizer.QueryIsFencedCodeLine(document, 4));
+        Assert.True(colorizer.QueryIsFencedCodeLine(document, 5));
+        Assert.True(colorizer.QueryIsFencedCodeLine(document, 6));
+        Assert.False(colorizer.QueryIsFencedCodeLine(document, 7));
     }
 
     private static void SeedResourceCache(MarkdownColorizingTransformer colorizer)
