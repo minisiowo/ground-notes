@@ -10,6 +10,7 @@ It is designed for people who want local notes first: no database, no proprietar
 - Supports `.txt` and `.md` notes.
 - Stores note metadata in simple YAML-like frontmatter.
 - Lets you search, filter by tag, sort, rename, and edit notes quickly.
+- Includes markdown-aware editor styling for headings, lists, links, inline code, and fenced code blocks.
 - Watches the notes folder for external filesystem changes.
 - Includes theme, UI font, editor font, code font, indentation, and line-height settings.
 - Supports OpenAI-powered text actions on selected text.

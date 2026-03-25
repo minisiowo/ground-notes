@@ -97,7 +97,9 @@ dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~AiPromptCatalogServiceTests"
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~SettingsViewModelTests"
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~MarkdownLineParserTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~MarkdownColorizingTransformerTests"
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~MarkdownEditingCommandsTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~EditorThemeControllerTests"
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~MainWindowShortcutTests"
 ```
 
@@ -136,6 +138,11 @@ Fast iteration loop:
 - Keep state transitions and persistence in view models/services.
 - `MainWindow` and `ChatWindow` already use controller/helper classes for window chrome, editor hosting, popup behavior, text sync, and layout; preserve that split instead of pushing logic back into the window class.
 - `src/GroundNotes/Editors/` is the home for markdown parsing, styling, diagnostics, and slash-command behavior; markdown rules should stay deterministic and covered by focused tests.
+- Fenced code block rendering is shared editor infrastructure:
+  `EditorThemeController` wires `CodeBlockIndentGenerator`, `CodeBlockWrapIndentTransformer`, `MarkdownColorizingTransformer`, and `CodeBlockBackgroundRenderer`.
+  Keep note editor and chat editor behavior aligned through that shared pipeline.
+- Treat `MarkdownColorizingTransformer.QueryIsFencedCodeLine(...)` as the authoritative fenced-state query for rendering decisions.
+  `_fencedLineNumbers` is only a colorization snapshot and must not become the source of truth for indent/background logic.
 - `ChatWindow` code-behind is responsible for editor synchronization, auto-scroll behavior, mention popup interactions, and window chrome only; chat/history logic belongs in `ChatViewModel`.
 
 ## Code Style
@@ -195,6 +202,7 @@ Fast iteration loop:
 - For AI changes, prefer targeted coverage in `ChatViewModelTests`, `OpenAiChatServiceTests`, `OpenAiTextActionServiceTests`, and `AiPromptCatalogServiceTests`.
 - For settings/theme/font/layout behavior, prefer `FolderSettingsServiceTests`, `SettingsViewModelTests`, `ThemeLoaderServiceTests`, `FontCatalogServiceTests`, and `SettingsWindowLayoutServiceTests`.
 - For editor/markdown behavior, prefer `Markdown*Tests` and `MainWindowShortcutTests`.
+- For fenced-code rendering, wrap indentation, and stale fenced-state regressions, prefer `EditorThemeControllerTests` and `MarkdownColorizingTransformerTests`.
 - Cover both unsaved chat sessions and persisted chat-note behavior when changing `ChatViewModel`.
 
 ## Agent Behavior
@@ -218,4 +226,6 @@ dotnet test GroundNotes.sln --no-build --list-tests
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.ChatViewModelTests"
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.MarkdownLineParserTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.MarkdownColorizingTransformerTests"
+dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.EditorThemeControllerTests"
 ```
