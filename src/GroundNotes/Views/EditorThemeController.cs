@@ -11,11 +11,16 @@ namespace GroundNotes.Views;
 
 internal sealed class EditorThemeController : IDisposable
 {
+    private const double ResizeTolerance = 0.1;
+
     private readonly TextEditor _editor;
     private readonly MarkdownColorizingTransformer _colorizer;
     private readonly CodeBlockBackgroundRenderer _codeBlockRenderer;
     private readonly CodeBlockIndentGenerator _codeBlockIndentGenerator;
+    private readonly CodeBlockWrapIndentTransformer _codeBlockWrapIndentTransformer;
     private EditorAppearanceSignature _lastAppearanceSignature;
+    private Size _lastTextViewBounds;
+    private bool _isResizeRefreshQueued;
 
     public EditorThemeController(TextEditor editor, MarkdownColorizingTransformer colorizer)
     {
@@ -23,6 +28,7 @@ internal sealed class EditorThemeController : IDisposable
         _colorizer = colorizer;
         _codeBlockRenderer = new CodeBlockBackgroundRenderer(colorizer);
         _codeBlockIndentGenerator = new CodeBlockIndentGenerator(colorizer);
+        _codeBlockWrapIndentTransformer = new CodeBlockWrapIndentTransformer(colorizer);
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
 
@@ -30,11 +36,15 @@ internal sealed class EditorThemeController : IDisposable
         _editor.Options.WordWrapIndentation = 0;
         _editor.Options.InheritWordWrapIndentation = true;
         _editor.TextArea.TextView.ElementGenerators.Add(_codeBlockIndentGenerator);
+        _editor.TextArea.TextView.LineTransformers.Add(_codeBlockWrapIndentTransformer);
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.ResourcesChanged += OnEditorResourcesChanged;
+        _editor.SizeChanged += OnEditorSizeChanged;
+        _editor.TextArea.TextView.PropertyChanged += OnTextViewPropertyChanged;
 
         _lastAppearanceSignature = CaptureAppearanceSignature();
+        _lastTextViewBounds = _editor.TextArea.TextView.Bounds.Size;
         ApplyEditorOptions(_lastAppearanceSignature);
         ApplySelectionTheme();
     }
@@ -102,8 +112,11 @@ internal sealed class EditorThemeController : IDisposable
     public void Dispose()
     {
         _editor.ResourcesChanged -= OnEditorResourcesChanged;
+        _editor.SizeChanged -= OnEditorSizeChanged;
+        _editor.TextArea.TextView.PropertyChanged -= OnTextViewPropertyChanged;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
         _editor.TextArea.TextView.ElementGenerators.Remove(_codeBlockIndentGenerator);
+        _editor.TextArea.TextView.LineTransformers.Remove(_codeBlockWrapIndentTransformer);
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
     }
@@ -133,6 +146,34 @@ internal sealed class EditorThemeController : IDisposable
         RefreshVisualResources();
     }
 
+    private void OnEditorSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) < ResizeTolerance)
+        {
+            return;
+        }
+
+        RefreshAfterResize();
+    }
+
+    private void OnTextViewPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != Visual.BoundsProperty || sender is not Control control)
+        {
+            return;
+        }
+
+        var newBounds = control.Bounds.Size;
+        if (Math.Abs(newBounds.Width - _lastTextViewBounds.Width) < ResizeTolerance
+            && Math.Abs(newBounds.Height - _lastTextViewBounds.Height) < ResizeTolerance)
+        {
+            return;
+        }
+
+        _lastTextViewBounds = newBounds;
+        RefreshAfterResize();
+    }
+
     private static EditorAppearanceSignature CaptureAppearanceSignature()
     {
         var resources = Application.Current?.Resources;
@@ -155,6 +196,41 @@ internal sealed class EditorThemeController : IDisposable
 
     private static void ApplyEditorOptions(EditorAppearanceSignature signature)
     {
+    }
+
+    private void RefreshAfterResize()
+    {
+        var textView = _editor.TextArea.TextView;
+        textView.InvalidateMeasure();
+        textView.InvalidateArrange();
+        textView.InvalidateVisual();
+        textView.Redraw();
+
+        if (textView.Bounds.Width > 0 && textView.Bounds.Height > 0)
+        {
+            textView.EnsureVisualLines();
+        }
+
+        if (_isResizeRefreshQueued)
+        {
+            return;
+        }
+
+        _isResizeRefreshQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isResizeRefreshQueued = false;
+            var currentTextView = _editor.TextArea.TextView;
+            currentTextView.InvalidateMeasure();
+            currentTextView.InvalidateArrange();
+            currentTextView.InvalidateVisual();
+            currentTextView.Redraw();
+
+            if (currentTextView.Bounds.Width > 0 && currentTextView.Bounds.Height > 0)
+            {
+                currentTextView.EnsureVisualLines();
+            }
+        }, DispatcherPriority.Render);
     }
 
     private readonly record struct EditorAppearanceSignature(

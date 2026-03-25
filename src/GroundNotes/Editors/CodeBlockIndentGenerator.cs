@@ -4,6 +4,8 @@ namespace GroundNotes.Editors;
 
 internal sealed class CodeBlockIndentGenerator : VisualLineElementGenerator
 {
+    private const string IndentText = "  ";
+
     private readonly MarkdownColorizingTransformer _colorizer;
 
     public CodeBlockIndentGenerator(MarkdownColorizingTransformer colorizer)
@@ -34,10 +36,13 @@ internal sealed class CodeBlockIndentGenerator : VisualLineElementGenerator
     private sealed class SpacerElement : FormattedTextElement
     {
         public SpacerElement()
-            : base("  ", 0)
+            : base(IndentText, 0)
         {
         }
 
-        public override bool IsWhitespace(int visualColumn) => true;
+        public override bool IsWhitespace(int visualColumn)
+        {
+            return true;
+        }
     }
 }
