@@ -25,11 +25,6 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
 
     internal bool QueryIsFencedCodeLine(TextDocument document, int lineNumber)
     {
-        if (_fencedLineNumbers.Contains(lineNumber))
-        {
-            return true;
-        }
-
         var fenceState = _fenceStateTracker.GetStateBeforeLine(document, lineNumber);
         if (fenceState.IsInsideFence)
         {

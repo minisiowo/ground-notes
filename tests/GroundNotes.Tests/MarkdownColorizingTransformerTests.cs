@@ -34,6 +34,17 @@ public sealed class MarkdownColorizingTransformerTests
         Assert.False(colorizer.QueryIsFencedCodeLine(document, 7));
     }
 
+    [Fact]
+    public void QueryIsFencedCodeLine_IgnoresStaleFencedLineSnapshot()
+    {
+        using var colorizer = new MarkdownColorizingTransformer();
+        var document = new TextDocument("before\nplain text\nafter");
+
+        GetFencedLineNumbers(colorizer).Add(2);
+
+        Assert.False(colorizer.QueryIsFencedCodeLine(document, 2));
+    }
+
     private static void SeedResourceCache(MarkdownColorizingTransformer colorizer)
     {
         var field = GetResourceCacheField();
@@ -52,5 +63,13 @@ public sealed class MarkdownColorizingTransformerTests
     {
         return typeof(MarkdownColorizingTransformer).GetField("_resourceCache", BindingFlags.Instance | BindingFlags.NonPublic)
             ?? throw new InvalidOperationException("Resource cache field not found.");
+    }
+
+    private static HashSet<int> GetFencedLineNumbers(MarkdownColorizingTransformer colorizer)
+    {
+        var field = typeof(MarkdownColorizingTransformer).GetField("_fencedLineNumbers", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Fenced line numbers field not found.");
+        return (HashSet<int>)(field.GetValue(colorizer)
+            ?? throw new InvalidOperationException("Fenced line numbers field is null."));
     }
 }
