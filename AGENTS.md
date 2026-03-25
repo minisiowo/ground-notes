@@ -9,7 +9,7 @@ Repository guide for agentic coding assistants working in `ground-notes`.
 
 ## Project Snapshot
 - Product: desktop plain-text notes app for local folders the user controls.
-- Stack: .NET 10, Avalonia UI 11, AvaloniaEdit, CommunityToolkit.Mvvm, xUnit.
+- Stack: .NET 10, Avalonia UI 11, forked AvaloniaEdit source, CommunityToolkit.Mvvm, xUnit.
 - Note format: regular `.txt` and `.md` files with YAML-like frontmatter and body text.
 - Core features: note search/filter/sort, rename/delete, markdown-aware editor styling, folder watching, theming, bundled fonts, layout persistence, OpenAI-backed text actions, and a dedicated AI chat window.
 - Solution: `GroundNotes.sln`.
@@ -25,6 +25,7 @@ Repository guide for agentic coding assistants working in `ground-notes`.
 - `src/GroundNotes/Styles/`: app theme definitions and shared style resources.
 - `src/GroundNotes/Assets/`: bundled AI prompts and bundled fonts.
 - `tests/GroundNotes.Tests/`: xUnit coverage for repository, services, view models, markdown editor helpers, shortcuts, and window/layout behavior.
+- `extern/AvaloniaEdit/`: forked AvaloniaEdit source integrated by `ProjectReference`; treat as third-party code with a minimal, documented patch surface.
 - `scripts/`: local publish/install helpers for Linux, Windows, and WSL workflows.
 - `artifacts/verify/`: generated verification output; do not hand-edit unless the task is explicitly about verification artifacts.
 
@@ -40,6 +41,7 @@ Repository guide for agentic coding assistants working in `ground-notes`.
 - `Directory.Build.props` enables nullable, implicit usings, and `LangVersion=latest`.
 - App target: `net10.0`.
 - Avalonia compiled bindings default is disabled in `GroundNotes.csproj`.
+- AvaloniaEdit is no longer consumed as a NuGet package in the app; `src/GroundNotes/GroundNotes.csproj` references `extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj`.
 - No dedicated lint command is configured.
 
 ## Build Commands
@@ -47,12 +49,14 @@ Repository guide for agentic coding assistants working in `ground-notes`.
 dotnet restore GroundNotes.sln
 dotnet build GroundNotes.sln
 dotnet build src/GroundNotes/GroundNotes.csproj
+dotnet build extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj
 dotnet publish src/GroundNotes/GroundNotes.csproj -c Release
 ```
 
 Build guidance:
 - Prefer solution-level build for broad validation.
 - Use project-level build for tight iteration.
+- When changing tests or the AvaloniaEdit fork, rebuild before relying on `--no-build`; stale test binaries can hide or replay removed tests.
 
 ## Run Command
 ```bash
@@ -138,11 +142,16 @@ Fast iteration loop:
 - Keep state transitions and persistence in view models/services.
 - `MainWindow` and `ChatWindow` already use controller/helper classes for window chrome, editor hosting, popup behavior, text sync, and layout; preserve that split instead of pushing logic back into the window class.
 - `src/GroundNotes/Editors/` is the home for markdown parsing, styling, diagnostics, and slash-command behavior; markdown rules should stay deterministic and covered by focused tests.
+- Fork-level editor changes belong in `extern/AvaloniaEdit/src/AvaloniaEdit/`, not in ad-hoc app-side workarounds, unless the workaround is intentionally temporary and explicitly documented.
 - Fenced code block rendering is shared editor infrastructure:
   `EditorThemeController` wires `CodeBlockIndentGenerator`, `CodeBlockWrapIndentTransformer`, `MarkdownColorizingTransformer`, and `CodeBlockBackgroundRenderer`.
   Keep note editor and chat editor behavior aligned through that shared pipeline.
 - Treat `MarkdownColorizingTransformer.QueryIsFencedCodeLine(...)` as the authoritative fenced-state query for rendering decisions.
   `_fencedLineNumbers` is only a colorization snapshot and must not become the source of truth for indent/background logic.
+- `extern/AvaloniaEdit/src/AvaloniaEdit/Rendering/TextView.cs` now contains a GroundNotes-specific extension point:
+  `IVisualLineIndentationProvider` plus `VisualLineIndentationProvider`.
+  Preserve this as a narrow host hook for visual-only indentation and document any new fork patches in `extern/AvaloniaEdit/README-ground-notes.md`.
+- `extern/AvaloniaEdit/src/AvaloniaEdit/Rendering/VisualLine.cs` also contains local positioning patches; changes there are high-risk because they affect caret mapping, hit-testing, and rendered X positions.
 - `ChatWindow` code-behind is responsible for editor synchronization, auto-scroll behavior, mention popup interactions, and window chrome only; chat/history logic belongs in `ChatViewModel`.
 
 ## Code Style
@@ -203,6 +212,7 @@ Fast iteration loop:
 - For settings/theme/font/layout behavior, prefer `FolderSettingsServiceTests`, `SettingsViewModelTests`, `ThemeLoaderServiceTests`, `FontCatalogServiceTests`, and `SettingsWindowLayoutServiceTests`.
 - For editor/markdown behavior, prefer `Markdown*Tests` and `MainWindowShortcutTests`.
 - For fenced-code rendering, wrap indentation, and stale fenced-state regressions, prefer `EditorThemeControllerTests` and `MarkdownColorizingTransformerTests`.
+- When changing the AvaloniaEdit fork, verify both the fork build and the app build before running tests.
 - Cover both unsaved chat sessions and persisted chat-note behavior when changing `ChatViewModel`.
 
 ## Agent Behavior
@@ -216,11 +226,13 @@ Fast iteration loop:
 - `dotnet build GroundNotes.sln` succeeds.
 - `dotnet test GroundNotes.sln --no-build` succeeds after build.
 - Single-test execution via `--filter` works reliably.
+- The forked AvaloniaEdit project builds inside the solution and should not require reintroducing the NuGet package.
 
 ## Quick Commands
 ```bash
 dotnet restore GroundNotes.sln
 dotnet build GroundNotes.sln
+dotnet build extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj
 dotnet test GroundNotes.sln --no-build
 dotnet test GroundNotes.sln --no-build --list-tests
 dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --no-build --filter "FullyQualifiedName~GroundNotes.Tests.NotesRepositoryTests.CreateDraftNote_UsesTimestampTitle"
