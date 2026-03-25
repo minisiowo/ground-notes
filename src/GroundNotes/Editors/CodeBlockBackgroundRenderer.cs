@@ -55,7 +55,7 @@ internal sealed class CodeBlockBackgroundRenderer : IBackgroundRenderer
         foreach (var visualLine in visualLines)
         {
             var lineNumber = visualLine.FirstDocumentLine.LineNumber;
-            var isFenced = _colorizer.IsFencedCodeLine(lineNumber);
+            var isFenced = _colorizer.QueryIsFencedCodeLine(textView.Document, lineNumber);
 
             if (isFenced)
             {

@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
@@ -146,6 +147,41 @@ public sealed class EditorThemeControllerTests
         AssertIndentedWrappedCode(textView, editor.Document);
     }
 
+    [Fact]
+    public void PlainLine_DoesNotReceiveCodeBlockIndentFromStaleFenceSnapshot()
+    {
+        EnsureApplication();
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        SeedStaleFencedLine(colorizer, 5);
+
+        var editor = new TextEditor
+        {
+            Document = new TextDocument(CreateWrappedCodeSample()),
+            WordWrap = true,
+            Width = 100,
+            Height = 480
+        };
+        using var controller = new EditorThemeController(editor, colorizer);
+        var window = new Window
+        {
+            Width = editor.Width,
+            Height = editor.Height,
+            Content = editor
+        };
+
+        ApplyHostLayout(window, editor);
+
+        var textView = editor.TextArea.TextView;
+        ApplyTextViewLayout(textView, editor.Width, editor.Height);
+
+        var plainLine = textView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(5));
+        var plainStarts = plainLine.TextLines.Select(textLine => GetFirstNonWhitespaceX(plainLine, textLine)).ToArray();
+
+        Assert.True(plainStarts.Length > 1, $"Plain starts: {string.Join(", ", plainStarts)}");
+        Assert.All(plainStarts.Skip(1), start => Assert.True(start < 1.0, $"Plain starts: {string.Join(", ", plainStarts)}; Elements: {DescribeElements(plainLine)}"));
+    }
+
     private static void EnsureApplication()
     {
         if (Application.Current is not null)
@@ -252,5 +288,14 @@ public sealed class EditorThemeControllerTests
             " | ",
             visualLine.Elements.Select(element =>
                 $"{element.GetType().Name}[vc={element.VisualColumn},len={element.VisualLength},doc={element.DocumentLength}]"));
+    }
+
+    private static void SeedStaleFencedLine(MarkdownColorizingTransformer colorizer, int lineNumber)
+    {
+        var field = typeof(MarkdownColorizingTransformer).GetField("_fencedLineNumbers", BindingFlags.Instance | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Fenced line numbers field not found.");
+        var fencedLineNumbers = (HashSet<int>)(field.GetValue(colorizer)
+            ?? throw new InvalidOperationException("Fenced line numbers field is null."));
+        fencedLineNumbers.Add(lineNumber);
     }
 }
