@@ -13,10 +13,38 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
     private readonly MarkdownStyleSpanBuffer _spanBuffer = new();
     private ResourceCache? _resourceCache;
 
+    private readonly HashSet<int> _fencedLineNumbers = [];
+
     public event EventHandler<int>? RedrawRequested
     {
         add => _fenceStateTracker.RedrawRequested += value;
         remove => _fenceStateTracker.RedrawRequested -= value;
+    }
+
+    public bool IsFencedCodeLine(int lineNumber) => _fencedLineNumbers.Contains(lineNumber);
+
+    internal bool QueryIsFencedCodeLine(TextDocument document, int lineNumber)
+    {
+        if (_fencedLineNumbers.Contains(lineNumber))
+        {
+            return true;
+        }
+
+        var fenceState = _fenceStateTracker.GetStateBeforeLine(document, lineNumber);
+        if (fenceState.IsInsideFence)
+        {
+            return true;
+        }
+
+        var line = document.GetLineByNumber(lineNumber);
+        var lineText = document.GetText(line.Offset, line.Length);
+        if (string.IsNullOrEmpty(lineText))
+        {
+            return false;
+        }
+
+        var analysis = _analysisCache.GetOrAdd(document, lineNumber, lineText, fenceState);
+        return analysis.IsFencedCodeLine;
     }
 
     protected override void ColorizeLine(DocumentLine line)
@@ -25,19 +53,32 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
 
         var document = CurrentContext.Document;
         var lineText = document.GetText(line.Offset, line.Length);
+
+        var fenceState = _fenceStateTracker.GetStateBeforeLine(document, line.LineNumber);
         if (string.IsNullOrEmpty(lineText))
         {
+            if (fenceState.IsInsideFence)
+            {
+                _fencedLineNumbers.Add(line.LineNumber);
+            }
+            else
+            {
+                _fencedLineNumbers.Remove(line.LineNumber);
+            }
+
             return;
         }
 
-        var fenceState = _fenceStateTracker.GetStateBeforeLine(document, line.LineNumber);
         var analysis = _analysisCache.GetOrAdd(document, line.LineNumber, lineText, fenceState);
         if (analysis.IsFencedCodeLine)
         {
+            _fencedLineNumbers.Add(line.LineNumber);
             ApplyFencedCodeBlock(line, analysis);
             FlushSpans();
             return;
         }
+
+        _fencedLineNumbers.Remove(line.LineNumber);
 
         ApplyHeading(line, analysis.Heading);
         if (ApplyHorizontalRule(line, analysis.HorizontalRule))
@@ -215,7 +256,6 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
             line.Offset,
             line.Offset + line.Length,
             resources.MarkdownCodeBlockForegroundBrush,
-            backgroundBrush: resources.MarkdownCodeBlockBackgroundBrush,
             typeface: resources.CodeTypeface);
 
         if (analysis.Fence is not { } fence)
@@ -227,7 +267,6 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
             line.Offset + fence.Fence.Start,
             line.Offset + fence.Fence.End,
             resources.MarkdownFenceMarkerBrush,
-            backgroundBrush: resources.MarkdownCodeBlockBackgroundBrush,
             typeface: resources.CodeTypeface);
 
         if (fence.Info is { } info)
@@ -236,7 +275,6 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
                 line.Offset + info.Start,
                 line.Offset + info.End,
                 resources.MarkdownFenceInfoBrush,
-                backgroundBrush: resources.MarkdownCodeBlockBackgroundBrush,
                 typeface: resources.CodeTypeface);
         }
     }

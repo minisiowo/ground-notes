@@ -96,7 +96,8 @@
                   HorizontalAlignment="Stretch"
                   HorizontalContentAlignment="Center"
                   Content="Ask AI (Chat)"
-                  Command="{Binding OpenChatCommand}" />
+                  Command="{Binding OpenChatCommand}"
+                  IsVisible="{Binding IsAiEnabled}" />
 
           <Border Grid.Row="2"
                   Margin="0,0,0,10"
@@ -340,11 +341,13 @@
                          TextWrapping="NoWrap" />
             </Grid>
             <Grid Grid.Column="1"
-                  Margin="8,0,0,0">
+                  Margin="8,0,0,0"
+                  IsVisible="{Binding IsAiEnabled}">
               <Button x:Name="GenerateTitleSuggestionsButton"
                       Classes="compactIconButton"
                       Width="32"
                       Padding="0"
+                      Foreground="{DynamicResource PlaceholderTextBrush}"
                       ToolTip.Tip="Suggest 3 AI titles"
                       Content="AI"
                       Command="{Binding GenerateTitleSuggestionsCommand}" />

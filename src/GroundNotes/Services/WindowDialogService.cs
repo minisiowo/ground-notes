@@ -68,21 +68,15 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         await dialog.ShowDialog(owner ?? _owner);
     }
 
-    public async Task<SettingsDialogModel?> ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> previewAsync)
+    public async Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange)
     {
         var dialog = new SettingsWindow(model)
         {
-            PreviewSettingsAsync = previewAsync is null
-                ? null
-                : value =>
-                {
-                    previewAsync(value);
-                    return Task.CompletedTask;
-                }
+            OnSettingsChanged = onChange
         };
 
         dialog.ShowKeyboardShortcutsHelpAsync = () => ShowKeyboardShortcutsHelpAsync(dialog);
 
-        return await dialog.ShowDialog<SettingsDialogModel?>(_owner);
+        await dialog.ShowDialog(_owner);
     }
 }
