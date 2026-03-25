@@ -203,6 +203,7 @@ public sealed class EditorThemeControllerTests
             "This plain line should also wrap in the same narrow editor but its continuations must return to the baseline.");
     }
 
+
     private static void ApplyTextViewLayout(AvaloniaEdit.Rendering.TextView textView, double width, double height)
     {
         textView.Measure(new Size(width, height));
