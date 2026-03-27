@@ -73,6 +73,26 @@ public sealed class MarkdownLineParserTests
     }
 
     [Fact]
+    public void Analyze_DetectsBulletListTextStart()
+    {
+        var analysis = MarkdownLineParser.Analyze("  - list item", MarkdownFenceState.None);
+
+        var list = Assert.IsType<MarkdownListMatch>(analysis.ListMarker);
+        Assert.NotNull(list.Text);
+        Assert.Equal("list item", "  - list item"[list.Text!.Value.Start..list.Text.Value.End]);
+    }
+
+    [Fact]
+    public void Analyze_DetectsOrderedListTextStart()
+    {
+        var analysis = MarkdownLineParser.Analyze("  12. ordered item", MarkdownFenceState.None);
+
+        var list = Assert.IsType<MarkdownListMatch>(analysis.ListMarker);
+        Assert.NotNull(list.Text);
+        Assert.Equal("ordered item", "  12. ordered item"[list.Text!.Value.Start..list.Text.Value.End]);
+    }
+
+    [Fact]
     public void Analyze_TreatsLinesInsideFenceAsCodeOnly()
     {
         var analysis = MarkdownLineParser.Analyze("## not a heading", new MarkdownFenceState(true, '`', 3));

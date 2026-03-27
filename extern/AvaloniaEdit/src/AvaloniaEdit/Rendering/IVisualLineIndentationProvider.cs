@@ -16,4 +16,10 @@ public interface IVisualLineIndentationProvider
     /// Return 0 to apply no extra indentation.
     /// </summary>
     int GetVisualIndentationColumns(TextView textView, DocumentLine documentLine);
+
+    /// <summary>
+    /// Returns the visual column on the first rendered row that wrapped continuation rows should align to.
+    /// Return <c>null</c> to use the default inherited indentation behavior.
+    /// </summary>
+    int? GetWrappedLineContinuationStartColumn(TextView textView, DocumentLine documentLine);
 }

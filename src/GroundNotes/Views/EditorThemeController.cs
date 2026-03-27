@@ -16,8 +16,7 @@ internal sealed class EditorThemeController : IDisposable
     private readonly TextEditor _editor;
     private readonly MarkdownColorizingTransformer _colorizer;
     private readonly CodeBlockBackgroundRenderer _codeBlockRenderer;
-    private readonly CodeBlockIndentGenerator _codeBlockIndentGenerator;
-    private readonly CodeBlockWrapIndentTransformer _codeBlockWrapIndentTransformer;
+    private readonly MarkdownVisualLineIndentationProvider _visualLineIndentationProvider;
     private EditorAppearanceSignature _lastAppearanceSignature;
     private Size _lastTextViewBounds;
     private bool _isResizeRefreshQueued;
@@ -27,16 +26,14 @@ internal sealed class EditorThemeController : IDisposable
         _editor = editor;
         _colorizer = colorizer;
         _codeBlockRenderer = new CodeBlockBackgroundRenderer(colorizer);
-        _codeBlockIndentGenerator = new CodeBlockIndentGenerator(colorizer);
-        _codeBlockWrapIndentTransformer = new CodeBlockWrapIndentTransformer(colorizer);
+        _visualLineIndentationProvider = new MarkdownVisualLineIndentationProvider(colorizer);
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
 
         ConfigureEditorOptions(_editor.Options);
         _editor.Options.WordWrapIndentation = 0;
         _editor.Options.InheritWordWrapIndentation = true;
-        _editor.TextArea.TextView.ElementGenerators.Add(_codeBlockIndentGenerator);
-        _editor.TextArea.TextView.LineTransformers.Add(_codeBlockWrapIndentTransformer);
+        _editor.TextArea.TextView.VisualLineIndentationProvider = _visualLineIndentationProvider;
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.ResourcesChanged += OnEditorResourcesChanged;
@@ -115,8 +112,7 @@ internal sealed class EditorThemeController : IDisposable
         _editor.SizeChanged -= OnEditorSizeChanged;
         _editor.TextArea.TextView.PropertyChanged -= OnTextViewPropertyChanged;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
-        _editor.TextArea.TextView.ElementGenerators.Remove(_codeBlockIndentGenerator);
-        _editor.TextArea.TextView.LineTransformers.Remove(_codeBlockWrapIndentTransformer);
+        _editor.TextArea.TextView.VisualLineIndentationProvider = null;
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
     }

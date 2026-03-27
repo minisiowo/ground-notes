@@ -321,11 +321,16 @@ public partial class ChatWindow : Window
 
     private void SyncEditorText(string text)
     {
-        var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: true, out _);
+        var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: true, out var appendedOnly);
         _isUpdatingEditorFromViewModel = _editorHost.IsUpdatingEditorFromViewModel;
         if (!changed)
         {
             return;
+        }
+
+        if (!appendedOnly)
+        {
+            _editorHost.RefreshLayoutAfterDocumentReplace();
         }
 
         var shouldAutoScroll = ShouldAutoScrollAfterSync();
