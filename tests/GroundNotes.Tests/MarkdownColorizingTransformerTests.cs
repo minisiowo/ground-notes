@@ -45,6 +45,29 @@ public sealed class MarkdownColorizingTransformerTests
         Assert.False(colorizer.QueryIsFencedCodeLine(document, 2));
     }
 
+    [Fact]
+    public void QueryListContinuation_IgnoresSuppressedMarkerlessLineAfterListExit()
+    {
+        using var colorizer = new MarkdownColorizingTransformer();
+        var document = new TextDocument("- item\nplain paragraph that should no longer inherit list continuation");
+
+        colorizer.SuppressListContinuationForLine(2);
+
+        Assert.Null(colorizer.QueryWrappedLineContinuationStartColumn(document, 2));
+        Assert.Null(colorizer.QueryInheritedListContinuationStartColumn(document, 2));
+    }
+
+    [Fact]
+    public void QueryWrappedLineContinuationStartColumn_PreservesDirectListAlignmentOnSuppressedLine()
+    {
+        using var colorizer = new MarkdownColorizingTransformer();
+        var document = new TextDocument("- item\n- second item");
+
+        colorizer.SuppressListContinuationForLine(2);
+
+        Assert.Equal(2, colorizer.QueryWrappedLineContinuationStartColumn(document, 2));
+    }
+
     private static void SeedResourceCache(MarkdownColorizingTransformer colorizer)
     {
         var field = GetResourceCacheField();

@@ -206,7 +206,9 @@ internal static partial class MarkdownLineParser
             new(match.Groups["marker"].Index, match.Groups["marker"].Length),
             new(match.Groups["checkbox"].Index, match.Groups["checkbox"].Length),
             string.Equals(match.Groups["state"].Value, "x", StringComparison.OrdinalIgnoreCase),
-            new(match.Groups["text"].Index, match.Groups["text"].Length));
+            match.Groups["text"].Length > 0
+                ? new MarkdownRange(match.Groups["text"].Index, match.Groups["text"].Length)
+                : null);
     }
 
     private static MarkdownListMatch? TryMatchListMarker(string lineText)
@@ -234,7 +236,14 @@ internal static partial class MarkdownLineParser
             return null;
         }
 
-        return new MarkdownListMatch(match.Groups["indent"].Length, new(match.Groups["marker"].Index, match.Groups["marker"].Length), null, false, null);
+        return new MarkdownListMatch(
+            match.Groups["indent"].Length,
+            new(match.Groups["marker"].Index, match.Groups["marker"].Length),
+            null,
+            false,
+            match.Groups["text"].Length > 0
+                ? new MarkdownRange(match.Groups["text"].Index, match.Groups["text"].Length)
+                : null);
     }
 
     private static List<MarkdownDelimitedSpan> FindInlineCodeSpans(string lineText)
@@ -475,7 +484,7 @@ internal static partial class MarkdownLineParser
     [GeneratedRegex("^(?<indent>\\s*)(?<marker>(?:[-+*]|\\d+[.)]))(?<spacing>\\s+)(?<checkbox>\\[(?<state> |x|X)\\])(?=\\s)(?<textSpacing>\\s+)(?<text>.*)$", RegexOptions.Compiled)]
     private static partial Regex TaskListRegex();
 
-    [GeneratedRegex("^(?<indent>\\s*)(?<marker>(?:[-+*]|\\d+[.)]))(?=\\s)", RegexOptions.Compiled)]
+    [GeneratedRegex("^(?<indent>\\s*)(?<marker>(?:[-+*]|\\d+[.)]))(?<spacing>\\s+)(?<text>.*)$", RegexOptions.Compiled)]
     private static partial Regex ListMarkerRegex();
 
     private static bool ContainsWhitespace(string value, int start, int endExclusive)
