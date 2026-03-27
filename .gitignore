@@ -1,12 +1,33 @@
+# .NET
 bin/
 obj/
 .dotnet/
 TestResults/
-.vs/
-.idea/
-.vscode/
 *.user
 *.suo
 *.swp
 *.tmp
 .claude/
+.gemini/
+
+# Build artifacts and publish outputs
+artifacts/
+publish/
+out/
+
+# IDEs
+.vs/
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment
+.env
+.env.*
+
+# Tooling
+.mise/
