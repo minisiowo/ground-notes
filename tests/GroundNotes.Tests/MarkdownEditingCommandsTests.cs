@@ -298,6 +298,136 @@ public sealed class MarkdownEditingCommandsTests
     }
 
     [Fact]
+    public void ListChangeIndentation_NestsMarkerInsteadOfTextColumn()
+    {
+        var text = "- item";
+        var result = MarkdownListEditingCommands.ChangeIndentation(text, 0, 0, 2, unindent: false);
+
+        Assert.Equal("  - item", result.Replacement);
+    }
+
+    [Fact]
+    public void ListChangeIndentation_UnindentsMarkerByConfiguredWidth()
+    {
+        var text = "  - item";
+        var result = MarkdownListEditingCommands.ChangeIndentation(text, 0, 0, 2, unindent: true);
+
+        Assert.Equal("- item", result.Replacement);
+    }
+
+    [Fact]
+    public void ListChangeIndentation_IndentsPlainLineRegardlessOfCaretColumn()
+    {
+        var text = "plain text";
+        var caretOffset = text.IndexOf("text", StringComparison.Ordinal);
+        var result = MarkdownListEditingCommands.ChangeIndentation(text, caretOffset, 0, 2, unindent: false);
+
+        Assert.Equal("  plain text", result.Replacement);
+        Assert.Equal(2 + caretOffset, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void ListChangeIndentation_UnindentsPlainLineRegardlessOfCaretColumn()
+    {
+        var text = "  plain text";
+        var caretOffset = text.IndexOf("text", StringComparison.Ordinal);
+        var result = MarkdownListEditingCommands.ChangeIndentation(text, caretOffset, 0, 2, unindent: true);
+
+        Assert.Equal("plain text", result.Replacement);
+        Assert.Equal(caretOffset - 2, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void TryInsertListItemBreak_UsesMarkerColumnForNestedBullet()
+    {
+        var text = "  - klikam";
+        var handled = MarkdownListEditingCommands.TryInsertListItemBreak(text, text.Length, 0, 2, out var result);
+
+        Assert.True(handled);
+        Assert.Equal("  - klikam\n  - ", result.Replacement);
+        Assert.Equal("  - klikam\n  - ".Length, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void TryInsertListItemBreak_IncrementsOrderedMarkers()
+    {
+        var text = "  12. item";
+        var handled = MarkdownListEditingCommands.TryInsertListItemBreak(text, text.Length, 0, 2, out var result);
+
+        Assert.True(handled);
+        Assert.Equal("  12. item\n  13. ", result.Replacement);
+    }
+
+    [Fact]
+    public void TryInsertListItemBreak_SplitsTaskLineAndCreatesUncheckedNextItem()
+    {
+        var text = "- [x] done item";
+        var caretOffset = text.IndexOf(" item", StringComparison.Ordinal);
+        var handled = MarkdownListEditingCommands.TryInsertListItemBreak(text, caretOffset, 0, 2, out var result);
+
+        Assert.True(handled);
+        Assert.Equal("- [x] done\n- [ ] item", result.Replacement);
+    }
+
+    [Fact]
+    public void TryBackspaceListIndentation_DoesNotOutdentNonEmptyListItem()
+    {
+        var text = "  - item";
+        var handled = MarkdownListEditingCommands.TryBackspaceListIndentation(text, 0, 0, 2, out var result);
+
+        Assert.False(handled);
+        Assert.Equal(default, result);
+    }
+
+    [Fact]
+    public void ShouldSuppressBackspaceInListPrefix_ReturnsTrueForNonEmptyNestedItemPrefix()
+    {
+        var text = "  - item";
+
+        Assert.True(MarkdownListEditingCommands.ShouldSuppressBackspaceInListPrefix(text, 0, 0));
+        Assert.True(MarkdownListEditingCommands.ShouldSuppressBackspaceInListPrefix(text, 2, 0));
+        Assert.True(MarkdownListEditingCommands.ShouldSuppressBackspaceInListPrefix(text, 4, 0));
+        Assert.False(MarkdownListEditingCommands.ShouldSuppressBackspaceInListPrefix(text, text.Length, 0));
+    }
+
+    [Fact]
+    public void ShouldSuppressBackspaceInListPrefix_ReturnsFalseForEmptyListItem()
+    {
+        var text = "  - ";
+
+        Assert.False(MarkdownListEditingCommands.ShouldSuppressBackspaceInListPrefix(text, text.Length, 0));
+    }
+
+    [Fact]
+    public void TryBackspaceListIndentation_OnEmptyNestedListItemRemovesWholeMarkerWithoutJumping()
+    {
+        var text = "  - ";
+        var caretOffset = text.Length;
+        var handled = MarkdownListEditingCommands.TryBackspaceListIndentation(text, caretOffset, 0, 2, out var result);
+
+        Assert.True(handled);
+        Assert.Equal("  ", result.Replacement);
+        Assert.Equal(2, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
+    public void TryBackspaceListIndentation_OnEmptyTopLevelListItemRemovesWholeMarker()
+    {
+        var text = "- ";
+        var caretOffset = text.Length;
+        var handled = MarkdownListEditingCommands.TryBackspaceListIndentation(text, caretOffset, 0, 2, out var result);
+
+        Assert.True(handled);
+        Assert.Equal(string.Empty, result.Replacement);
+        Assert.Equal(0, result.SelectionStart);
+        Assert.Equal(0, result.SelectionLength);
+    }
+
+    [Fact]
     public void DeleteCurrentLine_RemovesCurrentOrSelectedLines()
     {
         var middle = MarkdownEditingCommands.DeleteCurrentLine("first\nsecond\nthird", 7, 0);

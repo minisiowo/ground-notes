@@ -124,6 +124,8 @@ namespace AvaloniaEdit.Rendering
         /// </summary>
         public double Height { get; private set; }
 
+        internal double WrappedLineContinuationIndent { get; set; }
+
         /// <summary>
         /// Gets the Y position of the line. This is measured in device-independent pixels relative to the start of the document.
         /// </summary>
@@ -432,6 +434,9 @@ namespace AvaloniaEdit.Rendering
         /// </summary>
         public int GetTextLineVisualStartColumn(TextLine textLine)
         {
+            if (_textLines is null)
+                return 0;
+
             if (!TextLines.Contains(textLine))
                 throw new ArgumentException("textLine is not a line in this VisualLine");
 
@@ -486,7 +491,7 @@ namespace AvaloniaEdit.Rendering
             if (textLine == null)
                 throw new ArgumentNullException(nameof(textLine));
 
-            var xPos = textLine.Start + textLine.GetDistanceFromCharacterHit(new CharacterHit(Math.Min(visualColumn,
+            var xPos = GetTextLineVisualStartOffset(textLine) + textLine.GetDistanceFromCharacterHit(new CharacterHit(Math.Min(visualColumn,
                 VisualLengthWithEndOfLineMarker)));
 
             if (visualColumn > VisualLengthWithEndOfLineMarker)
@@ -529,7 +534,7 @@ namespace AvaloniaEdit.Rendering
         /// </summary>
         public int GetVisualColumn(TextLine textLine, double xPos, bool allowVirtualSpace)
         {
-            var relativeXPos = xPos - textLine.Start;
+            var relativeXPos = xPos - GetTextLineVisualStartOffset(textLine);
             if (relativeXPos > textLine.WidthIncludingTrailingWhitespace)
             {
                 if (allowVirtualSpace && textLine == TextLines[TextLines.Count - 1])
@@ -601,13 +606,14 @@ namespace AvaloniaEdit.Rendering
         internal int GetVisualColumnFloor(Point point, bool allowVirtualSpace, out bool isAtEndOfLine)
         {
             var textLine = GetTextLineByVisualYPosition(point.Y);
-            if (point.X > textLine.WidthIncludingTrailingWhitespace)
+            var relativeXPos = point.X - GetTextLineVisualStartOffset(textLine);
+            if (relativeXPos > textLine.WidthIncludingTrailingWhitespace)
             {
                 isAtEndOfLine = true;
                 if (allowVirtualSpace && textLine == TextLines[TextLines.Count - 1])
                 {
                     // clicking virtual space in the last line
-                    var virtualX = (int)((point.X - textLine.WidthIncludingTrailingWhitespace) / TextView.WideSpaceWidth);
+                    var virtualX = (int)((relativeXPos - textLine.WidthIncludingTrailingWhitespace) / TextView.WideSpaceWidth);
                     return VisualLengthWithEndOfLineMarker + virtualX;
                 }
 
@@ -619,9 +625,24 @@ namespace AvaloniaEdit.Rendering
 
             isAtEndOfLine = false;
 
-            var ch = textLine.GetCharacterHitFromDistance(point.X);
+            if (relativeXPos < 0)
+            {
+                relativeXPos = 0;
+            }
+
+            var ch = textLine.GetCharacterHitFromDistance(relativeXPos);
 
             return ch.FirstCharacterIndex;
+        }
+
+        internal double GetTextLineVisualStartOffset(TextLine textLine)
+        {
+            if (_textLines is null || TextLines.Count <= 1 || textLine == TextLines[0])
+            {
+                return textLine.Start;
+            }
+
+            return textLine.Start + WrappedLineContinuationIndent;
         }
 
         /// <summary>
@@ -838,7 +859,7 @@ namespace AvaloniaEdit.Rendering
                 double textHeight = textLine.Height;
                 double lineHeight = Math.Max(textHeight, defaultLineHeight);
                 double textOffset = (lineHeight - textHeight) / 2;
-                textLine.Draw(context, new Point(textLine.Start, pos + textOffset));
+                textLine.Draw(context, new Point(VisualLine.GetTextLineVisualStartOffset(textLine), pos + textOffset));
                 pos += lineHeight;
             }
         }

@@ -760,7 +760,6 @@ namespace AvaloniaEdit.Rendering
             if (l == null)
             {
                 TextRunProperties globalTextRunProperties = CreateGlobalTextRunProperties();
-                VisualLineTextParagraphProperties paragraphProperties = CreateParagraphProperties(globalTextRunProperties);
 
                 while (_heightTree.GetIsCollapsed(documentLine.LineNumber))
                 {
@@ -768,7 +767,7 @@ namespace AvaloniaEdit.Rendering
                 }
 
                 l = BuildVisualLine(documentLine,
-                                    globalTextRunProperties, paragraphProperties,
+                                    globalTextRunProperties,
                                     _elementGenerators.ToArray(), _lineTransformers.ToArray(),
                                     _lastAvailableSize);
                 _allVisualLines.Add(l);
@@ -951,7 +950,6 @@ namespace AvaloniaEdit.Rendering
         private double CreateAndMeasureVisualLines(Size availableSize)
         {
             TextRunProperties globalTextRunProperties = CreateGlobalTextRunProperties();
-            VisualLineTextParagraphProperties paragraphProperties = CreateParagraphProperties(globalTextRunProperties);
 
             //Debug.WriteLine("Measure availableSize=" + availableSize + ", scrollOffset=" + _scrollOffset);
             var firstLineInView = _heightTree.GetLineByVisualPosition(_scrollOffset.Y);
@@ -974,7 +972,7 @@ namespace AvaloniaEdit.Rendering
             {
                 var visualLine = GetVisualLine(nextLine.LineNumber) ??
                                         BuildVisualLine(nextLine,
-                                            globalTextRunProperties, paragraphProperties,
+                                            globalTextRunProperties,
                                             elementGeneratorsArray, lineTransformersArray,
                                             availableSize);
 
@@ -1044,7 +1042,6 @@ namespace AvaloniaEdit.Rendering
 
         private VisualLine BuildVisualLine(DocumentLine documentLine,
                                    TextRunProperties globalTextRunProperties,
-                                   VisualLineTextParagraphProperties paragraphProperties,
                                    IReadOnlyList<VisualLineElementGenerator> elementGeneratorsArray,
                                    IReadOnlyList<IVisualLineTransformer> lineTransformersArray,
                                    Size availableSize)
@@ -1084,6 +1081,7 @@ namespace AvaloniaEdit.Rendering
             visualLine.RunTransformers(textSource, lineTransformersArray);
 
             // now construct textLines:
+            var paragraphProperties = CreateParagraphProperties(globalTextRunProperties);
             TextLineBreak lastLineBreak = null;
             var textOffset = 0;
             var textLines = new List<TextLine>();
@@ -1110,15 +1108,17 @@ namespace AvaloniaEdit.Rendering
                     paragraphProperties.firstLineInParagraph = false;
 
                     TextEditorOptions options = this.Options;
-                    double indentation = 0;
-                    if (options.InheritWordWrapIndentation)
-                    {
-                        indentation = GetContinuationIndentation(textLine, visualLine);
-                    }
+                    var continuationIndentOverrideColumn = VisualLineIndentationProvider?.GetWrappedLineContinuationStartColumn(this, documentLine);
+                    double indentation = options.InheritWordWrapIndentation
+                        ? GetContinuationIndentation(textLine, visualLine, continuationIndentOverrideColumn)
+                        : 0;
                     indentation += options.WordWrapIndentation;
-                    // apply the calculated indentation unless it's more than half of the text editor size:
-                    if (indentation > 0 && indentation * 2 < availableSize.Width)
+                    indentation = ClampContinuationIndentation(indentation, availableSize.Width);
+                    if (indentation > 0)
+                    {
                         paragraphProperties.indent = indentation;
+                        visualLine.WrappedLineContinuationIndent = indentation;
+                    }
                 }
 
                 lastLineBreak = textLine.TextLineBreak;
@@ -1143,6 +1143,16 @@ namespace AvaloniaEdit.Rendering
             visualLine.ReplaceElement(0, 0, indentationElement);
         }
 
+        private static double GetContinuationIndentation(TextLine textLine, VisualLine visualLine, int? continuationStartColumnOverride)
+        {
+            if (continuationStartColumnOverride is int continuationStartColumn && continuationStartColumn > 0)
+            {
+                return visualLine.GetTextLineVisualXPosition(textLine, Math.Min(continuationStartColumn, textLine.Length));
+            }
+
+            return GetContinuationIndentation(textLine, visualLine);
+        }
+
         private static double GetContinuationIndentation(TextLine textLine, VisualLine visualLine)
         {
             for (var visualColumn = 0; visualColumn < textLine.Length; visualColumn++)
@@ -1150,10 +1160,22 @@ namespace AvaloniaEdit.Rendering
                 if (IsWhitespace(visualLine, visualColumn))
                     continue;
 
-                return textLine.GetDistanceFromCharacterHit(new CharacterHit(visualColumn, 0));
+                return visualLine.GetTextLineVisualXPosition(textLine, visualColumn);
             }
 
             return 0;
+        }
+
+        private double ClampContinuationIndentation(double indentation, double availableWidth)
+        {
+            if (indentation <= 0 || availableWidth <= 0)
+                return 0;
+
+            var maxIndent = Math.Max(0, availableWidth - WideSpaceWidth);
+            if (maxIndent <= 0)
+                return 0;
+
+            return Math.Min(indentation, maxIndent);
         }
 
         private static bool IsWhitespace(VisualLine visualLine, int visualColumn)

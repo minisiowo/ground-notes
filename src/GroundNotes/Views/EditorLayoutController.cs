@@ -40,13 +40,7 @@ internal sealed class EditorLayoutController
         _currentSettings = normalized;
     }
 
-    private void ApplyOptions(EditorLayoutSettings settings)
-    {
-        _editor.Options.IndentationSize = settings.IndentationSize;
-        _editor.Options.LineHeightFactor = settings.LineHeightFactor;
-    }
-
-    private void RefreshLayout()
+    internal void RefreshLayout()
     {
         var textView = _editor.TextArea.TextView;
         textView.InvalidateMeasure();
@@ -57,6 +51,12 @@ internal sealed class EditorLayoutController
         _editor.InvalidateMeasure();
         _editor.InvalidateArrange();
         _editor.InvalidateVisual();
+    }
+
+    private void ApplyOptions(EditorLayoutSettings settings)
+    {
+        _editor.Options.IndentationSize = settings.IndentationSize;
+        _editor.Options.LineHeightFactor = settings.LineHeightFactor;
     }
 
     private void ForceFullRebuild()

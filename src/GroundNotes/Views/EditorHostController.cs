@@ -9,12 +9,14 @@ internal sealed class EditorHostController : IDisposable
     private readonly EditorThemeController _themeController;
     private readonly EditorTextSyncController _textSyncController;
     private readonly EditorLayoutController _layoutController;
+    private readonly EditorMarkdownListController _listController;
 
     public EditorHostController(TextEditor editor, MarkdownColorizingTransformer colorizer)
     {
         _themeController = new EditorThemeController(editor, colorizer);
         _textSyncController = new EditorTextSyncController(editor);
         _layoutController = new EditorLayoutController(editor);
+        _listController = new EditorMarkdownListController(editor, colorizer);
     }
 
     public bool IsUpdatingEditorFromViewModel => _textSyncController.IsUpdatingEditorFromViewModel;
@@ -37,6 +39,8 @@ internal sealed class EditorHostController : IDisposable
 
     public void ApplyRuntimeLayout(EditorLayoutSettings settings) => _layoutController.ApplyRuntimeLayout(settings);
 
+    internal void RefreshLayoutAfterDocumentReplace() => _layoutController.RefreshLayout();
+
     public bool SyncFromViewModel(string? text, bool appendSuffixWhenPossible, out bool appendedOnly)
         => _textSyncController.SyncFromViewModel(text, appendSuffixWhenPossible, out appendedOnly);
 
@@ -45,6 +49,7 @@ internal sealed class EditorHostController : IDisposable
 
     public void Dispose()
     {
+        _listController.Dispose();
         _themeController.Dispose();
     }
 }
