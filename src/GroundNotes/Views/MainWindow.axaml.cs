@@ -740,11 +740,16 @@ public partial class MainWindow : Window
 
     private void SyncEditorText(string text)
     {
-        var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out _);
+        var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out var appendedOnly);
         _isUpdatingEditorFromViewModel = _editorHost.IsUpdatingEditorFromViewModel;
         if (!changed)
         {
             return;
+        }
+
+        if (!appendedOnly)
+        {
+            _editorHost.RefreshLayoutAfterDocumentReplace();
         }
 
         _slashCommandPopup.ScheduleRefresh();
@@ -913,6 +918,11 @@ public partial class MainWindow : Window
 
     private async void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
+        if (e.Handled)
+        {
+            return;
+        }
+
         if (sender is not TextEditor textEditor)
         {
             return;
@@ -1091,7 +1101,7 @@ public partial class MainWindow : Window
         var text = document.Text;
         var selStart = textEditor.SelectionStart;
         var isUnindent = (e.KeyModifiers & KeyModifiers.Shift) != 0;
-        ApplyEditorEdit(MarkdownEditingCommands.ChangeIndentation(
+        ApplyEditorEdit(MarkdownListEditingCommands.ChangeIndentation(
             text,
             selStart,
             textEditor.SelectionLength,

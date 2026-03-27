@@ -10,15 +10,30 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
 {
     private readonly MarkdownLineAnalysisCache _analysisCache = new();
     private readonly MarkdownFenceStateTracker _fenceStateTracker = new();
+    private readonly MarkdownListContinuationTracker _listContinuationTracker;
     private readonly MarkdownStyleSpanBuffer _spanBuffer = new();
     private ResourceCache? _resourceCache;
 
     private readonly HashSet<int> _fencedLineNumbers = [];
+    private readonly HashSet<int> _suppressedListContinuationLines = [];
+
+    public MarkdownColorizingTransformer()
+    {
+        _listContinuationTracker = new MarkdownListContinuationTracker(_analysisCache, _fenceStateTracker);
+    }
 
     public event EventHandler<int>? RedrawRequested
     {
-        add => _fenceStateTracker.RedrawRequested += value;
-        remove => _fenceStateTracker.RedrawRequested -= value;
+        add
+        {
+            _fenceStateTracker.RedrawRequested += value;
+            _listContinuationTracker.RedrawRequested += value;
+        }
+        remove
+        {
+            _fenceStateTracker.RedrawRequested -= value;
+            _listContinuationTracker.RedrawRequested -= value;
+        }
     }
 
     public bool IsFencedCodeLine(int lineNumber) => _fencedLineNumbers.Contains(lineNumber);
@@ -40,6 +55,55 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
 
         var analysis = _analysisCache.GetOrAdd(document, lineNumber, lineText, fenceState);
         return analysis.IsFencedCodeLine;
+    }
+
+    internal int? QueryWrappedLineContinuationStartColumn(TextDocument document, int lineNumber)
+    {
+        if (IsListContinuationSuppressed(document, lineNumber))
+        {
+            return null;
+        }
+
+        return _listContinuationTracker.GetContinuationStartColumn(document, lineNumber);
+    }
+
+    internal int? QueryInheritedListContinuationStartColumn(TextDocument document, int lineNumber)
+    {
+        if (_suppressedListContinuationLines.Contains(lineNumber))
+        {
+            return null;
+        }
+
+        var fenceState = _fenceStateTracker.GetStateBeforeLine(document, lineNumber);
+        if (fenceState.IsInsideFence)
+        {
+            return null;
+        }
+
+        var line = document.GetLineByNumber(lineNumber);
+        var lineText = document.GetText(line.Offset, line.Length);
+        if (string.IsNullOrWhiteSpace(lineText))
+        {
+            return null;
+        }
+
+        var analysis = _analysisCache.GetOrAdd(document, lineNumber, lineText, fenceState);
+        if (analysis.IsFencedCodeLine || analysis.TaskList is not null || analysis.ListMarker is not null)
+        {
+            return null;
+        }
+
+        return _listContinuationTracker.GetContinuationStartColumn(document, lineNumber);
+    }
+
+    internal void SuppressListContinuationForLine(int lineNumber)
+    {
+        if (lineNumber <= 0)
+        {
+            return;
+        }
+
+        _suppressedListContinuationLines.Add(lineNumber);
     }
 
     protected override void ColorizeLine(DocumentLine line)
@@ -96,6 +160,7 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
 
     public void Dispose()
     {
+        _listContinuationTracker.Dispose();
         _analysisCache.Dispose();
         _fenceStateTracker.Dispose();
     }
@@ -103,6 +168,30 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
     public void InvalidateResourceCache()
     {
         _resourceCache = null;
+    }
+
+    private bool IsListContinuationSuppressed(TextDocument document, int lineNumber)
+    {
+        if (!_suppressedListContinuationLines.Contains(lineNumber))
+        {
+            return false;
+        }
+
+        var fenceState = _fenceStateTracker.GetStateBeforeLine(document, lineNumber);
+        if (fenceState.IsInsideFence)
+        {
+            return true;
+        }
+
+        var line = document.GetLineByNumber(lineNumber);
+        var lineText = document.GetText(line.Offset, line.Length);
+        if (string.IsNullOrEmpty(lineText))
+        {
+            return true;
+        }
+
+        var analysis = _analysisCache.GetOrAdd(document, lineNumber, lineText, fenceState);
+        return analysis.TaskList is null && analysis.ListMarker is null;
     }
 
     private bool ApplyHorizontalRule(DocumentLine line, MarkdownRange? rule)
