@@ -9,6 +9,7 @@ TestResults/
 *.tmp
 .claude/
 .gemini/
+.cursor/
 
 # Build artifacts and publish outputs
 artifacts/
