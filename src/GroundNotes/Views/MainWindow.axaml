@@ -432,276 +432,319 @@
               Classes="sidebarResizeHandle"
               Cursor="SizeWestEast"
               Background="Transparent"
+              PointerEntered="OnResizeHandlePointerEntered"
+              PointerExited="OnResizeHandlePointerExited"
               PointerPressed="OnResizeHandlePointerPressed"
               PointerMoved="OnResizeHandlePointerMoved"
               PointerReleased="OnResizeHandlePointerReleased">
         <Border Classes="sidebarResizeStripe"
                 Width="1"
-                HorizontalAlignment="Center" />
+                HorizontalAlignment="Left" />
       </Border>
 
       <Grid Grid.Column="2"
-            RowDefinitions="Auto,*"
             x:Name="EditorPanel"
             Margin="8,14,14,14">
-
-        <Grid Grid.Row="0"
-              x:Name="TitleTagsGrid"
-              ColumnDefinitions="3*,*"
-              Margin="0,0,0,10"
-              IsVisible="{Binding ShowStructuredMetadataEditors}"
-              IsEnabled="{Binding HasSelectedFolder}">
-          <Grid x:Name="TitleSuggestionsAnchor"
-                ColumnDefinitions="*,Auto">
-            <Grid x:Name="EditorTitleAnchor">
-              <TextBox x:Name="EditorTitleTextBox"
-                       Classes="editorFont"
-                       Text="{Binding EditorTitle}"
-                       VerticalContentAlignment="Center" />
-              <TextBlock Margin="8,0"
-                         Classes="editorPlaceholderText"
-                         IsHitTestVisible="False"
-                         IsVisible="{Binding ShowTitleWatermark}"
-                         VerticalAlignment="Center"
-                         FontFamily="{DynamicResource TerminalFont}"
-                         FontSize="{DynamicResource AppFontSize}"
-                         Foreground="{DynamicResource PlaceholderTextBrush}"
-                         Text="Title"
-                         TextWrapping="NoWrap" />
+        <Grid x:Name="EditorCanvasHost"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Stretch"
+              RowDefinitions="Auto,*">
+          <Grid Grid.Row="0"
+                x:Name="TitleTagsGrid"
+                ColumnDefinitions="3*,*"
+                Margin="0,0,0,10"
+                IsVisible="{Binding ShowStructuredMetadataEditors}"
+                IsEnabled="{Binding HasSelectedFolder}">
+            <Grid x:Name="TitleSuggestionsAnchor"
+                  ColumnDefinitions="*,Auto">
+              <Grid x:Name="EditorTitleAnchor">
+                <TextBox x:Name="EditorTitleTextBox"
+                         Classes="editorFont"
+                         Text="{Binding EditorTitle}"
+                         VerticalContentAlignment="Center" />
+                <TextBlock Margin="8,0"
+                           Classes="editorPlaceholderText"
+                           IsHitTestVisible="False"
+                           IsVisible="{Binding ShowTitleWatermark}"
+                           VerticalAlignment="Center"
+                           FontFamily="{DynamicResource TerminalFont}"
+                           FontSize="{DynamicResource AppFontSize}"
+                           Foreground="{DynamicResource PlaceholderTextBrush}"
+                           Text="Title"
+                           TextWrapping="NoWrap" />
+              </Grid>
+              <Grid Grid.Column="1"
+                    Margin="8,0,0,0"
+                    IsVisible="{Binding IsAiEnabled}">
+                <Button x:Name="GenerateTitleSuggestionsButton"
+                        Classes="compactIconButton"
+                        Width="32"
+                        Padding="0"
+                        Foreground="{DynamicResource PlaceholderTextBrush}"
+                        ToolTip.Tip="Suggest 3 AI titles"
+                        Content="AI"
+                        Command="{Binding GenerateTitleSuggestionsCommand}" />
+                <Popup x:Name="TitleSuggestionsPopup"
+                       PlacementTarget="{Binding #EditorTitleAnchor}"
+                       Placement="AnchorAndGravity"
+                       PlacementAnchor="BottomLeft"
+                       PlacementGravity="BottomRight"
+                       VerticalOffset="6"
+                       IsLightDismissEnabled="True"
+                       IsOpen="{Binding IsTitleSuggestionsOpen, Mode=TwoWay}">
+                  <Border x:Name="TitleSuggestionsPopupContent"
+                          Classes="sectionSurface toolPopupSurface"
+                          Width="{Binding #EditorTitleAnchor.Bounds.Width}"
+                          MaxWidth="520"
+                          MaxHeight="320"
+                          Padding="6"
+                          BorderThickness="1"
+                          CornerRadius="1"
+                          BoxShadow="0 4 12 0 #40000000">
+                    <StackPanel VerticalAlignment="Top">
+                      <Border Margin="4,2,4,6"
+                              Padding="4,2"
+                              Background="{DynamicResource SurfaceRaisedBrush}"
+                              CornerRadius="1">
+                        <TextBlock Classes="sidebarFooterStatus"
+                                   FontWeight="SemiBold"
+                                   Text="AI title suggestions" />
+                      </Border>
+                      <StackPanel Spacing="4">
+                        <Button IsVisible="{Binding IsGeneratingTitleSuggestions}"
+                                Classes="titleSuggestionButton"
+                                HorizontalContentAlignment="Left"
+                                Content="Generating..."
+                                IsEnabled="False" />
+                        <ItemsControl ItemsSource="{Binding TitleSuggestions}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                              <Button Classes="titleSuggestionButton"
+                                      HorizontalContentAlignment="Left"
+                                      Command="{Binding #RootWindow.DataContext.ApplyTitleSuggestionCommand}"
+                                      CommandParameter="{Binding .}"
+                                      Content="{Binding .}" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                      <Border Margin="0,8,0,0"
+                              Padding="0,8,0,0"
+                              BorderThickness="0,1,0,0"
+                              BorderBrush="{DynamicResource BorderBrushBase}">
+                        <Grid RowDefinitions="Auto,Auto,Auto"
+                              ColumnDefinitions="*,Auto"
+                              ColumnSpacing="8"
+                              RowSpacing="6"
+                              VerticalAlignment="Top">
+                          <TextBlock Grid.Row="0"
+                                     Grid.ColumnSpan="2"
+                                     Classes="sidebarFooterStatus"
+                                     Text="Add a hint if you want the next titles to lean in a specific direction." />
+                          <TextBox x:Name="TitleSuggestionsContextTextBox"
+                                   Grid.Row="1"
+                                   Classes="editorFont"
+                                   MinHeight="30"
+                                   AcceptsReturn="False"
+                                   Text="{Binding TitleSuggestionsContext}"
+                                   VerticalContentAlignment="Center"
+                                   KeyDown="OnTitleSuggestionsContextTextBoxKeyDown"
+                                   IsEnabled="{Binding CanEditTitleSuggestionsContext}" />
+                          <Button Grid.Row="1"
+                                  Grid.Column="1"
+                                  Classes="secondaryButton"
+                                  MinWidth="72"
+                                  VerticalAlignment="Bottom"
+                                  Content="Send"
+                                  IsEnabled="{Binding CanEditTitleSuggestionsContext}"
+                                  Command="{Binding GenerateTitleSuggestionsCommand}" />
+                          <TextBlock Grid.Row="2"
+                                     Grid.ColumnSpan="2"
+                                     Classes="sidebarFooterStatus"
+                                     Text="Ctrl/Cmd+Enter to send." />
+                        </Grid>
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </Popup>
+              </Grid>
             </Grid>
             <Grid Grid.Column="1"
-                  Margin="8,0,0,0"
-                  IsVisible="{Binding IsAiEnabled}">
-              <Button x:Name="GenerateTitleSuggestionsButton"
-                      Classes="compactIconButton"
-                      Width="32"
-                      Padding="0"
-                      Foreground="{DynamicResource PlaceholderTextBrush}"
-                      ToolTip.Tip="Suggest 3 AI titles"
-                      Content="AI"
-                      Command="{Binding GenerateTitleSuggestionsCommand}" />
-              <Popup x:Name="TitleSuggestionsPopup"
-                     PlacementTarget="{Binding #EditorTitleAnchor}"
+                  Margin="8,0,0,0">
+              <TextBox x:Name="EditorTagsTextBox"
+                        Classes="editorFont"
+                        MinHeight="30"
+                        Text="{Binding EditorTags}"
+                        VerticalContentAlignment="Center" />
+              <Popup x:Name="TagSuggestionsPopup"
+                     PlacementTarget="{Binding #EditorTagsTextBox}"
                      Placement="AnchorAndGravity"
                      PlacementAnchor="BottomLeft"
                      PlacementGravity="BottomRight"
                      VerticalOffset="6"
                      IsLightDismissEnabled="True"
-                     IsOpen="{Binding IsTitleSuggestionsOpen, Mode=TwoWay}">
-                <Border x:Name="TitleSuggestionsPopupContent"
+                     IsOpen="{Binding IsTagSuggestionsOpen, Mode=TwoWay}">
+                <Border x:Name="TagSuggestionsPopupContent"
                         Classes="sectionSurface toolPopupSurface"
-                        Width="{Binding #EditorTitleAnchor.Bounds.Width}"
-                        MaxWidth="520"
-                        MaxHeight="320"
+                        MinWidth="220"
+                        MaxWidth="420"
                         Padding="6"
                         BorderThickness="1"
                         CornerRadius="1"
                         BoxShadow="0 4 12 0 #40000000">
-                  <StackPanel VerticalAlignment="Top">
-                    <Border Margin="4,2,4,6"
-                            Padding="4,2"
-                            Background="{DynamicResource SurfaceRaisedBrush}"
-                            CornerRadius="1">
-                      <TextBlock Classes="sidebarFooterStatus"
+                  <Grid RowDefinitions="Auto,*"
+                        RowSpacing="6">
+                    <TextBlock Classes="sidebarFooterStatus"
+                               Margin="4,2,4,0"
+                               Text="Suggested tags" />
+                    <ListBox x:Name="TagSuggestionsListBox"
+                             Grid.Row="1"
+                             MinHeight="0"
+                             MaxHeight="160"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ItemsSource="{Binding TagSuggestions}"
+                             SelectedItem="{Binding SelectedTagSuggestion, Mode=TwoWay}"
+                             PointerReleased="OnTagSuggestionsListBoxPointerReleased">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <TextBlock Margin="6,4"
+                                     Text="{Binding .}" />
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </Grid>
+                </Border>
+              </Popup>
+              <TextBlock Margin="8,0"
+                         Classes="editorPlaceholderText"
+                         IsHitTestVisible="False"
+                         IsVisible="{Binding ShowTagsWatermark}"
+                         VerticalAlignment="Center"
+                         FontFamily="{DynamicResource TerminalFont}"
+                         FontSize="{DynamicResource AppFontSize}"
+                         Foreground="{DynamicResource PlaceholderTextBrush}"
+                         Text="Tags (comma)"
+                         TextWrapping="NoWrap" />
+            </Grid>
+          </Grid>
+
+          <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="0" BorderThickness="1">
+            <Grid>
+              <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="{DynamicResource AppFontSizeLarge}" Text="Choose a folder to start writing markdown notes." TextWrapping="Wrap" />
+              <ae:TextEditor Classes="editorTextBox"
+                             x:Name="EditorTextEditor"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             FontSize="{Binding EditorFontSize}"
+                             IsEnabled="{Binding HasSelectedFolder}"
+                             Padding="12"
+                             ShowLineNumbers="False"
+                             HorizontalScrollBarVisibility="Disabled"
+                             VerticalScrollBarVisibility="Auto"
+                             WordWrap="True" />
+              <TextBlock Margin="12"
+                         Classes="editorPlaceholderText"
+                         IsHitTestVisible="False"
+                         IsVisible="{Binding ShowEditorWatermark}"
+                         FontFamily="{DynamicResource TerminalFont}"
+                         FontSize="{Binding EditorFontSize}"
+                         Foreground="{DynamicResource PlaceholderTextBrush}"
+                         Text="Click here to start typing. A note will be created automatically when you first edit the body."
+                         TextWrapping="Wrap" />
+              <Popup x:Name="SlashCommandPopup"
+                     IsOpen="False"
+                     IsLightDismissEnabled="False"
+                     PlacementMode="AnchorAndGravity"
+                     TakesFocusFromNativeControl="False">
+                <Border x:Name="SlashCommandPopupContent"
+                        Classes="sectionSurface"
+                        Focusable="False"
+                        Padding="6"
+                        BorderThickness="1"
+                        BoxShadow="0 4 12 0 #40000000"
+                        ClipToBounds="True">
+                  <Border.Transitions>
+                    <Transitions>
+                      <DoubleTransition Property="Height" Duration="0:0:0.125" Easing="CubicEaseOut" />
+                      <DoubleTransition Property="Width" Duration="0:0:0.125" Easing="CubicEaseOut" />
+                    </Transitions>
+                  </Border.Transitions>
+                  <Grid RowDefinitions="Auto,Auto" VerticalAlignment="Top">
+                    <Border Grid.Row="0" Margin="4,2,4,6" Padding="4,2" Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="1">
+                      <TextBlock x:Name="SlashCommandHintText"
+                                 Classes="sidebarFooterStatus"
                                  FontWeight="SemiBold"
-                                 Text="AI title suggestions" />
+                                 Text="Formatting commands" />
                     </Border>
-                    <StackPanel Spacing="4">
-                      <Button IsVisible="{Binding IsGeneratingTitleSuggestions}"
-                              Classes="titleSuggestionButton"
-                              HorizontalContentAlignment="Left"
-                              Content="Generating..."
-                              IsEnabled="False" />
-                      <ItemsControl ItemsSource="{Binding TitleSuggestions}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="x:String">
-                            <Button Classes="titleSuggestionButton"
-                                    HorizontalContentAlignment="Left"
-                                    Command="{Binding #RootWindow.DataContext.ApplyTitleSuggestionCommand}"
-                                    CommandParameter="{Binding .}"
-                                    Content="{Binding .}" />
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </StackPanel>
-                    <Border Margin="0,8,0,0"
-                            Padding="0,8,0,0"
-                            BorderThickness="0,1,0,0"
-                            BorderBrush="{DynamicResource BorderBrushBase}">
-                      <Grid RowDefinitions="Auto,Auto,Auto"
-                            ColumnDefinitions="*,Auto"
-                            ColumnSpacing="8"
-                            RowSpacing="6"
-                            VerticalAlignment="Top">
-                        <TextBlock Grid.Row="0"
-                                   Grid.ColumnSpan="2"
-                                   Classes="sidebarFooterStatus"
-                                   Text="Add a hint if you want the next titles to lean in a specific direction." />
-                        <TextBox x:Name="TitleSuggestionsContextTextBox"
-                                 Grid.Row="1"
-                                 Classes="editorFont"
-                                 MinHeight="30"
-                                 AcceptsReturn="False"
-                                 Text="{Binding TitleSuggestionsContext}"
-                                 VerticalContentAlignment="Center"
-                                 KeyDown="OnTitleSuggestionsContextTextBoxKeyDown"
-                                 IsEnabled="{Binding CanEditTitleSuggestionsContext}" />
-                        <Button Grid.Row="1"
-                                Grid.Column="1"
-                                Classes="secondaryButton"
-                                MinWidth="72"
-                                VerticalAlignment="Bottom"
-                                Content="Send"
-                                IsEnabled="{Binding CanEditTitleSuggestionsContext}"
-                                Command="{Binding GenerateTitleSuggestionsCommand}" />
-                        <TextBlock Grid.Row="2"
-                                   Grid.ColumnSpan="2"
-                                   Classes="sidebarFooterStatus"
-                                   Text="Ctrl/Cmd+Enter to send." />
-                      </Grid>
-                    </Border>
-                  </StackPanel>
+                    <ListBox x:Name="SlashCommandListBox"
+                             Grid.Row="1"
+                             Focusable="False"
+                             Padding="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             DoubleTapped="OnSlashCommandListBoxDoubleTapped">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <Border Classes="fileRow"
+                                  HorizontalAlignment="Stretch"
+                                  Padding="12,8"
+                                  BorderThickness="1">
+                            <StackPanel Spacing="2">
+                              <TextBlock Classes="fileRowText"
+                                         Text="{Binding Label}"
+                                         FontWeight="SemiBold"
+                                         TextTrimming="CharacterEllipsis" />
+                              <TextBlock Classes="pickerPreviewText"
+                                         Text="{Binding Description}"
+                                         TextTrimming="CharacterEllipsis"
+                                         TextWrapping="NoWrap" />
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </Grid>
                 </Border>
               </Popup>
             </Grid>
-          </Grid>
-          <Grid Grid.Column="1"
-                Margin="8,0,0,0">
-            <TextBox x:Name="EditorTagsTextBox"
-                      Classes="editorFont"
-                      MinHeight="30"
-                      Text="{Binding EditorTags}"
-                      VerticalContentAlignment="Center" />
-            <Popup x:Name="TagSuggestionsPopup"
-                   PlacementTarget="{Binding #EditorTagsTextBox}"
-                   Placement="AnchorAndGravity"
-                   PlacementAnchor="BottomLeft"
-                   PlacementGravity="BottomRight"
-                   VerticalOffset="6"
-                   IsLightDismissEnabled="True"
-                   IsOpen="{Binding IsTagSuggestionsOpen, Mode=TwoWay}">
-              <Border x:Name="TagSuggestionsPopupContent"
-                      Classes="sectionSurface toolPopupSurface"
-                      MinWidth="220"
-                      MaxWidth="420"
-                      Padding="6"
-                      BorderThickness="1"
-                      CornerRadius="1"
-                      BoxShadow="0 4 12 0 #40000000">
-                <Grid RowDefinitions="Auto,*"
-                      RowSpacing="6">
-                  <TextBlock Classes="sidebarFooterStatus"
-                             Margin="4,2,4,0"
-                             Text="Suggested tags" />
-                  <ListBox x:Name="TagSuggestionsListBox"
-                           Grid.Row="1"
-                           MinHeight="0"
-                           MaxHeight="160"
-                           Background="Transparent"
-                           BorderThickness="0"
-                           ItemsSource="{Binding TagSuggestions}"
-                           SelectedItem="{Binding SelectedTagSuggestion, Mode=TwoWay}"
-                           PointerReleased="OnTagSuggestionsListBoxPointerReleased">
-                    <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="x:String">
-                        <TextBlock Margin="6,4"
-                                   Text="{Binding .}" />
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
-                </Grid>
-              </Border>
-            </Popup>
-            <TextBlock Margin="8,0"
-                       Classes="editorPlaceholderText"
-                       IsHitTestVisible="False"
-                       IsVisible="{Binding ShowTagsWatermark}"
-                       VerticalAlignment="Center"
-                       FontFamily="{DynamicResource TerminalFont}"
-                       FontSize="{DynamicResource AppFontSize}"
-                       Foreground="{DynamicResource PlaceholderTextBrush}"
-                       Text="Tags (comma separated)"
-                       TextWrapping="NoWrap" />
-          </Grid>
+          </Border>
+
+          <Border x:Name="LeftEditorResizeHandle"
+                  Grid.RowSpan="2"
+                  Classes="sidebarResizeHandle"
+                  Width="12"
+                  Margin="-12,0,0,0"
+                  HorizontalAlignment="Left"
+                  Background="Transparent"
+                  Cursor="SizeWestEast"
+                  PointerEntered="OnResizeHandlePointerEntered"
+                  PointerExited="OnResizeHandlePointerExited"
+                  PointerPressed="OnEditorResizeHandlePointerPressed"
+                  PointerMoved="OnEditorResizeHandlePointerMoved"
+                  PointerReleased="OnEditorResizeHandlePointerReleased">
+            <Border Classes="sidebarResizeStripe"
+                    Width="1"
+                    HorizontalAlignment="Right" />
+          </Border>
+
+          <Border x:Name="RightEditorResizeHandle"
+                  Grid.RowSpan="2"
+                  Classes="sidebarResizeHandle"
+                  Width="12"
+                  Margin="0,0,-12,0"
+                  HorizontalAlignment="Right"
+                  Background="Transparent"
+                  Cursor="SizeWestEast"
+                  PointerEntered="OnResizeHandlePointerEntered"
+                  PointerExited="OnResizeHandlePointerExited"
+                  PointerPressed="OnEditorResizeHandlePointerPressed"
+                  PointerMoved="OnEditorResizeHandlePointerMoved"
+                  PointerReleased="OnEditorResizeHandlePointerReleased">
+            <Border Classes="sidebarResizeStripe"
+                    Width="1"
+                    HorizontalAlignment="Left" />
+          </Border>
         </Grid>
-
-         <Border Grid.Row="1" Classes="editorSurface" x:Name="EditorBorder" Margin="0" BorderThickness="1">
-           <Grid>
-              <TextBlock Classes="mutedText" Margin="14" IsVisible="{Binding ShowFolderPrompt}" FontSize="{DynamicResource AppFontSizeLarge}" Text="Choose a folder to start writing markdown notes." TextWrapping="Wrap" />
-             <ae:TextEditor Classes="editorTextBox"
-                           x:Name="EditorTextEditor"
-                           Background="Transparent"
-                           BorderThickness="0"
-                           FontSize="{Binding EditorFontSize}"
-                           IsEnabled="{Binding HasSelectedFolder}"
-                           Padding="12"
-                           ShowLineNumbers="False"
-                           HorizontalScrollBarVisibility="Disabled"
-                           VerticalScrollBarVisibility="Auto"
-                            WordWrap="True" />
-             <TextBlock Margin="12"
-                        Classes="editorPlaceholderText"
-                        IsHitTestVisible="False"
-                       IsVisible="{Binding ShowEditorWatermark}"
-                       FontFamily="{DynamicResource TerminalFont}"
-                       FontSize="{Binding EditorFontSize}"
-                        Foreground="{DynamicResource PlaceholderTextBrush}"
-                        Text="Click here to start typing. A note will be created automatically when you first edit the body."
-                        TextWrapping="Wrap" />
-             <Popup x:Name="SlashCommandPopup"
-                    IsOpen="False"
-                    IsLightDismissEnabled="False"
-                    PlacementMode="AnchorAndGravity"
-                    TakesFocusFromNativeControl="False">
-               <Border x:Name="SlashCommandPopupContent"
-                       Classes="sectionSurface"
-                       Focusable="False"
-                       Padding="6"
-                       BorderThickness="1"
-                       BoxShadow="0 4 12 0 #40000000"
-                       ClipToBounds="True">
-                 <Border.Transitions>
-                   <Transitions>
-                     <DoubleTransition Property="Height" Duration="0:0:0.125" Easing="CubicEaseOut" />
-                     <DoubleTransition Property="Width" Duration="0:0:0.125" Easing="CubicEaseOut" />
-                   </Transitions>
-                 </Border.Transitions>
-                 <Grid RowDefinitions="Auto,Auto" VerticalAlignment="Top">
-                   <Border Grid.Row="0" Margin="4,2,4,6" Padding="4,2" Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="1">
-                     <TextBlock x:Name="SlashCommandHintText"
-                                Classes="sidebarFooterStatus"
-                                FontWeight="SemiBold"
-                                Text="Formatting commands" />
-                   </Border>
-                   <ListBox x:Name="SlashCommandListBox"
-                            Grid.Row="1"
-                            Focusable="False"
-                            Padding="0"
-                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                            DoubleTapped="OnSlashCommandListBoxDoubleTapped">                     <ListBox.ItemTemplate>
-                       <DataTemplate>
-                         <Border Classes="fileRow"
-                                 HorizontalAlignment="Stretch"
-                                 Padding="12,8"
-                                 BorderThickness="1">
-                           <StackPanel Spacing="2">
-                             <TextBlock Classes="fileRowText"
-                                        Text="{Binding Label}"
-                                        FontWeight="SemiBold"
-                                        TextTrimming="CharacterEllipsis" />
-                             <TextBlock Classes="pickerPreviewText"
-                                        Text="{Binding Description}"
-                                        TextTrimming="CharacterEllipsis"
-                                        TextWrapping="NoWrap" />
-                           </StackPanel>
-                         </Border>
-                       </DataTemplate>
-                     </ListBox.ItemTemplate>
-                   </ListBox>                 </Grid>
-               </Border>
-             </Popup>           </Grid>
-         </Border>
-
       </Grid>
     </Grid>
 

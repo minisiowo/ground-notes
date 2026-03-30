@@ -11,7 +11,7 @@ public sealed class SettingsWindowLayoutServiceTests
     {
         var settingsService = new RecordingSettingsService();
         var service = new SettingsWindowLayoutService(settingsService);
-        var layout = new WindowLayout(1200, 800, 10, 20, false, 300, false, true);
+        var layout = new WindowLayout(1200, 800, 10, 20, false, 300, false, true, 760);
 
         service.SaveWindowLayoutSync(layout);
 

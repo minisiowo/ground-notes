@@ -33,7 +33,15 @@ public partial class MainWindow : Window
     private readonly SlashCommandPopupController _slashCommandPopup;
     private readonly ToolPopupController _titleSuggestionsPopup;
     private readonly ToolPopupController _tagSuggestionsPopup;
+    private readonly DispatcherTimer _resizeHandleHoverTimer;
     private CancellationTokenSource? _sidebarAnimationCts;
+    private bool _isResizingEditorCanvas;
+    private double? _editorCanvasPreferredWidth;
+    private double _editorCanvasResizeStartWidth;
+    private Point _editorCanvasResizeStartPoint;
+    private int _editorCanvasResizeDirection;
+    private Control? _pendingResizeHandleHoverControl;
+    private double? _lastAppliedEditorCanvasWidth;
 
     public MainWindow()
     {
@@ -57,6 +65,11 @@ public partial class MainWindow : Window
             SlashCommandHintText);
         _titleSuggestionsPopup = new ToolPopupController(TitleSuggestionsPopup, TitleSuggestionsPopupContent);
         _tagSuggestionsPopup = new ToolPopupController(TagSuggestionsPopup, TagSuggestionsPopupContent);
+        _resizeHandleHoverTimer = new DispatcherTimer
+        {
+            Interval = ResizeHandleHoverDelay
+        };
+        _resizeHandleHoverTimer.Tick += OnResizeHandleHoverTimerTick;
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -74,6 +87,7 @@ public partial class MainWindow : Window
         EditorTextEditor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
         EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
+        EditorPanel.SizeChanged += OnEditorPanelSizeChanged;
         SlashCommandPopup.PlacementTarget = EditorBorder;
         EditorTextEditor.TextChanged += OnEditorTextChanged;
         RebuildEditorContextFlyout();
@@ -113,6 +127,8 @@ public partial class MainWindow : Window
             EditorTagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
             EditorTagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
             EditorTagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
+            _resizeHandleHoverTimer.Stop();
+            _resizeHandleHoverTimer.Tick -= OnResizeHandleHoverTimerTick;
             _editorHost.Dispose();
             SaveWindowLayout();
         };
@@ -176,6 +192,8 @@ public partial class MainWindow : Window
             {
                 _editorHost.ApplyRuntimeLayout(_editorLayoutState.CurrentSettings);
             }
+
+            UpdateEditorCanvasWidth();
         }, DispatcherPriority.Render);
 
         Opacity = 1;
@@ -209,6 +227,8 @@ public partial class MainWindow : Window
         {
             vm.SidebarCollapsed = true;
         }
+
+        _editorCanvasPreferredWidth = NormalizeEditorCanvasPreferredWidth(layout.EditorCanvasWidth);
 
         if (DataContext is MainViewModel viewModel)
         {
@@ -293,7 +313,7 @@ public partial class MainWindow : Window
             : SidebarCol.Width.Value;
 
         var isCalendarExpanded = vm?.IsCalendarExpanded ?? false;
-        return new WindowLayout(width, height, x, y, isMaximized, sidebarWidth, sidebarCollapsed, isCalendarExpanded);
+        return new WindowLayout(width, height, x, y, isMaximized, sidebarWidth, sidebarCollapsed, isCalendarExpanded, _editorCanvasPreferredWidth);
     }
 
     private double? _lastNormalWidth;
@@ -308,6 +328,9 @@ public partial class MainWindow : Window
     private const double SidebarMinWidth = 200;
     private const double SidebarMaxWidth = 600;
     private const int SidebarAnimationDurationMs = 140;
+    private static readonly TimeSpan ResizeHandleHoverDelay = TimeSpan.FromMilliseconds(150);
+    private const double EditorCanvasMinWidth = 520;
+    private const double EditorCanvasResetThreshold = 12;
     private double _sidebarWidthBeforeCollapse = 300;
 
     private ColumnDefinition SidebarCol => ContentGrid.ColumnDefinitions[0];
@@ -315,15 +338,45 @@ public partial class MainWindow : Window
 
     private void OnResizeHandlePointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (!TryBeginResizeHandleInteraction(sender, e, OnResizeHandleCaptureLost, out var control))
             return;
 
         _isResizingSidebar = true;
         _resizeStartPoint = e.GetPosition(this);
         _resizeStartWidth = SidebarCol.Width.Value;
-        e.Handled = true;
-        ((Control)sender!).PointerCaptureLost += OnResizeHandleCaptureLost;
-        e.Pointer.Capture((Control)sender!);
+    }
+
+    private void OnResizeHandlePointerEntered(object? sender, PointerEventArgs e)
+    {
+        if (sender is not Control control || control.Classes.Contains("active"))
+        {
+            return;
+        }
+
+        ScheduleResizeHandleHoverIntent(control);
+    }
+
+    private void OnResizeHandlePointerExited(object? sender, PointerEventArgs e)
+    {
+        if (sender is not Control control)
+        {
+            return;
+        }
+
+        CancelResizeHandleHoverIntent(control);
+        SetResizeHandleHoverIntent(control, isActive: false);
+    }
+
+    private void OnResizeHandleHoverTimerTick(object? sender, EventArgs e)
+    {
+        _resizeHandleHoverTimer.Stop();
+
+        if (_pendingResizeHandleHoverControl is not { } control || control.Classes.Contains("active"))
+        {
+            return;
+        }
+
+        SetResizeHandleHoverIntent(control, isActive: true);
     }
 
     private void OnResizeHandlePointerMoved(object? sender, PointerEventArgs e)
@@ -349,15 +402,200 @@ public partial class MainWindow : Window
             return;
 
         _isResizingSidebar = false;
-        e.Pointer.Capture(null);
-        e.Handled = true;
+        EndResizeHandleInteraction(sender, e);
     }
 
     private void OnResizeHandleCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
         _isResizingSidebar = false;
-        if (sender is Control control)
-            control.PointerCaptureLost -= OnResizeHandleCaptureLost;
+        CleanupResizeHandleInteraction(sender, OnResizeHandleCaptureLost);
+    }
+
+    private void OnEditorResizeHandlePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!TryBeginResizeHandleInteraction(sender, e, OnEditorResizeHandleCaptureLost, out var control))
+        {
+            return;
+        }
+
+        _isResizingEditorCanvas = true;
+        _editorCanvasResizeStartPoint = e.GetPosition(this);
+        _editorCanvasResizeStartWidth = GetEffectiveEditorCanvasWidth();
+        _editorCanvasResizeDirection = ReferenceEquals(control, LeftEditorResizeHandle) ? -1 : 1;
+    }
+
+    private void OnEditorResizeHandlePointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_isResizingEditorCanvas)
+        {
+            return;
+        }
+
+        var availableWidth = GetAvailableEditorCanvasWidth();
+        if (availableWidth <= 0)
+        {
+            return;
+        }
+
+        var currentPosition = e.GetPosition(this);
+        var delta = (currentPosition.X - _editorCanvasResizeStartPoint.X) * _editorCanvasResizeDirection;
+        var requestedWidth = _editorCanvasResizeStartWidth + (delta * 2);
+
+        _editorCanvasPreferredWidth = NormalizeDraggedEditorCanvasWidth(requestedWidth, availableWidth);
+        UpdateEditorCanvasWidth();
+        e.Handled = true;
+    }
+
+    private void OnEditorResizeHandlePointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_isResizingEditorCanvas)
+        {
+            return;
+        }
+
+        _isResizingEditorCanvas = false;
+        EndResizeHandleInteraction(sender, e);
+    }
+
+    private void OnEditorResizeHandleCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        _isResizingEditorCanvas = false;
+        CleanupResizeHandleInteraction(sender, OnEditorResizeHandleCaptureLost);
+    }
+
+    private bool TryBeginResizeHandleInteraction(
+        object? sender,
+        PointerPressedEventArgs e,
+        EventHandler<PointerCaptureLostEventArgs> captureLostHandler,
+        out Control control)
+    {
+        if (sender is not Control senderControl || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            control = null!;
+            return false;
+        }
+
+        control = senderControl;
+        CancelResizeHandleHoverIntent(control);
+        SetResizeHandleActive(control, isActive: true);
+        e.Handled = true;
+        control.PointerCaptureLost += captureLostHandler;
+        e.Pointer.Capture(control);
+        return true;
+    }
+
+    private void EndResizeHandleInteraction(object? sender, PointerReleasedEventArgs e)
+    {
+        CleanupResizeHandleInteraction(sender, null);
+        e.Pointer.Capture(null);
+        e.Handled = true;
+    }
+
+    private void CleanupResizeHandleInteraction(
+        object? sender,
+        EventHandler<PointerCaptureLostEventArgs>? captureLostHandler)
+    {
+        if (sender is not Control control)
+        {
+            return;
+        }
+
+        CancelResizeHandleHoverIntent(control);
+        SetResizeHandleActive(control, isActive: false);
+
+        if (captureLostHandler is not null)
+        {
+            control.PointerCaptureLost -= captureLostHandler;
+        }
+    }
+
+    private void ScheduleResizeHandleHoverIntent(Control control)
+    {
+        CancelResizeHandleHoverIntent(control);
+        _pendingResizeHandleHoverControl = control;
+        _resizeHandleHoverTimer.Stop();
+        _resizeHandleHoverTimer.Start();
+    }
+
+    private void CancelResizeHandleHoverIntent(Control control)
+    {
+        if (ReferenceEquals(_pendingResizeHandleHoverControl, control))
+        {
+            _pendingResizeHandleHoverControl = null;
+            _resizeHandleHoverTimer.Stop();
+        }
+    }
+
+    private static void SetResizeHandleActive(Control control, bool isActive)
+    {
+        control.Classes.Set("active", isActive);
+    }
+
+    private static void SetResizeHandleHoverIntent(Control control, bool isActive)
+    {
+        control.Classes.Set("hover-intent", isActive);
+    }
+
+    private void OnEditorPanelSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateEditorCanvasWidth();
+    }
+
+    private void UpdateEditorCanvasWidth()
+    {
+        var effectiveWidth = GetEffectiveEditorCanvasWidth();
+        if (effectiveWidth <= 0)
+        {
+            return;
+        }
+
+        if (_lastAppliedEditorCanvasWidth is { } lastAppliedWidth
+            && Math.Abs(lastAppliedWidth - effectiveWidth) < 0.1)
+        {
+            return;
+        }
+
+        EditorCanvasHost.Width = effectiveWidth;
+        _lastAppliedEditorCanvasWidth = effectiveWidth;
+    }
+
+    private double GetEffectiveEditorCanvasWidth()
+    {
+        var availableWidth = GetAvailableEditorCanvasWidth();
+        if (availableWidth <= 0)
+        {
+            return 0;
+        }
+
+        return _editorCanvasPreferredWidth is { } preferredWidth
+            ? Math.Min(preferredWidth, availableWidth)
+            : availableWidth;
+    }
+
+    private double GetAvailableEditorCanvasWidth()
+    {
+        return Math.Max(0, EditorPanel.Bounds.Width);
+    }
+
+    private static double? NormalizeDraggedEditorCanvasWidth(double requestedWidth, double availableWidth)
+    {
+        var clampedWidth = Math.Clamp(requestedWidth, Math.Min(EditorCanvasMinWidth, availableWidth), availableWidth);
+        if (availableWidth - clampedWidth <= EditorCanvasResetThreshold)
+        {
+            return null;
+        }
+
+        return clampedWidth;
+    }
+
+    private static double? NormalizeEditorCanvasPreferredWidth(double? width)
+    {
+        if (width is null || width <= 0)
+        {
+            return null;
+        }
+
+        return Math.Max(EditorCanvasMinWidth, width.Value);
     }
 
     private void OnFocusEditorRequested(object? sender, EventArgs e)
@@ -507,6 +745,7 @@ public partial class MainWindow : Window
                 SidebarCol.Width = new GridLength(Lerp(startWidth, targetWidth, eased), GridUnitType.Pixel);
                 SidebarBorder.Opacity = Lerp(startOpacity, targetOpacity, eased);
                 EditorPanel.Margin = Lerp(startMargin, targetMargin, eased);
+                UpdateEditorCanvasWidth();
 
                 if (progress >= 1)
                 {
@@ -524,6 +763,7 @@ public partial class MainWindow : Window
         SidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
         SidebarBorder.Opacity = targetOpacity;
         EditorPanel.Margin = targetMargin;
+        UpdateEditorCanvasWidth();
         SidebarCol.MinWidth = collapse ? 0 : SidebarMinWidth;
         SplitterCol.Width = new GridLength(collapse ? 0 : 6, GridUnitType.Pixel);
         SidebarBorder.IsVisible = !collapse;

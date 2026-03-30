@@ -43,4 +43,5 @@ public sealed record WindowLayout(
     bool IsMaximized,
     double? SidebarWidth = null,
     bool? SidebarCollapsed = null,
-    bool? SidebarCalendarExpanded = null);
+    bool? SidebarCalendarExpanded = null,
+    double? EditorCanvasWidth = null);

@@ -972,7 +972,10 @@
   <Style Selector="Border.sidebarResizeStripe">
     <Setter Property="Background" Value="Transparent" />
   </Style>
-  <Style Selector="Border.sidebarResizeHandle:pointerover Border.sidebarResizeStripe">
+  <Style Selector="Border.sidebarResizeHandle.hover-intent Border.sidebarResizeStripe">
+    <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />
+  </Style>
+  <Style Selector="Border.sidebarResizeHandle.active Border.sidebarResizeStripe">
     <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />
   </Style>
 

@@ -41,6 +41,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal(EditorDisplaySettings.DefaultIndentSize, settings.EditorIndentSize);
         Assert.Equal(EditorDisplaySettings.DefaultLineHeightFactor, settings.EditorLineHeightFactor);
         Assert.Equal("Dark", settings.ThemeName);
+        Assert.Null(settings.WindowLayout?.EditorCanvasWidth);
     }
 
     [Fact]
@@ -198,7 +199,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
             "Nord",
             true,
             true,
-            new WindowLayout(1200, 800, 50, 60, true, 320, false, true),
+            new WindowLayout(1200, 800, 50, 60, true, 320, false, true, 840),
             ai));
 
         var asyncSettings = await _service.GetSettingsAsync();
@@ -207,6 +208,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal(asyncSettings, syncSettings);
         Assert.True(syncSettings.ShowYamlFrontMatterInEditor);
         Assert.True(syncSettings.WindowLayout?.SidebarCalendarExpanded);
+        Assert.Equal(840, syncSettings.WindowLayout?.EditorCanvasWidth);
     }
 
     public void Dispose()
