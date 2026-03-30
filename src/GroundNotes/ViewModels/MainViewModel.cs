@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using Avalonia.Threading;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -52,6 +53,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _isApplyingSelection;
     private bool _hasInvalidYamlFrontMatter;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
+    private List<TagFilterItemViewModel> _allTagFilters = [];
 
     [ObservableProperty]
     private ObservableCollection<NoteListItemViewModel> _visibleNotes = [];
@@ -83,10 +85,23 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _searchText = string.Empty;
 
     [ObservableProperty]
-    private string? _selectedTag = "All";
+    private ObservableCollection<string> _availableTags = [];
 
     [ObservableProperty]
-    private ObservableCollection<string> _availableTags = ["All"];
+    private ObservableCollection<TagFilterItemViewModel> _availableTagFilters = [];
+
+    [ObservableProperty]
+    private string _tagFilterSearchText = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TagFilterModeText))]
+    private bool _matchAllSelectedTags;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TagFilterPanelMaxHeight))]
+    [NotifyPropertyChangedFor(nameof(TagFilterPanelOpacity))]
+    [NotifyPropertyChangedFor(nameof(TagFilterTriggerText))]
+    private bool _isTagFilterExpanded;
 
     [ObservableProperty]
     private string _notesFolder = string.Empty;
@@ -225,6 +240,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _titleSuggestionsContext = string.Empty;
 
+    [ObservableProperty]
+    private ObservableCollection<string> _tagSuggestions = [];
+
+    [ObservableProperty]
+    private string? _selectedTagSuggestion;
+
+    [ObservableProperty]
+    private bool _isTagSuggestionsOpen;
+
     public MainViewModel(
         INotesRepository notesRepository,
         ISettingsService settingsService,
@@ -294,9 +318,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public IReadOnlyList<string> CalendarWeekdayHeaders { get; } = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-    public string CalendarTriggerText => SelectedCalendarDate is DateTime date
-        ? $"Calendar · {date:yyyy-MM-dd}"
-        : "Calendar filter";
+    public string CalendarTriggerText => "Calendar";
+
+    public string CalendarTriggerDateText => FormatCalendarTriggerDate(SelectedCalendarDate ?? DateTime.Today);
+
+    public string CalendarTriggerChevron => IsCalendarExpanded ? "v" : ">";
 
     public bool HasNotePickerResults => NotePickerResults.Count > 0;
 
@@ -339,13 +365,55 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
 
-    partial void OnSelectedTagChanged(string? value)
+    partial void OnTagFilterSearchTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(ShowSelectedTagFilters));
+        OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
+        OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        RefreshAvailableTagFiltersView();
+    }
+
+    partial void OnMatchAllSelectedTagsChanged(bool value)
     {
         OnPropertyChanged(nameof(HasActiveTagFilter));
+        OnPropertyChanged(nameof(TagFilterTriggerText));
         RefreshVisibleNotes();
     }
 
-    public bool HasActiveTagFilter => !string.IsNullOrWhiteSpace(SelectedTag) && !string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal);
+    public bool HasActiveTagFilter => SelectedTags.Count > 0;
+
+    public IReadOnlyList<TagFilterItemViewModel> SelectedTagFilters => _allTagFilters
+        .Where(tag => tag.IsSelected)
+        .OrderByDescending(tag => tag.NoteCount)
+        .ThenBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    public bool HasSelectedTagFilters => SelectedTagFilters.Count > 0;
+
+    public bool ShowSelectedTagFilters => HasSelectedTagFilters && string.IsNullOrWhiteSpace(TagFilterSearchText);
+
+    public bool ShowEmptySelectedTagHint => !HasSelectedTagFilters && string.IsNullOrWhiteSpace(TagFilterSearchText);
+
+    public bool HasTagFilterSearchResults => !string.IsNullOrWhiteSpace(TagFilterSearchText) && AvailableTagFilters.Count > 0;
+
+    public IReadOnlyList<string> SelectedTags => _allTagFilters
+        .Where(tag => tag.IsSelected)
+        .Select(tag => tag.Tag)
+        .ToList();
+
+    public string TagFilterModeText => MatchAllSelectedTags ? "All" : "Any";
+
+    public double TagFilterPanelMaxHeight => IsTagFilterExpanded ? 196 : 0;
+
+    public double TagFilterPanelOpacity => IsTagFilterExpanded ? 1 : 0;
+
+    public string TagFilterTriggerText => "Tags";
+
+    public string TagFilterTriggerBadgeText => SelectedTags.Count > 0 ? SelectedTags.Count.ToString() : string.Empty;
+
+    public bool ShowTagFilterTriggerBadge => SelectedTags.Count > 0;
+
+    public string TagFilterTriggerChevron => IsTagFilterExpanded ? "v" : ">";
 
     partial void OnSelectedSortOptionChanged(SortOption value) => RefreshVisibleNotes();
 
@@ -357,6 +425,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedCalendarDateChanged(DateTime? value)
     {
+        OnPropertyChanged(nameof(CalendarTriggerDateText));
         RefreshVisibleNotes();
         RefreshCalendarDays();
     }
@@ -365,6 +434,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(CalendarPanelMaxHeight));
         OnPropertyChanged(nameof(CalendarPanelOpacity));
+        OnPropertyChanged(nameof(CalendarTriggerChevron));
+    }
+
+    private static string FormatCalendarTriggerDate(DateTime date)
+    {
+        return date.ToString("MMM d", CultureInfo.CurrentCulture);
+    }
+
+    partial void OnIsTagFilterExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(TagFilterPanelMaxHeight));
+        OnPropertyChanged(nameof(TagFilterPanelOpacity));
+        OnPropertyChanged(nameof(TagFilterTriggerText));
+        OnPropertyChanged(nameof(TagFilterTriggerChevron));
     }
 
     partial void OnNotePickerQueryChanged(string value)
@@ -498,20 +581,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnEditorTagsChanged(string value)
     {
         OnPropertyChanged(nameof(ShowTagsWatermark));
-        ClearTransientStatusOnEdit();
-        DismissTitleSuggestions(clearContext: false);
-
-        if (_isApplyingSelection || !HasSelectedFolder || CurrentNote is null)
-        {
-            return;
-        }
-
-        if (!UpdateCurrentNoteFromEditor())
-        {
-            return;
-        }
-
-        ScheduleSave();
     }
 
     partial void OnEditorBodyChanged(string value)
@@ -682,7 +751,169 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void ClearTagFilter()
     {
-        SelectedTag = AllTagsFilter;
+        TagFilterSearchText = string.Empty;
+        SetSelectedTags([]);
+    }
+
+    internal void UpdateTagSuggestions(int caretIndex)
+    {
+        if (!HasSelectedFolder)
+        {
+            DismissTagSuggestions();
+            return;
+        }
+
+        var suggestions = TagSuggestionHelper.GetSuggestions(EditorTags, caretIndex, AvailableTags);
+        TagSuggestions = new ObservableCollection<string>(suggestions);
+        SelectedTagSuggestion = TagSuggestions.FirstOrDefault();
+        IsTagSuggestionsOpen = TagSuggestions.Count > 0;
+    }
+
+    internal void DismissTagSuggestions()
+    {
+        IsTagSuggestionsOpen = false;
+        TagSuggestions = [];
+        SelectedTagSuggestion = null;
+    }
+
+    internal bool SelectNextTagSuggestion(int direction)
+    {
+        if (TagSuggestions.Count == 0)
+        {
+            return false;
+        }
+
+        var currentIndex = SelectedTagSuggestion is null
+            ? -1
+            : TagSuggestions.IndexOf(SelectedTagSuggestion);
+
+        var nextIndex = currentIndex + direction;
+        if (nextIndex < 0)
+        {
+            nextIndex = TagSuggestions.Count - 1;
+        }
+        else if (nextIndex >= TagSuggestions.Count)
+        {
+            nextIndex = 0;
+        }
+
+        SelectedTagSuggestion = TagSuggestions[nextIndex];
+        return true;
+    }
+
+    internal bool TryApplySelectedTagSuggestion(int caretIndex, out int nextCaretIndex)
+    {
+        if (string.IsNullOrWhiteSpace(SelectedTagSuggestion))
+        {
+            nextCaretIndex = caretIndex;
+            return false;
+        }
+
+        var result = TagSuggestionHelper.ApplySuggestion(EditorTags, caretIndex, SelectedTagSuggestion);
+        EditorTags = result.Text;
+        nextCaretIndex = result.CaretIndex;
+        DismissTagSuggestions();
+        return true;
+    }
+
+    internal async Task CommitEditorTagsAsync()
+    {
+        DismissTagSuggestions();
+
+        if (_isApplyingSelection || !HasSelectedFolder || ShowYamlFrontMatterInEditor)
+        {
+            return;
+        }
+
+        var committedTags = ParseTags(EditorTags);
+        var normalizedText = string.Join(", ", committedTags);
+
+        if (!string.Equals(EditorTags, normalizedText, StringComparison.Ordinal))
+        {
+            _isApplyingSelection = true;
+            try
+            {
+                EditorTags = normalizedText;
+            }
+            finally
+            {
+                _isApplyingSelection = false;
+            }
+        }
+
+        if (CurrentNote is null)
+        {
+            if (committedTags.Count > 0)
+            {
+                StatusMessage = "Tags are ready. Start the note body, then they can be saved.";
+            }
+
+            return;
+        }
+
+        if (CurrentNote.Tags.SequenceEqual(committedTags, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        ClearTransientStatusOnEdit();
+        DismissTitleSuggestions(clearContext: false);
+        CurrentNote.Tags = committedTags;
+        HasUnsavedChanges = true;
+        await SaveCurrentNoteAsync(CancellationToken.None);
+    }
+
+    [RelayCommand]
+    private async Task ConfirmEditorTagsAsync()
+    {
+        await CommitEditorTagsAsync();
+    }
+
+    private void SetSelectedTags(IReadOnlyList<string> tags)
+    {
+        var selectedTags = tags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        _isApplyingSelection = true;
+        try
+        {
+            foreach (var tagFilter in AvailableTagFilters)
+            {
+                tagFilter.IsSelected = selectedTags.Contains(tagFilter.Tag);
+            }
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        OnTagFilterSelectionChanged();
+    }
+
+    private void OnTagFilterSelectionChanged()
+    {
+        if (_isApplyingSelection)
+        {
+            return;
+        }
+
+        _allTagFilters = _allTagFilters
+            .OrderByDescending(tag => tag.IsSelected)
+            .ThenByDescending(tag => tag.NoteCount)
+            .ThenBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        RefreshAvailableTagFiltersView();
+
+        OnPropertyChanged(nameof(HasActiveTagFilter));
+        OnPropertyChanged(nameof(SelectedTags));
+        OnPropertyChanged(nameof(SelectedTagFilters));
+        OnPropertyChanged(nameof(HasSelectedTagFilters));
+        OnPropertyChanged(nameof(ShowSelectedTagFilters));
+        OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
+        OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        OnPropertyChanged(nameof(TagFilterTriggerText));
+        OnPropertyChanged(nameof(TagFilterTriggerBadgeText));
+        OnPropertyChanged(nameof(ShowTagFilterTriggerBadge));
+        RefreshVisibleNotes();
     }
 
     [RelayCommand]

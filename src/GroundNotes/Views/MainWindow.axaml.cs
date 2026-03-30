@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -31,6 +32,8 @@ public partial class MainWindow : Window
     private bool _isUpdatingViewModelFromEditor;
     private readonly SlashCommandPopupController _slashCommandPopup;
     private readonly ToolPopupController _titleSuggestionsPopup;
+    private readonly ToolPopupController _tagSuggestionsPopup;
+    private CancellationTokenSource? _sidebarAnimationCts;
 
     public MainWindow()
     {
@@ -53,6 +56,7 @@ public partial class MainWindow : Window
             SlashCommandListBox,
             SlashCommandHintText);
         _titleSuggestionsPopup = new ToolPopupController(TitleSuggestionsPopup, TitleSuggestionsPopupContent);
+        _tagSuggestionsPopup = new ToolPopupController(TagSuggestionsPopup, TagSuggestionsPopupContent);
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -61,8 +65,12 @@ public partial class MainWindow : Window
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         EditorTextEditor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        EditorTagsTextBox.AddHandler(KeyDownEvent, OnEditorTagsTextBoxKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         EditorTextEditor.PointerPressed += OnEditorPointerPressed;
         EditorTextEditor.ContextRequested += OnEditorContextRequested;
+        EditorTagsTextBox.PropertyChanged += OnEditorTagsTextBoxPropertyChanged;
+        EditorTagsTextBox.GotFocus += OnEditorTagsTextBoxGotFocus;
+        EditorTagsTextBox.LostFocus += OnEditorTagsTextBoxLostFocus;
         EditorTextEditor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
         EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
@@ -102,6 +110,9 @@ public partial class MainWindow : Window
                 _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
             }
 
+            EditorTagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
+            EditorTagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
+            EditorTagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
             _editorHost.Dispose();
             SaveWindowLayout();
         };
@@ -116,12 +127,14 @@ public partial class MainWindow : Window
 
             _slashCommandPopup.SchedulePositionUpdate();
             _titleSuggestionsPopup.ScheduleRefresh();
+            _tagSuggestionsPopup.ScheduleRefresh();
         };
 
         SizeChanged += (_, _) =>
         {
             _slashCommandPopup.SchedulePositionUpdate();
             _titleSuggestionsPopup.ScheduleRefresh();
+            _tagSuggestionsPopup.ScheduleRefresh();
         };
 
     }
@@ -294,6 +307,7 @@ public partial class MainWindow : Window
     private double _resizeStartWidth;
     private const double SidebarMinWidth = 200;
     private const double SidebarMaxWidth = 600;
+    private const int SidebarAnimationDurationMs = 140;
     private double _sidebarWidthBeforeCollapse = 300;
 
     private ColumnDefinition SidebarCol => ContentGrid.ColumnDefinitions[0];
@@ -411,6 +425,14 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.PropertyName is nameof(MainViewModel.IsTagSuggestionsOpen)
+            or nameof(MainViewModel.TagSuggestions)
+            or nameof(MainViewModel.SelectedTagSuggestion))
+        {
+            _tagSuggestionsPopup.ScheduleRefresh(resetPlacement: e.PropertyName == nameof(MainViewModel.IsTagSuggestionsOpen));
+            return;
+        }
+
         if (e.PropertyName is nameof(MainViewModel.AiPrompts)
             or nameof(MainViewModel.IsAiBusy)
             or nameof(MainViewModel.SelectedAiModel)
@@ -442,23 +464,83 @@ public partial class MainWindow : Window
         if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
             return;
 
-        if (vm.SidebarCollapsed)
+        AnimateSidebar(vm.SidebarCollapsed);
+    }
+
+    private async void AnimateSidebar(bool collapse)
+    {
+        _sidebarAnimationCts?.Cancel();
+        _sidebarAnimationCts?.Dispose();
+        _sidebarAnimationCts = new CancellationTokenSource();
+        var cancellationToken = _sidebarAnimationCts.Token;
+
+        var startWidth = SidebarCol.Width.Value;
+        var targetWidth = collapse ? 0 : Math.Max(_sidebarWidthBeforeCollapse, SidebarMinWidth);
+
+        if (collapse && startWidth > 0)
         {
-            _sidebarWidthBeforeCollapse = SidebarCol.Width.Value;
-            SidebarCol.MinWidth = 0;
-            SidebarCol.Width = new GridLength(0, GridUnitType.Pixel);
-            SplitterCol.Width = new GridLength(0, GridUnitType.Pixel);
-            SidebarBorder.IsVisible = false;
-            EditorPanel.Margin = new Thickness(14, 14, 14, 14);
+            _sidebarWidthBeforeCollapse = startWidth;
         }
-        else
+
+        SidebarBorder.IsVisible = true;
+        SplitterCol.Width = new GridLength(6, GridUnitType.Pixel);
+        SidebarCol.MinWidth = 0;
+
+        var startOpacity = SidebarBorder.Opacity;
+        var targetOpacity = collapse ? 0 : 1;
+        var startMargin = EditorPanel.Margin;
+        var targetMargin = collapse
+            ? new Thickness(14, 14, 14, 14)
+            : new Thickness(8, 14, 14, 14);
+
+        var stopwatch = Stopwatch.StartNew();
+
+        try
         {
-            SidebarCol.MinWidth = SidebarMinWidth;
-            SidebarCol.Width = new GridLength(_sidebarWidthBeforeCollapse, GridUnitType.Pixel);
-            SplitterCol.Width = new GridLength(6, GridUnitType.Pixel);
-            SidebarBorder.IsVisible = true;
-            EditorPanel.Margin = new Thickness(8, 14, 14, 14);
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var progress = Math.Clamp(stopwatch.Elapsed.TotalMilliseconds / SidebarAnimationDurationMs, 0, 1);
+                var eased = 1 - Math.Cos((progress * Math.PI) / 2);
+
+                SidebarCol.Width = new GridLength(Lerp(startWidth, targetWidth, eased), GridUnitType.Pixel);
+                SidebarBorder.Opacity = Lerp(startOpacity, targetOpacity, eased);
+                EditorPanel.Margin = Lerp(startMargin, targetMargin, eased);
+
+                if (progress >= 1)
+                {
+                    break;
+                }
+
+                await Task.Delay(16, cancellationToken);
+            }
         }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        SidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
+        SidebarBorder.Opacity = targetOpacity;
+        EditorPanel.Margin = targetMargin;
+        SidebarCol.MinWidth = collapse ? 0 : SidebarMinWidth;
+        SplitterCol.Width = new GridLength(collapse ? 0 : 6, GridUnitType.Pixel);
+        SidebarBorder.IsVisible = !collapse;
+    }
+
+    private static double Lerp(double from, double to, double progress)
+    {
+        return from + ((to - from) * progress);
+    }
+
+    private static Thickness Lerp(Thickness from, Thickness to, double progress)
+    {
+        return new Thickness(
+            Lerp(from.Left, to.Left, progress),
+            Lerp(from.Top, to.Top, progress),
+            Lerp(from.Right, to.Right, progress),
+            Lerp(from.Bottom, to.Bottom, progress));
     }
 
     private void UpdateNotePickerHeight()
@@ -499,6 +581,125 @@ public partial class MainWindow : Window
             NotePickerSearchTextBox.SelectionStart = 0;
             NotePickerSearchTextBox.SelectionEnd = NotePickerSearchTextBox.Text?.Length ?? 0;
         }, DispatcherPriority.Input);
+    }
+
+    private void OnEditorTagsTextBoxPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || sender is not TextBox textBox)
+        {
+            return;
+        }
+
+        if (e.Property != TextBox.TextProperty && e.Property != TextBox.CaretIndexProperty)
+        {
+            return;
+        }
+
+        vm.UpdateTagSuggestions(textBox.CaretIndex);
+        _tagSuggestionsPopup.ScheduleRefresh();
+    }
+
+    private void OnEditorTagsTextBoxGotFocus(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        vm.UpdateTagSuggestions(EditorTagsTextBox.CaretIndex);
+        _tagSuggestionsPopup.ScheduleRefresh(resetPlacement: true);
+    }
+
+    private void OnEditorTagsTextBoxLostFocus(object? sender, RoutedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (DataContext is not MainViewModel vm)
+            {
+                return;
+            }
+
+            if (EditorTagsTextBox.IsFocused || TagSuggestionsListBox.IsPointerOver)
+            {
+                return;
+            }
+
+            vm.DismissTagSuggestions();
+        }, DispatcherPriority.Background);
+    }
+
+    private async void OnEditorTagsTextBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Down && vm.SelectNextTagSuggestion(1))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Up && vm.SelectNextTagSuggestion(-1))
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Tab && vm.TryApplySelectedTagSuggestion(EditorTagsTextBox.CaretIndex, out var nextCaretIndex))
+        {
+            await ApplyTagSuggestionAsync(nextCaretIndex, commitAfterApply: true);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            await vm.CommitEditorTagsAsync();
+            EditorTagsTextBox.CaretIndex = EditorTagsTextBox.Text?.Length ?? 0;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Escape && vm.IsTagSuggestionsOpen)
+        {
+            vm.DismissTagSuggestions();
+            e.Handled = true;
+        }
+    }
+
+    private async void OnTagSuggestionsListBoxPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!vm.TryApplySelectedTagSuggestion(EditorTagsTextBox.CaretIndex, out var nextCaretIndex))
+        {
+            return;
+        }
+
+        await ApplyTagSuggestionAsync(nextCaretIndex, commitAfterApply: true);
+        e.Handled = true;
+    }
+
+    private async Task ApplyTagSuggestionAsync(int caretIndex, bool commitAfterApply)
+    {
+        var vm = DataContext as MainViewModel;
+        EditorTagsTextBox.Text = vm?.EditorTags;
+        EditorTagsTextBox.CaretIndex = Math.Min(caretIndex, EditorTagsTextBox.Text?.Length ?? 0);
+
+        if (commitAfterApply && vm is not null)
+        {
+            await vm.CommitEditorTagsAsync();
+            EditorTagsTextBox.Text = vm.EditorTags;
+            EditorTagsTextBox.CaretIndex = EditorTagsTextBox.Text?.Length ?? 0;
+        }
+
+        EditorTagsTextBox.Focus();
+        _tagSuggestionsPopup.ScheduleRefresh();
     }
 
     private void FocusEditorAfterNotePickerClosed(MainViewModel vm)

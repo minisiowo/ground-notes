@@ -65,6 +65,11 @@
     <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
   </Style>
 
+  <Style Selector="TextBlock.sidebarModuleTriggerText">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+  </Style>
+
   <Style Selector="Border.sidebarSurface, Border.editorSurface, Border.sectionSurface">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
@@ -120,6 +125,89 @@
 
   <Style Selector="Button.secondaryButton /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="CheckBox.tagFilterMutedControl">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.tagFilterMutedControl">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+  </Style>
+
+  <Style Selector="Button.tagFilterMutedControl /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.tagFilterBadge">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="TextBlock.tagFilterBadgeText">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="FontSize" Value="9" />
+    <Setter Property="Width" Value="16" />
+    <Setter Property="Height" Value="16" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="LineHeight" Value="16" />
+  </Style>
+
+  <Style Selector="TextBlock.tagFilterChevron">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
+    <Setter Property="FontSize" Value="10" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterChip">
+    <Setter Property="Padding" Value="6,1" />
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="CornerRadius" Value="999" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="FontSize" Value="10" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterChip /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="999" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterChip:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+  </Style>
+
+  <Style Selector="CheckBox.compactTagFilterCheckBox">
+    <Setter Property="MinHeight" Value="16" />
+    <Setter Property="FontSize" Value="10" />
+  </Style>
+
+  <Style Selector="CheckBox.compactTagFilterCheckBox /template/ PathIcon">
+    <Setter Property="Width" Value="10" />
+    <Setter Property="Height" Value="10" />
   </Style>
 
   <Style Selector="Button.titleBarButton">
@@ -211,16 +299,16 @@
   <Style Selector="Button.calendarToggleButton">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Padding" Value="6,7" />
-    <Setter Property="MinHeight" Value="34" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="Button.calendarToggleButton /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
   </Style>
 
   <Style Selector="Button.calendarToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
@@ -234,15 +322,17 @@
   </Style>
 
   <Style Selector="Button.calendarNavButton">
-    <Setter Property="MinWidth" Value="28" />
-    <Setter Property="MinHeight" Value="28" />
+    <Setter Property="MinWidth" Value="24" />
+    <Setter Property="MinHeight" Value="24" />
     <Setter Property="Padding" Value="0" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    <Setter Property="FontSize" Value="10" />
   </Style>
 
   <Style Selector="Button.calendarTodayButton">
-    <Setter Property="MinHeight" Value="28" />
-    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
   </Style>
 
   <Style Selector="Button.calendarDayButton">
@@ -432,6 +522,28 @@
   <Style Selector="ComboBox.footerSelector">
     <Setter Property="MinWidth" Value="0" />
     <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="ComboBox.sidebarFilterComboBox">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="Padding" Value="6,3" />
+  </Style>
+
+  <Style Selector="ComboBox.sidebarFilterComboBox /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+  </Style>
+
+  <Style Selector="ComboBox.sidebarFilterComboBox /template/ PathIcon">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.sidebarCompactAction">
+    <Setter Property="MinHeight" Value="18" />
+    <Setter Property="Padding" Value="6,3" />
   </Style>
 
   <Style Selector="ComboBox /template/ Popup Border">
@@ -774,9 +886,7 @@
   </Style>
 
   <Style Selector="Border.calendarPanel">
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
-    <Setter Property="BorderThickness" Value="0,1,0,0" />
-    <Setter Property="Padding" Value="0,4,0,4" />
+    <Setter Property="Padding" Value="0" />
   </Style>
 
   <Style Selector="Border.calendarDayDot">

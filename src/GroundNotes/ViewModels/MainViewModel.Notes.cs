@@ -151,6 +151,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EditorTitle = note.Title;
             EditorTags = string.Join(", ", note.Tags);
             EditorBody = BuildEditorText(note);
+            DismissTagSuggestions();
             HasUnsavedChanges = false;
             LastSavedText = FormatLastSavedText(note.UpdatedAt);
         }
@@ -176,6 +177,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EditorTitle = string.Empty;
             EditorTags = string.Empty;
             EditorBody = string.Empty;
+            DismissTagSuggestions();
             HasUnsavedChanges = false;
             HasConflict = false;
             LastSavedText = "GroundNotes";
@@ -213,14 +215,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                 EditorTitle = draft.Title;
             }
 
-            if (!string.IsNullOrWhiteSpace(EditorTags))
-            {
-                draft.Tags = ParseTags(EditorTags);
-            }
-            else
-            {
-                EditorTags = string.Empty;
-            }
+            EditorTags = string.IsNullOrWhiteSpace(EditorTags)
+                ? string.Empty
+                : EditorTags;
         }
         finally
         {
@@ -274,7 +271,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _hasInvalidYamlFrontMatter = false;
             CurrentNote.Title = string.IsNullOrWhiteSpace(EditorTitle) ? CurrentNote.OriginalTitle : EditorTitle.Trim();
             CurrentNote.Body = EditorBody;
-            CurrentNote.Tags = ParseTags(EditorTags);
         }
 
         HasUnsavedChanges = true;
@@ -420,9 +416,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _isApplyingSelection = true;
         try
         {
-            var effectiveTag = string.Equals(SelectedTag, AllTagsFilter, StringComparison.Ordinal) ? null : SelectedTag;
             var currentItems = VisibleNotes.ToDictionary(note => note.FilePath, StringComparer.OrdinalIgnoreCase);
-            var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, effectiveTag, SelectedCalendarDate, SelectedSortOption);
+            var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, SelectedTags, MatchAllSelectedTags, SelectedCalendarDate, SelectedSortOption);
             var nextItems = nextNotes.Select(note =>
             {
                 if (!currentItems.TryGetValue(note.FilePath, out var existing))
@@ -495,18 +490,50 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SelectedNotePickerSummary = currentSelection ?? NotePickerResults[0];
     }
 
-    private const string AllTagsFilter = "All";
-
     private void RefreshAvailableTags()
     {
-        var tags = _allNotes
+        var selectedTags = SelectedTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var tagCounts = _allNotes
             .SelectMany(note => note.Tags)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(tag => tag, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                Tag = group.First(),
+                Count = group.Count()
+            })
+            .OrderByDescending(item => selectedTags.Contains(item.Tag))
+            .ThenByDescending(item => item.Count)
+            .ThenBy(item => item.Tag, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        tags.Insert(0, AllTagsFilter);
-        AvailableTags = new ObservableCollection<string>(tags);
+        AvailableTags = new ObservableCollection<string>(tagCounts.Select(item => item.Tag));
+        _allTagFilters = tagCounts
+            .Select(item => new TagFilterItemViewModel(item.Tag, item.Count, selectedTags.Contains(item.Tag), OnTagFilterSelectionChanged))
+            .ToList();
+        RefreshAvailableTagFiltersView();
+
+        OnPropertyChanged(nameof(SelectedTags));
+        OnPropertyChanged(nameof(SelectedTagFilters));
+        OnPropertyChanged(nameof(HasSelectedTagFilters));
+        OnPropertyChanged(nameof(ShowSelectedTagFilters));
+        OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
+        OnPropertyChanged(nameof(HasActiveTagFilter));
+        OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        OnPropertyChanged(nameof(TagFilterTriggerText));
+        OnPropertyChanged(nameof(TagFilterTriggerBadgeText));
+        OnPropertyChanged(nameof(ShowTagFilterTriggerBadge));
+    }
+
+    private void RefreshAvailableTagFiltersView()
+    {
+        var filteredTags = string.IsNullOrWhiteSpace(TagFilterSearchText)
+            ? _allTagFilters
+            : _allTagFilters
+                .Where(tag => tag.Tag.Contains(TagFilterSearchText, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+        AvailableTagFilters = new ObservableCollection<TagFilterItemViewModel>(filteredTags);
+        OnPropertyChanged(nameof(HasTagFilterSearchResults));
     }
 
     private void ReplaceSummary(string previousPath, NoteSummary summary)
