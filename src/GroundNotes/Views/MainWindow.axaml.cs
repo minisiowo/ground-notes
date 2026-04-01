@@ -968,6 +968,9 @@ public partial class MainWindow : Window
         var paneCount = Math.Max(1, vm.OpenPaneCount);
         if (paneCount <= 1)
         {
+            _editorCanvasPreferredWidth = null;
+            _multiPaneEqualizedPaneWidth = null;
+            UpdateEditorCanvasWidth();
             return;
         }
 

@@ -457,7 +457,7 @@
           <StackPanel x:Name="PaneWorkspaceContent"
                       Orientation="Horizontal"
                       HorizontalAlignment="Center"
-                      Spacing="16">
+                      Spacing="10">
             <Border x:Name="PrimaryPaneRoot"
                     Classes="editorPane"
                     MinWidth="0"
@@ -762,7 +762,6 @@
                             HorizontalAlignment="Left"
                             Background="Transparent"
                             Cursor="SizeWestEast"
-                            IsVisible="{Binding HasSecondaryPane}"
                             PointerEntered="OnResizeHandlePointerEntered"
                             PointerExited="OnResizeHandlePointerExited"
                             PointerPressed="OnEditorResizeHandlePointerPressed"
