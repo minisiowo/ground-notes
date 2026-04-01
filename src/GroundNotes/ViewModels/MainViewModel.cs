@@ -491,11 +491,38 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void UpdateActiveVisibleNote(string? filePath)
     {
+        var openFilePaths = GetOpenFilePaths();
         foreach (var note in VisibleNotes)
         {
             note.IsActive = !string.IsNullOrWhiteSpace(filePath)
                 && string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase);
+            note.IsOpen = openFilePaths.Contains(note.FilePath);
         }
+    }
+
+    private string? GetActiveSidebarFilePath()
+    {
+        return ActiveSecondaryPane?.CurrentNote?.FilePath ?? CurrentNote?.FilePath;
+    }
+
+    private HashSet<string> GetOpenFilePaths()
+    {
+        var openFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(CurrentNote?.FilePath))
+        {
+            openFilePaths.Add(CurrentNote.FilePath);
+        }
+
+        foreach (var pane in SecondaryPanes)
+        {
+            if (!string.IsNullOrWhiteSpace(pane.CurrentNote?.FilePath))
+            {
+                openFilePaths.Add(pane.CurrentNote.FilePath);
+            }
+        }
+
+        return openFilePaths;
     }
 
     private void PromotePaneToPrimary(EditorPaneViewModel pane)
@@ -649,7 +676,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnVisibleNotesChanged(ObservableCollection<NoteListItemViewModel> value)
     {
         OnPropertyChanged(nameof(HasNotes));
-        UpdateActiveVisibleNote(ActiveSecondaryPane?.CurrentNote?.FilePath ?? CurrentNote?.FilePath);
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
     }
 
     partial void OnSecondaryPanesChanged(ObservableCollection<EditorPaneViewModel> value)
@@ -665,6 +692,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(HasSecondaryPane));
         OnPropertyChanged(nameof(OpenPaneCount));
         OnPropertyChanged(nameof(FooterStatusText));
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
     }
 
     partial void OnActiveSecondaryPaneChanged(EditorPaneViewModel? value)
@@ -674,11 +702,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             pane.IsActive = ReferenceEquals(pane, value);
         }
 
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
         OnPropertyChanged(nameof(FooterStatusText));
     }
 
     partial void OnIsPrimaryPaneActiveChanged(bool value)
     {
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
         OnPropertyChanged(nameof(FooterStatusText));
     }
 

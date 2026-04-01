@@ -137,7 +137,9 @@ public sealed class FolderSettingsService : ISettingsService
                     record.WindowLayout.SidebarWidth,
                     record.WindowLayout.SidebarCollapsed,
                     record.WindowLayout.SidebarCalendarExpanded,
-                    record.WindowLayout.EditorCanvasWidth),
+                    record.WindowLayout.EditorCanvasWidth,
+                    record.WindowLayout.PaneSplitWeights,
+                    record.WindowLayout.MultiPaneSharedWidth),
             new AiSettings(
                 record.OpenAiApiKey ?? string.Empty,
                 record.OpenAiModel ?? string.Empty,
@@ -176,7 +178,9 @@ public sealed class FolderSettingsService : ISettingsService
                     SidebarWidth = settings.WindowLayout.SidebarWidth,
                     SidebarCollapsed = settings.WindowLayout.SidebarCollapsed,
                     SidebarCalendarExpanded = settings.WindowLayout.SidebarCalendarExpanded,
-                    EditorCanvasWidth = settings.WindowLayout.EditorCanvasWidth
+                    EditorCanvasWidth = settings.WindowLayout.EditorCanvasWidth,
+                    PaneSplitWeights = settings.WindowLayout.PaneSplitWeights?.ToList(),
+                    MultiPaneSharedWidth = settings.WindowLayout.MultiPaneSharedWidth
                 },
             OpenAiApiKey = settings.AiSettings.ApiKey,
             OpenAiModel = settings.AiSettings.DefaultModel,
@@ -261,5 +265,7 @@ public sealed class FolderSettingsService : ISettingsService
         public bool? SidebarCollapsed { get; set; }
         public bool? SidebarCalendarExpanded { get; set; }
         public double? EditorCanvasWidth { get; set; }
+        public List<double>? PaneSplitWeights { get; set; }
+        public double? MultiPaneSharedWidth { get; set; }
     }
 }

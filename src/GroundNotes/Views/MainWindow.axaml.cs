@@ -42,13 +42,22 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _resizeHandleHoverTimer;
     private CancellationTokenSource? _sidebarAnimationCts;
     private bool _isResizingEditorCanvas;
+    private bool _isResizingMultiPane;
     private double? _editorCanvasPreferredWidth;
+    private double? _multiPaneEqualizedPaneWidth;
     private double _editorCanvasResizeStartWidth;
     private Point _editorCanvasResizeStartPoint;
+    private int _editorCanvasResizeDirection = 1;
     private Control? _pendingResizeHandleHoverControl;
     private double? _lastAppliedEditorCanvasWidth;
     private TextEditor? _editorContextTarget;
     private Guid? _lastBoundSecondaryPaneId;
+    private List<double> _paneSplitWeights = [];
+    private List<double> _multiPaneResizeStartWeights = [];
+    private int _multiPaneResizePaneIndex = -1;
+    private double _multiPaneResizeDistributableWidth;
+    private int _multiPaneResizeDirection = 1;
+    private bool _isResizingSharedPaneWidth;
 
     public MainWindow()
     {
@@ -265,6 +274,8 @@ public partial class MainWindow : Window
         UpdateWorkspaceHostMargin();
 
         _editorCanvasPreferredWidth = NormalizeEditorCanvasPreferredWidth(layout.EditorCanvasWidth);
+        _paneSplitWeights = NormalizePaneSplitWeights(layout.PaneSplitWeights);
+        _multiPaneEqualizedPaneWidth = NormalizeMultiPaneSharedWidth(layout.MultiPaneSharedWidth);
 
         if (DataContext is MainViewModel viewModel)
         {
@@ -349,7 +360,18 @@ public partial class MainWindow : Window
             : SidebarCol.Width.Value;
 
         var isCalendarExpanded = vm?.IsCalendarExpanded ?? false;
-        return new WindowLayout(width, height, x, y, isMaximized, sidebarWidth, sidebarCollapsed, isCalendarExpanded, _editorCanvasPreferredWidth);
+        return new WindowLayout(
+            width,
+            height,
+            x,
+            y,
+            isMaximized,
+            sidebarWidth,
+            sidebarCollapsed,
+            isCalendarExpanded,
+            _editorCanvasPreferredWidth,
+            _paneSplitWeights.Count == 2 ? _paneSplitWeights.ToList() : null,
+            _multiPaneEqualizedPaneWidth);
     }
 
     private double? _lastNormalWidth;
@@ -369,7 +391,9 @@ public partial class MainWindow : Window
     private static readonly TimeSpan ResizeHandleHoverDelay = TimeSpan.FromMilliseconds(150);
     private const double EditorCanvasMinWidth = 520;
     private const double EditorCanvasResetThreshold = 12;
-    private const double MultiPaneMinWidth = 552;
+    private const double TwoPaneMinWidth = 440;
+    private const double MultiPaneMinWidth = 360;
+    private const double EqualFitSafetyGap = 1;
     private double _sidebarWidthBeforeCollapse = 300;
 
     private ColumnDefinition SidebarCol => ContentGrid.ColumnDefinitions[0];
@@ -457,13 +481,77 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (DataContext is MainViewModel vm && vm.HasSecondaryPane)
+        {
+            var paneIndex = GetPaneResizeIndex(control, vm);
+            var resizeDirection = GetResizeDirection(control);
+            var paneCount = Math.Max(1, vm.OpenPaneCount);
+            var distributableWidth = paneCount == 2
+                ? GetTwoPaneDistributableWidth(PaneWorkspaceScrollViewer.Bounds.Width)
+                : GetSharedMultiPaneWidth(PaneWorkspaceScrollViewer.Bounds.Width, paneCount);
+            if (paneIndex < 0 || distributableWidth <= 0)
+            {
+                CleanupResizeHandleInteraction(control, OnEditorResizeHandleCaptureLost);
+                e.Pointer.Capture(null);
+                return;
+            }
+
+            if (paneCount == 2)
+            {
+                EnsurePaneSplitWeights(paneCount, distributableWidth);
+            }
+
+            _isResizingMultiPane = true;
+            _isResizingSharedPaneWidth = paneCount >= 3 || IsTwoPaneSharedResizeHandle(control, paneCount);
+            if (paneCount == 2 && !_isResizingSharedPaneWidth && control.DataContext is EditorPaneViewModel && string.Equals(control.Tag as string, "Left", StringComparison.Ordinal))
+            {
+                paneIndex = 0;
+                resizeDirection = 1;
+            }
+
+            _multiPaneResizePaneIndex = paneIndex;
+            _multiPaneResizeDirection = resizeDirection;
+            _multiPaneResizeDistributableWidth = distributableWidth;
+            _multiPaneResizeStartWeights = paneCount == 2 && !_isResizingSharedPaneWidth ? _paneSplitWeights.ToList() : [];
+            _editorCanvasResizeStartPoint = e.GetPosition(this);
+            _editorCanvasResizeStartWidth = paneCount == 2 && !_isResizingSharedPaneWidth
+                ? GetPaneWidthFromWeights(_multiPaneResizeStartWeights, paneIndex, distributableWidth)
+                : GetResizeStartWidthForSharedPaneResize(control, vm, paneCount);
+            return;
+        }
+
         _isResizingEditorCanvas = true;
         _editorCanvasResizeStartPoint = e.GetPosition(this);
         _editorCanvasResizeStartWidth = GetEffectiveEditorCanvasWidth();
+        _editorCanvasResizeDirection = GetResizeDirection(control);
     }
 
     private void OnEditorResizeHandlePointerMoved(object? sender, PointerEventArgs e)
     {
+        if (_isResizingMultiPane)
+        {
+            if (_multiPaneResizePaneIndex < 0 || _multiPaneResizeDistributableWidth <= 0)
+            {
+                return;
+            }
+
+            var multiPaneCurrentPosition = e.GetPosition(this);
+            var multiPaneDelta = multiPaneCurrentPosition.X - _editorCanvasResizeStartPoint.X;
+            var multiPaneRequestedWidth = _editorCanvasResizeStartWidth + (multiPaneDelta * _multiPaneResizeDirection);
+            if (_isResizingSharedPaneWidth)
+            {
+                _multiPaneEqualizedPaneWidth = NormalizeMultiPaneSharedWidth(multiPaneRequestedWidth);
+            }
+            else if (_multiPaneResizeStartWeights.Count == 2)
+            {
+                _paneSplitWeights = BuildWeightsForResizedPane(_multiPaneResizeStartWeights, _multiPaneResizePaneIndex, multiPaneRequestedWidth, _multiPaneResizeDistributableWidth);
+            }
+
+            UpdateWorkspacePresentation();
+            e.Handled = true;
+            return;
+        }
+
         if (!_isResizingEditorCanvas)
         {
             return;
@@ -477,15 +565,27 @@ public partial class MainWindow : Window
 
         var currentPosition = e.GetPosition(this);
         var delta = currentPosition.X - _editorCanvasResizeStartPoint.X;
-        var requestedWidth = _editorCanvasResizeStartWidth + (delta * 2);
+        var requestedWidth = _editorCanvasResizeStartWidth + ((delta * _editorCanvasResizeDirection) * 2);
 
         _editorCanvasPreferredWidth = NormalizeDraggedEditorCanvasWidth(requestedWidth, availableWidth);
+        _multiPaneEqualizedPaneWidth = null;
         UpdateEditorCanvasWidth();
         e.Handled = true;
     }
 
     private void OnEditorResizeHandlePointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_isResizingMultiPane)
+        {
+            _isResizingMultiPane = false;
+            _isResizingSharedPaneWidth = false;
+            _multiPaneResizePaneIndex = -1;
+            _multiPaneResizeDirection = 1;
+            _multiPaneResizeStartWeights.Clear();
+            EndResizeHandleInteraction(sender, e);
+            return;
+        }
+
         if (!_isResizingEditorCanvas)
         {
             return;
@@ -497,6 +597,11 @@ public partial class MainWindow : Window
 
     private void OnEditorResizeHandleCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
+        _isResizingMultiPane = false;
+        _isResizingSharedPaneWidth = false;
+        _multiPaneResizePaneIndex = -1;
+        _multiPaneResizeDirection = 1;
+        _multiPaneResizeStartWeights.Clear();
         _isResizingEditorCanvas = false;
         CleanupResizeHandleInteraction(sender, OnEditorResizeHandleCaptureLost);
     }
@@ -569,6 +674,41 @@ public partial class MainWindow : Window
         control.Classes.Set("active", isActive);
     }
 
+    private static int GetResizeDirection(Control control)
+    {
+        return string.Equals(control.Tag as string, "Left", StringComparison.Ordinal)
+            ? -1
+            : 1;
+    }
+
+    private static bool IsTwoPaneSharedResizeHandle(Control control, int paneCount)
+    {
+        if (paneCount != 2)
+        {
+            return false;
+        }
+
+        var isLeftHandle = string.Equals(control.Tag as string, "Left", StringComparison.Ordinal);
+        return (control.DataContext is EditorPaneViewModel) != isLeftHandle;
+    }
+
+    private double GetResizeStartWidthForSharedPaneResize(Control control, MainViewModel vm, int paneCount)
+    {
+        if (paneCount >= 3)
+        {
+            return GetSharedMultiPaneWidth(PaneWorkspaceScrollViewer.Bounds.Width, paneCount);
+        }
+
+        if (control.DataContext is EditorPaneViewModel pane
+            && _secondaryPaneRoots.TryGetValue(pane.Id, out var secondaryRoot)
+            && secondaryRoot.Width > 0)
+        {
+            return secondaryRoot.Width;
+        }
+
+        return PrimaryPaneRoot.Width > 0 ? PrimaryPaneRoot.Width : GetTwoPaneDistributableWidth(PaneWorkspaceScrollViewer.Bounds.Width) / 2;
+    }
+
     private static void SetResizeHandleHoverIntent(Control control, bool isActive)
     {
         control.Classes.Set("hover-intent", isActive);
@@ -633,6 +773,8 @@ public partial class MainWindow : Window
 
         if (!hasSecondaryPane)
         {
+            _paneSplitWeights.Clear();
+            _multiPaneEqualizedPaneWidth = null;
             PrimaryPaneRoot.Width = viewportWidth;
             foreach (var paneRoot in _secondaryPaneRoots.Values)
             {
@@ -642,30 +784,277 @@ public partial class MainWindow : Window
             return;
         }
 
-        var paneWidth = GetTargetMultiPaneWidth(viewportWidth, paneCount);
-
-        PrimaryPaneRoot.Width = paneWidth;
-        foreach (var paneRoot in _secondaryPaneRoots.Values)
+        List<double> paneWidths;
+        if (paneCount == 2)
         {
-            paneRoot.Width = paneWidth;
+            _multiPaneEqualizedPaneWidth = null;
+            var distributableWidth = GetTwoPaneDistributableWidth(viewportWidth);
+            EnsurePaneSplitWeights(paneCount, distributableWidth);
+            paneWidths = GetPaneWidths(distributableWidth, paneCount);
+        }
+        else
+        {
+            _paneSplitWeights.Clear();
+            var sharedWidth = GetSharedMultiPaneWidth(viewportWidth, paneCount);
+            paneWidths = Enumerable.Repeat(sharedWidth, paneCount).ToList();
+        }
+
+        PrimaryPaneRoot.Width = paneWidths[0];
+        for (var index = 0; index < vm.SecondaryPanes.Count; index++)
+        {
+            var pane = vm.SecondaryPanes[index];
+            if (_secondaryPaneRoots.TryGetValue(pane.Id, out var paneRoot))
+            {
+                paneRoot.Width = paneWidths[index + 1];
+            }
         }
     }
 
-    private double GetTargetMultiPaneWidth(double viewportWidth, int paneCount)
+    private double GetTwoPaneDistributableWidth(double viewportWidth)
     {
-        var preferredWidth = _editorCanvasPreferredWidth;
-        if (preferredWidth is { } width)
+        var totalSpacing = PaneWorkspaceContent.Spacing;
+        var viewportContentWidth = Math.Max(0, viewportWidth - totalSpacing - EqualFitSafetyGap);
+        var minimumReadableWidth = TwoPaneMinWidth * 2;
+        var preferredTotalWidth = _editorCanvasPreferredWidth is { } preferredWidth
+            ? preferredWidth + Math.Max(TwoPaneMinWidth, viewportContentWidth - preferredWidth)
+            : 0;
+        return Math.Max(viewportContentWidth, Math.Max(minimumReadableWidth, preferredTotalWidth));
+    }
+
+    private double GetSharedMultiPaneWidth(double viewportWidth, int paneCount)
+    {
+        var totalSpacing = PaneWorkspaceContent.Spacing * Math.Max(0, paneCount - 1);
+        var availableWidth = Math.Max(0, viewportWidth - totalSpacing - EqualFitSafetyGap);
+        var equalFitWidth = Math.Max(MultiPaneMinWidth, Math.Floor(availableWidth / paneCount));
+        var sharedWidth = _multiPaneEqualizedPaneWidth ?? equalFitWidth;
+        return Math.Max(MultiPaneMinWidth, sharedWidth);
+    }
+
+    private void EnsurePaneSplitWeights(int paneCount, double distributableWidth)
+    {
+        if (paneCount <= 1)
         {
-            var preferredTotalWidth = (width * paneCount) + (PaneWorkspaceContent.Spacing * (paneCount - 1));
-            if (preferredTotalWidth <= viewportWidth)
+            _paneSplitWeights.Clear();
+            return;
+        }
+
+        if (_paneSplitWeights.Count == paneCount && Math.Abs(_paneSplitWeights.Sum() - 1d) < 0.001)
+        {
+            return;
+        }
+
+        if (_paneSplitWeights.Count == paneCount - 1 && paneCount == 2)
+        {
+            _paneSplitWeights = CreateTwoPaneWeightsFromSinglePane(distributableWidth);
+            return;
+        }
+
+        if (_paneSplitWeights.Count != paneCount)
+        {
+            _paneSplitWeights = CreateEqualPaneSplitWeights(paneCount);
+        }
+    }
+
+    private List<double> CreateTwoPaneWeightsFromSinglePane(double distributableWidth)
+    {
+        if (_editorCanvasPreferredWidth is not { } preferredWidth)
+        {
+            return CreateEqualPaneSplitWeights(2);
+        }
+
+        var minimumWidth = Math.Min(TwoPaneMinWidth, distributableWidth / 2);
+        var primaryWidth = Math.Clamp(preferredWidth, minimumWidth, distributableWidth - minimumWidth);
+        if (distributableWidth - primaryWidth < minimumWidth)
+        {
+            return CreateEqualPaneSplitWeights(2);
+        }
+
+        return [primaryWidth / distributableWidth, (distributableWidth - primaryWidth) / distributableWidth];
+    }
+
+    private static List<double> CreateEqualPaneSplitWeights(int paneCount)
+    {
+        var weight = 1d / paneCount;
+        return Enumerable.Repeat(weight, paneCount).ToList();
+    }
+
+    private static List<double> NormalizePaneSplitWeights(IReadOnlyList<double>? weights)
+    {
+        if (weights is null || weights.Count == 0)
+        {
+            return [];
+        }
+
+        var normalized = weights.Where(weight => weight > 0).ToList();
+        if (normalized.Count != weights.Count)
+        {
+            return [];
+        }
+
+        var sum = normalized.Sum();
+        if (sum <= 0)
+        {
+            return [];
+        }
+
+        return normalized.Select(weight => weight / sum).ToList();
+    }
+
+    private List<double> GetPaneWidths(double distributableWidth, int paneCount)
+    {
+        var widths = new List<double>(paneCount);
+        var remainingWidth = distributableWidth;
+        var remainingWeight = 1d;
+
+        for (var index = 0; index < paneCount; index++)
+        {
+            if (index == paneCount - 1)
             {
-                return Math.Max(MultiPaneMinWidth, width);
+                widths.Add(remainingWidth);
+                break;
+            }
+
+            var weight = _paneSplitWeights.ElementAtOrDefault(index);
+            var width = remainingWeight <= 0
+                ? distributableWidth / paneCount
+                : distributableWidth * (weight / remainingWeight);
+            width = Math.Max(TwoPaneMinWidth, width);
+            widths.Add(width);
+            remainingWidth -= width;
+            remainingWeight -= weight;
+        }
+
+        return widths;
+    }
+
+    private double? GetActivePaneWidth(MainViewModel vm)
+    {
+        if (vm.ActiveSecondaryPane is { } activePane
+            && _secondaryPaneRoots.TryGetValue(activePane.Id, out var secondaryRoot)
+            && secondaryRoot.Width > 0)
+        {
+            return secondaryRoot.Width;
+        }
+
+        return PrimaryPaneRoot.Width > 0 ? PrimaryPaneRoot.Width : null;
+    }
+
+    private double? GetRepresentativePaneWidth(MainViewModel vm)
+    {
+        var activeWidth = GetActivePaneWidth(vm);
+        if (activeWidth is > 0)
+        {
+            return activeWidth;
+        }
+
+        if (PrimaryPaneRoot.Width > 0)
+        {
+            return PrimaryPaneRoot.Width;
+        }
+
+        foreach (var pane in vm.SecondaryPanes)
+        {
+            if (_secondaryPaneRoots.TryGetValue(pane.Id, out var paneRoot) && paneRoot.Width > 0)
+            {
+                return paneRoot.Width;
             }
         }
 
-        var visiblePaneCount = Math.Min(paneCount, 3);
-        var totalSpacing = PaneWorkspaceContent.Spacing * (visiblePaneCount - 1);
-        return Math.Max(MultiPaneMinWidth, (viewportWidth - totalSpacing) / visiblePaneCount);
+        return null;
+    }
+
+    private void EqualizePaneWidthsToActivePane(MainViewModel vm)
+    {
+        var paneCount = Math.Max(1, vm.OpenPaneCount);
+        if (paneCount <= 1)
+        {
+            return;
+        }
+
+        var viewportWidth = PaneWorkspaceScrollViewer.Bounds.Width;
+        if (viewportWidth <= 0)
+        {
+            return;
+        }
+
+        if (paneCount == 2)
+        {
+            var activeWidth = GetActivePaneWidth(vm);
+            if (activeWidth is null || activeWidth <= 0)
+            {
+                return;
+            }
+
+            _multiPaneEqualizedPaneWidth = null;
+            _paneSplitWeights = CreateEqualPaneSplitWeights(2);
+        }
+        else
+        {
+            _paneSplitWeights.Clear();
+            _multiPaneEqualizedPaneWidth = null;
+        }
+
+        UpdateWorkspacePresentation();
+    }
+
+    private int GetPaneResizeIndex(Control control, MainViewModel vm)
+    {
+        if (control.DataContext is EditorPaneViewModel pane)
+        {
+            return vm.SecondaryPanes.IndexOf(pane) + 1;
+        }
+
+        return 0;
+    }
+
+    private static double GetPaneWidthFromWeights(IReadOnlyList<double> weights, int paneIndex, double distributableWidth)
+    {
+        return weights[paneIndex] * distributableWidth;
+    }
+
+    private static List<double> BuildWeightsForResizedPane(IReadOnlyList<double> startWeights, int paneIndex, double requestedWidth, double distributableWidth)
+    {
+        var paneCount = startWeights.Count;
+        var minimumWidth = Math.Min(TwoPaneMinWidth, distributableWidth / paneCount);
+        var remainingPaneCount = paneCount - 1;
+        var minRemainingWidth = minimumWidth * remainingPaneCount;
+        var controlledWidth = Math.Clamp(requestedWidth, minimumWidth, distributableWidth - minRemainingWidth);
+        var remainingWidth = distributableWidth - controlledWidth;
+
+        var widths = Enumerable.Repeat(minimumWidth, paneCount).ToArray();
+        widths[paneIndex] = controlledWidth;
+
+        if (remainingPaneCount > 0)
+        {
+            var extraWidth = remainingWidth - (minimumWidth * remainingPaneCount);
+            var basis = new List<double>(remainingPaneCount);
+            for (var index = 0; index < paneCount; index++)
+            {
+                if (index == paneIndex)
+                {
+                    continue;
+                }
+
+                basis.Add(Math.Max(0, (startWeights[index] * distributableWidth) - minimumWidth));
+            }
+
+            var basisSum = basis.Sum();
+            var basisIndex = 0;
+            for (var index = 0; index < paneCount; index++)
+            {
+                if (index == paneIndex)
+                {
+                    continue;
+                }
+
+                widths[index] += basisSum <= 0
+                    ? extraWidth / remainingPaneCount
+                    : extraWidth * (basis[basisIndex] / basisSum);
+                basisIndex++;
+            }
+        }
+
+        return widths.Select(width => width / distributableWidth).ToList();
     }
 
     private TextEditor GetActiveTextEditor()
@@ -801,6 +1190,16 @@ public partial class MainWindow : Window
         }
 
         return Math.Max(EditorCanvasMinWidth, width.Value);
+    }
+
+    private static double? NormalizeMultiPaneSharedWidth(double? width)
+    {
+        if (width is null || width <= 0)
+        {
+            return null;
+        }
+
+        return Math.Max(MultiPaneMinWidth, width.Value);
     }
 
     private static bool IsPointerInsideEditorChrome(object? source)
@@ -1000,6 +1399,11 @@ public partial class MainWindow : Window
 
     private void OnSecondaryPanesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
+        if (DataContext is MainViewModel vm)
+        {
+            UpdatePaneSplitWeightsForCollectionChange(vm, e);
+        }
+
         if (e.OldItems is not null)
         {
             foreach (var item in e.OldItems.OfType<EditorPaneViewModel>())
@@ -1016,6 +1420,106 @@ public partial class MainWindow : Window
             }
         }
 
+        UpdateWorkspacePresentation();
+        UpdateEditorCanvasWidth();
+        }
+
+    private void UpdatePaneSplitWeightsForCollectionChange(MainViewModel vm, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        var paneCount = Math.Max(1, vm.OpenPaneCount);
+        var previousPaneCount = e.Action switch
+        {
+            System.Collections.Specialized.NotifyCollectionChangedAction.Add when e.NewItems is not null => Math.Max(1, paneCount - e.NewItems.Count),
+            System.Collections.Specialized.NotifyCollectionChangedAction.Remove when e.OldItems is not null => paneCount + e.OldItems.Count,
+            _ => paneCount
+        };
+
+        if (paneCount <= 1)
+        {
+            _paneSplitWeights.Clear();
+            _multiPaneEqualizedPaneWidth = null;
+            return;
+        }
+
+        if (paneCount >= 3)
+        {
+            _paneSplitWeights.Clear();
+
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
+            {
+                var preservedWidth = _multiPaneEqualizedPaneWidth;
+                if (previousPaneCount == 2 || preservedWidth is null)
+                {
+                    preservedWidth = NormalizeMultiPaneSharedWidth(GetRepresentativePaneWidth(vm));
+                }
+
+                _multiPaneEqualizedPaneWidth = preservedWidth;
+            }
+            else if (_multiPaneEqualizedPaneWidth is null)
+            {
+                _multiPaneEqualizedPaneWidth = NormalizeMultiPaneSharedWidth(GetRepresentativePaneWidth(vm));
+            }
+
+            return;
+        }
+
+        var distributableWidth = GetTwoPaneDistributableWidth(PaneWorkspaceScrollViewer.Bounds.Width);
+
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add
+            && e.NewItems is not null
+            && e.NewItems.Count > 0)
+        {
+            if (_paneSplitWeights.Count == 0 && paneCount == 2)
+            {
+                _paneSplitWeights = CreateTwoPaneWeightsFromSinglePane(distributableWidth);
+                _multiPaneEqualizedPaneWidth = null;
+                return;
+            }
+
+            EnsurePaneSplitWeights(Math.Max(1, paneCount - e.NewItems.Count), distributableWidth);
+            var newWeight = 1d / paneCount;
+            _paneSplitWeights = _paneSplitWeights.Select(weight => weight * (1 - newWeight)).ToList();
+            var insertIndex = Math.Clamp((e.NewStartingIndex >= 0 ? e.NewStartingIndex : _paneSplitWeights.Count) + 1, 0, _paneSplitWeights.Count);
+            for (var index = 0; index < e.NewItems.Count; index++)
+            {
+                _paneSplitWeights.Insert(insertIndex + index, newWeight);
+            }
+
+            _paneSplitWeights = NormalizePaneSplitWeights(_paneSplitWeights);
+            _multiPaneEqualizedPaneWidth = null;
+            return;
+        }
+
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove
+            && e.OldItems is not null
+            && e.OldItems.Count > 0
+            && _paneSplitWeights.Count > 0)
+        {
+            var removeIndex = Math.Clamp((e.OldStartingIndex >= 0 ? e.OldStartingIndex : _paneSplitWeights.Count - 1) + 1, 0, _paneSplitWeights.Count - 1);
+            for (var index = 0; index < e.OldItems.Count && removeIndex < _paneSplitWeights.Count; index++)
+            {
+                _paneSplitWeights.RemoveAt(removeIndex);
+            }
+
+            _paneSplitWeights = paneCount <= 1
+                ? []
+                : NormalizePaneSplitWeights(_paneSplitWeights);
+            if (_paneSplitWeights.Count != paneCount)
+            {
+                _paneSplitWeights = CreateEqualPaneSplitWeights(paneCount);
+            }
+
+            _multiPaneEqualizedPaneWidth = null;
+
+            return;
+        }
+
+        if (_paneSplitWeights.Count != paneCount)
+        {
+            _paneSplitWeights = CreateEqualPaneSplitWeights(paneCount);
+        }
+
+        _multiPaneEqualizedPaneWidth = null;
     }
 
     private void DisposeSecondaryEditorHosts()
@@ -1910,6 +2414,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (IsEqualizePaneWidthsGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            EqualizePaneWidthsToActivePane(vm);
+            return;
+        }
+
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
         {
             return;
@@ -1976,6 +2487,10 @@ public partial class MainWindow : Window
 
     internal static bool IsClosePaneGesture(Key key, KeyModifiers modifiers) =>
         (modifiers == KeyModifiers.Control || modifiers == KeyModifiers.Meta) && key == Key.W;
+
+    internal static bool IsEqualizePaneWidthsGesture(Key key, KeyModifiers modifiers) =>
+        (modifiers == KeyModifiers.Control || modifiers == KeyModifiers.Meta)
+        && (key == Key.D0 || key == Key.NumPad0);
 
     private void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
     {

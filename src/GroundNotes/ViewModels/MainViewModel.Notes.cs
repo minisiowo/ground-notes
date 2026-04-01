@@ -794,6 +794,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         pane.HasConflict = false;
         pane.IsOpen = true;
         StatusMessage = "Ready.";
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
 
         if (ReferenceEquals(ActiveSecondaryPane, pane))
         {
@@ -829,6 +830,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             pane.IsApplyingSelection = false;
         }
+
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
     }
 
     private void ClearPane(EditorPaneViewModel pane)
@@ -851,6 +854,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             pane.IsApplyingSelection = false;
         }
+
+        UpdateActiveVisibleNote(GetActiveSidebarFilePath());
     }
 
     private void HandlePaneEditorTitleChanged(EditorPaneViewModel pane)

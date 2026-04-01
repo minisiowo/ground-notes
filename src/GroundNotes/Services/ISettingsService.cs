@@ -44,4 +44,6 @@ public sealed record WindowLayout(
     double? SidebarWidth = null,
     bool? SidebarCollapsed = null,
     bool? SidebarCalendarExpanded = null,
-    double? EditorCanvasWidth = null);
+    double? EditorCanvasWidth = null,
+    IReadOnlyList<double>? PaneSplitWeights = null,
+    double? MultiPaneSharedWidth = null);

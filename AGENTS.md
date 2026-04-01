@@ -106,6 +106,9 @@ Fast loop guidance:
 - Preserve the distinction between inner editor caret visibility and outer workspace scrolling; fixes should avoid breaking caret visibility inside `AvaloniaEdit` while preventing horizontal workspace jumps.
 - For workspace spacing polish, remember the left editor gutter is affected by both `WorkspaceHost.Margin` and the sidebar splitter column; equal visual gutters may require dynamic compensation when the splitter is shown or hidden.
 - Sidebar collapse/expand can leave editor widths in an intermediate layout state; after animated sidebar width changes, schedule a deferred workspace/editor relayout once layout has settled.
+- For multi-pane sizing, preserve the current three-mode model unless the task explicitly changes it: single-pane uses `EditorCanvasWidth`, two-pane uses its own split/overflow logic, and `3+` panes share one common width.
+- When moving from `2` panes to `3+`, preserve the current visible pane width as the shared width instead of resetting all panes to a fresh equal split.
+- Equal-fit pane layouts can clip the last border by a pixel; prefer flooring computed shared widths and keeping a tiny safety gap instead of fitting exactly to the viewport.
 ## Code Style
 - Use file-scoped namespaces and 4-space indentation.
 - Prefer one top-level type per file.
@@ -159,6 +162,8 @@ Fast loop guidance:
 - When changing the AvaloniaEdit fork, build the fork and app before running tests.
 - For multi-pane editor interaction fixes, validate manually with 3+ open panes and a partially off-screen target pane; verify focus can change without horizontal workspace auto-scroll.
 - For workspace spacing or sidebar layout fixes, validate both sidebar-visible and sidebar-collapsed states, including collapsing and reopening the sidebar to confirm the editor gutter stays balanced and the right edge does not get clipped.
+- For multi-pane width changes, validate all three modes (`1`, `2`, `3+` panes), including `Ctrl+0`, transitions between pane counts, horizontal overflow in the `2`-pane case, and preservation of shared width when adding another pane.
+- After changes that are ready to try on Windows, run `bash scripts/publish-and-install-wsl.sh` as the final validation/deployment step.
 ## Agent Workflow
 - Read nearby code before editing.
 - Follow existing patterns in the touched area before introducing new ones.

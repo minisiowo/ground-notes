@@ -925,6 +925,16 @@
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
+  <Style Selector="Border.fileRow.open:not(.active)">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Border.fileRow.open:not(.active) TextBlock.fileRowText">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+  </Style>
+
   <Style Selector="Border.fileRow.active TextBlock.fileRowText">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>

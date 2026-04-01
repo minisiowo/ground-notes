@@ -21,6 +21,7 @@ public static class KeyboardShortcutsReference
                 new("New note", "Ctrl+N"),
                 new("Open note picker", "Ctrl+O"),
                 new("Close active pane", "Ctrl+W"),
+                new("Equalize pane widths", "Ctrl+0"),
                 new("Delete current note", "Ctrl+D"),
             ]),
         new KeyboardShortcutSection(

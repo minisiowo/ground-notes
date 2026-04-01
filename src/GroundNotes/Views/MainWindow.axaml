@@ -255,6 +255,7 @@
                     <Grid HorizontalAlignment="Stretch">
                       <Border Classes="fileRow"
                               Classes.active="{Binding IsActive}"
+                              Classes.open="{Binding IsOpen}"
                               HorizontalAlignment="Stretch"
                               Padding="8,5"
                               BorderThickness="1"
@@ -738,12 +739,12 @@
                     <Border x:Name="RightEditorResizeHandle"
                             Grid.RowSpan="2"
                             Classes="sidebarResizeHandle"
+                            Tag="Right"
                             Width="12"
                             Margin="0"
                             HorizontalAlignment="Right"
                             Background="Transparent"
                             Cursor="SizeWestEast"
-                            IsVisible="{Binding HasSecondaryPane, Converter={x:Static converters:BooleanNegationConverter.Instance}}"
                             PointerEntered="OnResizeHandlePointerEntered"
                             PointerExited="OnResizeHandlePointerExited"
                             PointerPressed="OnEditorResizeHandlePointerPressed"
@@ -752,6 +753,24 @@
                       <Border Classes="sidebarResizeStripe"
                               Width="1"
                               HorizontalAlignment="Right" />
+                    </Border>
+                    <Border Classes="sidebarResizeHandle"
+                            Grid.RowSpan="2"
+                            Tag="Left"
+                            Width="12"
+                            Margin="0"
+                            HorizontalAlignment="Left"
+                            Background="Transparent"
+                            Cursor="SizeWestEast"
+                            IsVisible="{Binding HasSecondaryPane}"
+                            PointerEntered="OnResizeHandlePointerEntered"
+                            PointerExited="OnResizeHandlePointerExited"
+                            PointerPressed="OnEditorResizeHandlePointerPressed"
+                            PointerMoved="OnEditorResizeHandlePointerMoved"
+                            PointerReleased="OnEditorResizeHandlePointerReleased">
+                      <Border Classes="sidebarResizeStripe"
+                              Width="1"
+                              HorizontalAlignment="Left" />
                     </Border>
                   </Grid>
                 </Border>
@@ -861,6 +880,40 @@
                                        Text="Open another note here and keep scrolling horizontally."
                                        TextWrapping="Wrap" />
                           </Grid>
+                        </Border>
+                        <Border Classes="sidebarResizeHandle"
+                                Grid.RowSpan="2"
+                                Tag="Right"
+                                Width="12"
+                                Margin="0"
+                                HorizontalAlignment="Right"
+                                Background="Transparent"
+                                Cursor="SizeWestEast"
+                                PointerEntered="OnResizeHandlePointerEntered"
+                                PointerExited="OnResizeHandlePointerExited"
+                                PointerPressed="OnEditorResizeHandlePointerPressed"
+                                PointerMoved="OnEditorResizeHandlePointerMoved"
+                                PointerReleased="OnEditorResizeHandlePointerReleased">
+                          <Border Classes="sidebarResizeStripe"
+                                  Width="1"
+                                  HorizontalAlignment="Right" />
+                        </Border>
+                        <Border Classes="sidebarResizeHandle"
+                                Grid.RowSpan="2"
+                                Tag="Left"
+                                Width="12"
+                                Margin="0"
+                                HorizontalAlignment="Left"
+                                Background="Transparent"
+                                Cursor="SizeWestEast"
+                                PointerEntered="OnResizeHandlePointerEntered"
+                                PointerExited="OnResizeHandlePointerExited"
+                                PointerPressed="OnEditorResizeHandlePointerPressed"
+                                PointerMoved="OnEditorResizeHandlePointerMoved"
+                                PointerReleased="OnEditorResizeHandlePointerReleased">
+                          <Border Classes="sidebarResizeStripe"
+                                  Width="1"
+                                  HorizontalAlignment="Left" />
                         </Border>
                       </Grid>
                     </Border>
