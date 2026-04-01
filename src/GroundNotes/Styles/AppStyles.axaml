@@ -76,6 +76,14 @@
     <Setter Property="CornerRadius" Value="1" />
   </Style>
 
+  <Style Selector="Border.editorPane">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+  </Style>
+
+  <Style Selector="Border.editorPaneContentHost">
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
   <Style Selector="Border.toolPopupSurface">
     <Setter Property="ClipToBounds" Value="True" />
     <Setter Property="VerticalAlignment" Value="Top" />
@@ -909,6 +917,20 @@
   <Style Selector="ListBoxItem:selected Border.fileRow">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+  </Style>
+
+  <Style Selector="Border.fileRow.active">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Border.fileRow.active TextBlock.fileRowText">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.fileRow.active TextBlock.pickerMetaText, Border.fileRow.active TextBlock.pickerPreviewText">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
   <Style Selector="ListBoxItem:selected TextBlock.fileRowText">

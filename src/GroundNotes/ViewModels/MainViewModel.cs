@@ -51,6 +51,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private CancellationTokenSource? _saveCts;
     private Task? _initializationTask;
     private bool _isApplyingSelection;
+    private bool _isSyncingSidebarSelectionFromActivePane;
     private bool _hasInvalidYamlFrontMatter;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
     private List<TagFilterItemViewModel> _allTagFilters = [];
@@ -80,6 +81,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _showScrollBars = true;
+
+    [ObservableProperty]
+    private bool _canOpenSplitEditor = true;
+
+    [ObservableProperty]
+    private ObservableCollection<EditorPaneViewModel> _secondaryPanes = [];
+
+    [ObservableProperty]
+    private EditorPaneViewModel? _activeSecondaryPane;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FooterStatusText))]
+    private bool _isPrimaryPaneActive = true;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -281,12 +295,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _noteSearchService = noteSearchServiceFactory.Create(() => _allNotes);
         _fileWatcherService.NoteChanged += OnNoteChanged;
         _noteMutationService.NoteMutated += OnNoteMutated;
+        SecondaryPanes.CollectionChanged += OnSecondaryPanesCollectionChanged;
 
         SortOptions = Enum.GetValues<SortOption>();
         RefreshCalendarDays();
     }
 
     public event EventHandler? FocusEditorRequested;
+
+    public bool HasSecondaryPane => SecondaryPanes.Count > 0;
+
+    public int OpenPaneCount => 1 + SecondaryPanes.Count;
 
     public bool IsSettingsPreviewActive { get; private set; }
 
@@ -356,11 +375,153 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public string FooterStatusText => HasFooterStatusOverride
         ? StatusMessage
-        : LastSavedText;
+        : GetActivePaneLastSavedText();
 
     public string CurrentAiPromptsDirectory => !HasSelectedFolder
         ? string.Empty
         : _aiPromptCatalogService.GetNotesFolderPromptsDirectory(NotesFolder);
+
+    public EditorPaneViewModel? ActivePane => ActiveSecondaryPane;
+
+    private string GetActivePaneLastSavedText()
+    {
+        return ActiveSecondaryPane?.LastSavedText ?? LastSavedText;
+    }
+
+    private void SubscribePane(EditorPaneViewModel pane)
+    {
+        pane.PropertyChanged += OnSecondaryPanePropertyChanged;
+    }
+
+    private void UnsubscribePane(EditorPaneViewModel pane)
+    {
+        pane.PropertyChanged -= OnSecondaryPanePropertyChanged;
+        pane.Dispose();
+    }
+
+    public void ActivatePrimaryPane()
+    {
+        IsPrimaryPaneActive = true;
+        ActiveSecondaryPane = null;
+        SyncSelectionToFilePath(CurrentNote?.FilePath);
+        UpdateActiveVisibleNote(CurrentNote?.FilePath);
+    }
+
+    public void ActivatePane(EditorPaneViewModel pane)
+    {
+        IsPrimaryPaneActive = false;
+        ActiveSecondaryPane = pane;
+        SyncSelectionToFilePath(pane.CurrentNote?.FilePath);
+        UpdateActiveVisibleNote(pane.CurrentNote?.FilePath);
+    }
+
+    public async Task CloseActivePaneAsync()
+    {
+        if (ActiveSecondaryPane is not null)
+        {
+            await ClosePaneAsync(ActiveSecondaryPane);
+            return;
+        }
+
+        if (!await CanLeaveCurrentEditorStateAsync())
+        {
+            return;
+        }
+
+        if (SecondaryPanes.Count > 0)
+        {
+            var replacementPane = SecondaryPanes[0];
+            PromotePaneToPrimary(replacementPane);
+            ActivatePrimaryPane();
+            FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { Target = EditorPaneTarget.Primary });
+            return;
+        }
+
+        ClearEditor();
+        ActivatePrimaryPane();
+        FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { Target = EditorPaneTarget.Primary });
+    }
+
+    internal string GetActiveEditorTagsText() => ActiveSecondaryPane?.EditorTags ?? EditorTags;
+
+    internal void SetActiveEditorTagsText(string value)
+    {
+        if (ActiveSecondaryPane is not null)
+        {
+            ActiveSecondaryPane.EditorTags = value;
+            return;
+        }
+
+        EditorTags = value;
+    }
+
+    internal NoteDocument? GetActiveNote() => ActiveSecondaryPane?.CurrentNote ?? CurrentNote;
+
+    internal string GetActiveEditorTitle() => ActiveSecondaryPane?.EditorTitle ?? EditorTitle;
+
+    internal string GetActiveEditorBody() => ActiveSecondaryPane?.EditorBody ?? EditorBody;
+
+    public EditorPaneViewModel? FindPaneByFilePath(string filePath)
+    {
+        return SecondaryPanes.FirstOrDefault(pane => pane.CurrentNote is not null && string.Equals(pane.CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public void SyncSelectionToFilePath(string? filePath)
+    {
+        _isApplyingSelection = true;
+        _isSyncingSidebarSelectionFromActivePane = true;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                SelectedNoteSummary = null;
+                SelectedVisibleNote = null;
+                return;
+            }
+
+            SelectedNoteSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+            SelectedVisibleNote = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            _isSyncingSidebarSelectionFromActivePane = false;
+            _isApplyingSelection = false;
+        }
+    }
+
+    private void UpdateActiveVisibleNote(string? filePath)
+    {
+        foreach (var note in VisibleNotes)
+        {
+            note.IsActive = !string.IsNullOrWhiteSpace(filePath)
+                && string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private void PromotePaneToPrimary(EditorPaneViewModel pane)
+    {
+        _isApplyingSelection = true;
+        try
+        {
+            _hasInvalidYamlFrontMatter = pane.HasInvalidYamlFrontMatter;
+            CurrentNote = pane.CurrentNote;
+            EditorTitle = pane.EditorTitle;
+            EditorTags = pane.EditorTags;
+            EditorBody = pane.EditorBody;
+            HasUnsavedChanges = pane.HasUnsavedChanges;
+            HasConflict = pane.HasConflict;
+            LastSavedText = pane.LastSavedText;
+            SyncSelectionToFilePath(pane.CurrentNote?.FilePath);
+        }
+        finally
+        {
+            _isApplyingSelection = false;
+        }
+
+        ClearPane(pane);
+        UnsubscribePane(pane);
+        SecondaryPanes.Remove(pane);
+    }
 
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
@@ -459,6 +620,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
     partial void OnNotesFolderChanged(string value)
     {
+        var hasSelectedFolder = !string.IsNullOrWhiteSpace(value);
+        foreach (var pane in SecondaryPanes)
+        {
+            pane.HasSelectedFolder = hasSelectedFolder;
+        }
+
         OnPropertyChanged(nameof(HasSelectedFolder));
         OnPropertyChanged(nameof(CurrentAiPromptsDirectory));
         OnPropertyChanged(nameof(ShowFolderPrompt));
@@ -470,11 +637,50 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnShowYamlFrontMatterInEditorChanged(bool value)
     {
+        foreach (var pane in SecondaryPanes)
+        {
+            pane.ShowYamlFrontMatterInEditor = value;
+        }
+
         OnPropertyChanged(nameof(ShowStructuredMetadataEditors));
         OnPropertyChanged(nameof(ShowEditorWatermark));
     }
 
-    partial void OnVisibleNotesChanged(ObservableCollection<NoteListItemViewModel> value) => OnPropertyChanged(nameof(HasNotes));
+    partial void OnVisibleNotesChanged(ObservableCollection<NoteListItemViewModel> value)
+    {
+        OnPropertyChanged(nameof(HasNotes));
+        UpdateActiveVisibleNote(ActiveSecondaryPane?.CurrentNote?.FilePath ?? CurrentNote?.FilePath);
+    }
+
+    partial void OnSecondaryPanesChanged(ObservableCollection<EditorPaneViewModel> value)
+    {
+        value.CollectionChanged += OnSecondaryPanesCollectionChanged;
+        OnPropertyChanged(nameof(HasSecondaryPane));
+        OnPropertyChanged(nameof(OpenPaneCount));
+        OnPropertyChanged(nameof(FooterStatusText));
+    }
+
+    private void OnSecondaryPanesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasSecondaryPane));
+        OnPropertyChanged(nameof(OpenPaneCount));
+        OnPropertyChanged(nameof(FooterStatusText));
+    }
+
+    partial void OnActiveSecondaryPaneChanged(EditorPaneViewModel? value)
+    {
+        foreach (var pane in SecondaryPanes)
+        {
+            pane.IsActive = ReferenceEquals(pane, value);
+        }
+
+        OnPropertyChanged(nameof(FooterStatusText));
+    }
+
+    partial void OnIsPrimaryPaneActiveChanged(bool value)
+    {
+        OnPropertyChanged(nameof(FooterStatusText));
+    }
 
     partial void OnNotePickerResultsChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotePickerResults));
 
@@ -527,7 +733,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        _ = LoadSelectedNoteAsync(nextSummary.FilePath);
+        if (_isSyncingSidebarSelectionFromActivePane)
+        {
+            return;
+        }
+
+        _ = OpenNoteInActivePaneAsync(nextSummary.FilePath, focusEditorWhenReady: false);
     }
 
     partial void OnSelectedNoteSummaryChanged(NoteSummary? value)
@@ -556,7 +767,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        _ = LoadSelectedNoteAsync(value.FilePath);
+        if (_isSyncingSidebarSelectionFromActivePane)
+        {
+            return;
+        }
+
+        _ = OpenNoteInActivePaneAsync(value.FilePath, focusEditorWhenReady: false);
     }
 
     partial void OnEditorTitleChanged(string value)
@@ -607,6 +823,31 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ScheduleSave();
     }
 
+    private void OnSecondaryPanePropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not EditorPaneViewModel pane || !pane.IsOpen || pane.IsApplyingSelection)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(EditorPaneViewModel.EditorTitle))
+        {
+            HandlePaneEditorTitleChanged(pane);
+            return;
+        }
+
+        if (e.PropertyName == nameof(EditorPaneViewModel.EditorBody))
+        {
+            HandlePaneEditorBodyChanged(pane);
+            return;
+        }
+
+        if (e.PropertyName == nameof(EditorPaneViewModel.LastSavedText) || e.PropertyName == nameof(EditorPaneViewModel.IsActive))
+        {
+            OnPropertyChanged(nameof(FooterStatusText));
+        }
+    }
+
     [RelayCommand]
     private async Task ChooseFolderAsync()
     {
@@ -633,6 +874,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (ActiveSecondaryPane is not null && !await CanLeavePaneStateAsync(ActiveSecondaryPane))
+        {
+            return;
+        }
+
+        if (ActiveSecondaryPane is not null)
+        {
+            ClearPane(ActiveSecondaryPane);
+            ActiveSecondaryPane.IsOpen = true;
+            StatusMessage = "New note ready.";
+            FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { PaneId = ActiveSecondaryPane.Id });
+            return;
+        }
+
         CancelInlineRename();
         await FlushPendingSaveAsync();
 
@@ -654,6 +909,107 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         StatusMessage = "New note ready.";
         FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { MoveCaretToEndOfBody = true });
+    }
+
+    [RelayCommand]
+    private async Task OpenNoteInSplitAsync(NoteListItemViewModel? noteItem)
+    {
+        if (noteItem is null)
+        {
+            return;
+        }
+
+        if (!CanOpenSplitEditor)
+        {
+            _isApplyingSelection = true;
+            try
+            {
+                SelectedVisibleNote = noteItem;
+                SelectedNoteSummary = noteItem.Summary;
+            }
+            finally
+            {
+                _isApplyingSelection = false;
+            }
+
+            await OpenNoteInActivePaneAsync(noteItem.FilePath, focusEditorWhenReady: true);
+            StatusMessage = "Expand the window to open a second editor.";
+            return;
+        }
+
+        if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteItem.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            ActivatePrimaryPane();
+            FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { Target = EditorPaneTarget.Primary });
+            return;
+        }
+
+        var existingPane = SecondaryPanes.FirstOrDefault(pane => pane.CurrentNote is not null && string.Equals(pane.CurrentNote.FilePath, noteItem.FilePath, StringComparison.OrdinalIgnoreCase));
+        if (existingPane is not null)
+        {
+            ActivatePane(existingPane);
+            FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { PaneId = existingPane.Id });
+            return;
+        }
+
+        var pane = new EditorPaneViewModel
+        {
+            HasSelectedFolder = HasSelectedFolder,
+            ShowYamlFrontMatterInEditor = ShowYamlFrontMatterInEditor,
+            IsOpen = true
+        };
+        SubscribePane(pane);
+
+        var insertIndex = ActiveSecondaryPane is null
+            ? 0
+            : SecondaryPanes.IndexOf(ActiveSecondaryPane) + 1;
+        SecondaryPanes.Insert(insertIndex, pane);
+        await LoadPaneNoteAsync(pane, noteItem.FilePath, activateAfterLoad: false);
+    }
+
+    [RelayCommand]
+    private async Task ClosePaneAsync(EditorPaneViewModel? pane)
+    {
+        if (pane is null)
+        {
+            return;
+        }
+
+        if (!await CanLeavePaneStateAsync(pane))
+        {
+            return;
+        }
+
+        var index = SecondaryPanes.IndexOf(pane);
+        ClearPane(pane);
+        UnsubscribePane(pane);
+        SecondaryPanes.Remove(pane);
+
+        if (ReferenceEquals(ActiveSecondaryPane, pane))
+        {
+            var nextPane = index > 0
+                ? SecondaryPanes.ElementAtOrDefault(index - 1)
+                : SecondaryPanes.ElementAtOrDefault(0);
+            if (nextPane is null)
+            {
+                ActivatePrimaryPane();
+                FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { Target = EditorPaneTarget.Primary });
+            }
+            else
+            {
+                ActivatePane(nextPane);
+                FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { PaneId = nextPane.Id });
+            }
+        }
+    }
+
+    public void SetSplitEditorAvailability(bool canOpenSplit)
+    {
+        CanOpenSplitEditor = canOpenSplit;
+        if (!canOpenSplit && HasSecondaryPane)
+        {
+            StatusMessage = "Expand the window to keep all editors visible side by side.";
+        }
     }
 
     [RelayCommand]
@@ -739,7 +1095,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         CloseNotePicker();
-        SelectedNoteSummary = note;
+        _ = OpenNoteInActivePaneAsync(note.FilePath, focusEditorWhenReady: true);
+    }
+
+    [RelayCommand]
+    private Task OpenSidebarNoteAsync(NoteListItemViewModel? noteItem)
+    {
+        if (noteItem is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        return OpenNoteInActivePaneAsync(noteItem.FilePath, focusEditorWhenReady: false);
     }
 
     [RelayCommand]
@@ -763,7 +1130,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var suggestions = TagSuggestionHelper.GetSuggestions(EditorTags, caretIndex, AvailableTags);
+        var suggestions = TagSuggestionHelper.GetSuggestions(GetActiveEditorTagsText(), caretIndex, AvailableTags);
         TagSuggestions = new ObservableCollection<string>(suggestions);
         SelectedTagSuggestion = TagSuggestions.FirstOrDefault();
         IsTagSuggestionsOpen = TagSuggestions.Count > 0;
@@ -809,8 +1176,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return false;
         }
 
-        var result = TagSuggestionHelper.ApplySuggestion(EditorTags, caretIndex, SelectedTagSuggestion);
-        EditorTags = result.Text;
+        var result = TagSuggestionHelper.ApplySuggestion(GetActiveEditorTagsText(), caretIndex, SelectedTagSuggestion);
+        SetActiveEditorTagsText(result.Text);
         nextCaretIndex = result.CaretIndex;
         DismissTagSuggestions();
         return true;
@@ -818,6 +1185,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     internal async Task CommitEditorTagsAsync()
     {
+        if (ActiveSecondaryPane is not null)
+        {
+            DismissTagSuggestions();
+            await CommitPaneEditorTagsAsync(ActiveSecondaryPane);
+            return;
+        }
+
         DismissTagSuggestions();
 
         if (_isApplyingSelection || !HasSelectedFolder || ShowYamlFrontMatterInEditor)
@@ -1002,7 +1376,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         NoteListItemViewModel? noteItem = null;
 
-        if (CurrentNote is not null)
+        if (ActiveSecondaryPane?.CurrentNote is not null)
+        {
+            noteItem = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, ActiveSecondaryPane.CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase))
+                ?? new NoteListItemViewModel(BuildSummary(ActiveSecondaryPane.CurrentNote));
+        }
+        else if (CurrentNote is not null)
         {
             noteItem = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase))
                 ?? new NoteListItemViewModel(BuildSummary(CurrentNote));
@@ -1099,6 +1478,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (SecondaryPanes.Any())
+        {
+            foreach (var pane in SecondaryPanes.ToList())
+            {
+                if (!await CanLeavePaneStateAsync(pane))
+                {
+                    return;
+                }
+            }
+        }
+
         Directory.CreateDirectory(folderPath);
         SelectedCalendarDate = null;
         DisplayedCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
@@ -1106,6 +1496,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await PersistSettingsAsync(settings => settings with { NotesFolder = folderPath });
         _fileWatcherService.Watch(folderPath);
         ClearEditor();
+        foreach (var pane in SecondaryPanes.ToList())
+        {
+            ClearPane(pane);
+            UnsubscribePane(pane);
+        }
+        SecondaryPanes.Clear();
+        ActivatePrimaryPane();
         LastSavedText = "GroundNotes";
         await RefreshFromDiskAsync();
         var promptLoad = await LoadAiPromptsAsync();
@@ -1156,6 +1553,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
     public void Dispose()
     {
+        SecondaryPanes.CollectionChanged -= OnSecondaryPanesCollectionChanged;
+        foreach (var pane in SecondaryPanes.ToList())
+        {
+            UnsubscribePane(pane);
+        }
         _fileWatcherService.NoteChanged -= OnNoteChanged;
         _noteMutationService.NoteMutated -= OnNoteMutated;
         _fileWatcherService.Dispose();

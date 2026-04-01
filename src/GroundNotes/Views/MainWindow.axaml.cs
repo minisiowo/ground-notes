@@ -24,13 +24,19 @@ public partial class MainWindow : Window
     private readonly MenuFlyout _editorContextFlyout = new();
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
     private readonly EditorHostController _editorHost;
+    private readonly Dictionary<Guid, EditorHostController> _secondaryEditorHosts = [];
+    private readonly Dictionary<Guid, TextEditor> _secondaryEditorControls = [];
+    private readonly Dictionary<Guid, Border> _secondaryEditorBorders = [];
+    private readonly Dictionary<Guid, Control> _secondaryPaneRoots = [];
+    private readonly Dictionary<Guid, Control> _secondaryTitleAnchors = [];
+    private readonly Dictionary<Guid, TextBox> _secondaryTagsTextBoxes = [];
     private readonly WindowChromeController _windowChrome;
     private readonly TaskCompletionSource _openedTaskSource = new();
     private IEditorLayoutState? _editorLayoutState;
     private bool _hasAppliedInitialEditorLayout;
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
-    private readonly SlashCommandPopupController _slashCommandPopup;
+    private SlashCommandPopupController _slashCommandPopup;
     private readonly ToolPopupController _titleSuggestionsPopup;
     private readonly ToolPopupController _tagSuggestionsPopup;
     private readonly DispatcherTimer _resizeHandleHoverTimer;
@@ -39,9 +45,10 @@ public partial class MainWindow : Window
     private double? _editorCanvasPreferredWidth;
     private double _editorCanvasResizeStartWidth;
     private Point _editorCanvasResizeStartPoint;
-    private int _editorCanvasResizeDirection;
     private Control? _pendingResizeHandleHoverControl;
     private double? _lastAppliedEditorCanvasWidth;
+    private TextEditor? _editorContextTarget;
+    private Guid? _lastBoundSecondaryPaneId;
 
     public MainWindow()
     {
@@ -78,8 +85,13 @@ public partial class MainWindow : Window
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
 
         EditorTextEditor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        EditorTextEditor.AddHandler(PointerPressedEvent, OnEditorPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AttachWorkspaceBringIntoViewSuppression(EditorTextEditor);
+        AttachWorkspaceBringIntoViewSuppression(EditorTextEditor.TextArea);
+        AttachWorkspaceBringIntoViewSuppression(EditorTitleTextBox);
+        AttachWorkspaceBringIntoViewSuppression(EditorTagsTextBox);
         EditorTagsTextBox.AddHandler(KeyDownEvent, OnEditorTagsTextBoxKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
-        EditorTextEditor.PointerPressed += OnEditorPointerPressed;
+        EditorTextEditor.GotFocus += OnPrimaryEditorGotFocus;
         EditorTextEditor.ContextRequested += OnEditorContextRequested;
         EditorTagsTextBox.PropertyChanged += OnEditorTagsTextBoxPropertyChanged;
         EditorTagsTextBox.GotFocus += OnEditorTagsTextBoxGotFocus;
@@ -87,9 +99,12 @@ public partial class MainWindow : Window
         EditorTextEditor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
         EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
+        ConfigureEditorFocusScrollSuppression(EditorTextEditor);
         EditorPanel.SizeChanged += OnEditorPanelSizeChanged;
         SlashCommandPopup.PlacementTarget = EditorBorder;
         EditorTextEditor.TextChanged += OnEditorTextChanged;
+        UpdateWorkspaceHostMargin();
+        UpdateActiveEditorBindings();
         RebuildEditorContextFlyout();
 
         Opened += async (_, _) =>
@@ -98,7 +113,13 @@ public partial class MainWindow : Window
             {
                 vm.PropertyChanged += OnViewModelPropertyChanged;
                 vm.FocusEditorRequested += OnFocusEditorRequested;
+                vm.SecondaryPanes.CollectionChanged += OnSecondaryPanesCollectionChanged;
+                foreach (var pane in vm.SecondaryPanes)
+                {
+                    pane.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
+                }
                 SyncEditorText(vm.EditorBody);
+                UpdateActiveEditorBindings();
             }
 
             try
@@ -117,6 +138,11 @@ public partial class MainWindow : Window
             {
                 vm.PropertyChanged -= OnViewModelPropertyChanged;
                 vm.FocusEditorRequested -= OnFocusEditorRequested;
+                vm.SecondaryPanes.CollectionChanged -= OnSecondaryPanesCollectionChanged;
+                foreach (var pane in vm.SecondaryPanes)
+                {
+                    pane.PropertyChanged -= OnSecondaryPaneViewModelPropertyChanged;
+                }
             }
 
             if (_editorLayoutState is not null)
@@ -127,9 +153,15 @@ public partial class MainWindow : Window
             EditorTagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
             EditorTagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
             EditorTagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
+            DetachWorkspaceBringIntoViewSuppression(EditorTextEditor);
+            DetachWorkspaceBringIntoViewSuppression(EditorTextEditor.TextArea);
+            DetachWorkspaceBringIntoViewSuppression(EditorTitleTextBox);
+            DetachWorkspaceBringIntoViewSuppression(EditorTagsTextBox);
+            EditorTextEditor.GotFocus -= OnPrimaryEditorGotFocus;
             _resizeHandleHoverTimer.Stop();
             _resizeHandleHoverTimer.Tick -= OnResizeHandleHoverTimerTick;
             _editorHost.Dispose();
+            DisposeSecondaryEditorHosts();
             SaveWindowLayout();
         };
 
@@ -151,6 +183,8 @@ public partial class MainWindow : Window
             _slashCommandPopup.SchedulePositionUpdate();
             _titleSuggestionsPopup.ScheduleRefresh();
             _tagSuggestionsPopup.ScheduleRefresh();
+            UpdateWorkspacePresentation();
+            UpdateSplitEditorAvailability();
         };
 
     }
@@ -227,6 +261,8 @@ public partial class MainWindow : Window
         {
             vm.SidebarCollapsed = true;
         }
+
+        UpdateWorkspaceHostMargin();
 
         _editorCanvasPreferredWidth = NormalizeEditorCanvasPreferredWidth(layout.EditorCanvasWidth);
 
@@ -327,10 +363,13 @@ public partial class MainWindow : Window
     private double _resizeStartWidth;
     private const double SidebarMinWidth = 200;
     private const double SidebarMaxWidth = 600;
+    private const double SidebarSplitterWidth = 6;
+    private const double EditorOuterGutter = 10;
     private const int SidebarAnimationDurationMs = 140;
     private static readonly TimeSpan ResizeHandleHoverDelay = TimeSpan.FromMilliseconds(150);
     private const double EditorCanvasMinWidth = 520;
     private const double EditorCanvasResetThreshold = 12;
+    private const double MultiPaneMinWidth = 552;
     private double _sidebarWidthBeforeCollapse = 300;
 
     private ColumnDefinition SidebarCol => ContentGrid.ColumnDefinitions[0];
@@ -421,7 +460,6 @@ public partial class MainWindow : Window
         _isResizingEditorCanvas = true;
         _editorCanvasResizeStartPoint = e.GetPosition(this);
         _editorCanvasResizeStartWidth = GetEffectiveEditorCanvasWidth();
-        _editorCanvasResizeDirection = ReferenceEquals(control, LeftEditorResizeHandle) ? -1 : 1;
     }
 
     private void OnEditorResizeHandlePointerMoved(object? sender, PointerEventArgs e)
@@ -438,7 +476,7 @@ public partial class MainWindow : Window
         }
 
         var currentPosition = e.GetPosition(this);
-        var delta = (currentPosition.X - _editorCanvasResizeStartPoint.X) * _editorCanvasResizeDirection;
+        var delta = currentPosition.X - _editorCanvasResizeStartPoint.X;
         var requestedWidth = _editorCanvasResizeStartWidth + (delta * 2);
 
         _editorCanvasPreferredWidth = NormalizeDraggedEditorCanvasWidth(requestedWidth, availableWidth);
@@ -539,10 +577,23 @@ public partial class MainWindow : Window
     private void OnEditorPanelSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateEditorCanvasWidth();
+        UpdateWorkspacePresentation();
+        UpdateSplitEditorAvailability();
+    }
+
+    private void UpdateSplitEditorAvailability()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        vm.SetSplitEditorAvailability(true);
     }
 
     private void UpdateEditorCanvasWidth()
     {
+        UpdateWorkspacePresentation();
         var effectiveWidth = GetEffectiveEditorCanvasWidth();
         if (effectiveWidth <= 0)
         {
@@ -559,12 +610,166 @@ public partial class MainWindow : Window
         _lastAppliedEditorCanvasWidth = effectiveWidth;
     }
 
+    private void UpdateWorkspacePresentation()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        UpdateWorkspaceHostMargin();
+        var paneCount = Math.Max(1, vm.OpenPaneCount);
+        var hasSecondaryPane = paneCount > 1;
+        PaneWorkspaceContent.HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center;
+        PaneWorkspaceScrollViewer.HorizontalScrollBarVisibility = hasSecondaryPane
+            ? ScrollBarVisibility.Auto
+            : ScrollBarVisibility.Disabled;
+
+        var viewportWidth = PaneWorkspaceScrollViewer.Bounds.Width;
+        if (viewportWidth <= 0)
+        {
+            return;
+        }
+
+        if (!hasSecondaryPane)
+        {
+            PrimaryPaneRoot.Width = viewportWidth;
+            foreach (var paneRoot in _secondaryPaneRoots.Values)
+            {
+                paneRoot.Width = double.NaN;
+            }
+
+            return;
+        }
+
+        var paneWidth = GetTargetMultiPaneWidth(viewportWidth, paneCount);
+
+        PrimaryPaneRoot.Width = paneWidth;
+        foreach (var paneRoot in _secondaryPaneRoots.Values)
+        {
+            paneRoot.Width = paneWidth;
+        }
+    }
+
+    private double GetTargetMultiPaneWidth(double viewportWidth, int paneCount)
+    {
+        var preferredWidth = _editorCanvasPreferredWidth;
+        if (preferredWidth is { } width)
+        {
+            var preferredTotalWidth = (width * paneCount) + (PaneWorkspaceContent.Spacing * (paneCount - 1));
+            if (preferredTotalWidth <= viewportWidth)
+            {
+                return Math.Max(MultiPaneMinWidth, width);
+            }
+        }
+
+        var visiblePaneCount = Math.Min(paneCount, 3);
+        var totalSpacing = PaneWorkspaceContent.Spacing * (visiblePaneCount - 1);
+        return Math.Max(MultiPaneMinWidth, (viewportWidth - totalSpacing) / visiblePaneCount);
+    }
+
+    private TextEditor GetActiveTextEditor()
+    {
+        if (DataContext is MainViewModel { ActiveSecondaryPane: { } activePane }
+            && _secondaryEditorControls.TryGetValue(activePane.Id, out var editor))
+        {
+            return editor;
+        }
+
+        return EditorTextEditor;
+    }
+
+    private EditorHostController GetEditorHost(TextEditor editor)
+    {
+        if (ReferenceEquals(editor, EditorTextEditor))
+        {
+            return _editorHost;
+        }
+
+        foreach (var pair in _secondaryEditorControls)
+        {
+            if (ReferenceEquals(pair.Value, editor)
+                && _secondaryEditorHosts.TryGetValue(pair.Key, out var host))
+            {
+                return host;
+            }
+        }
+
+        return _editorHost;
+    }
+
+    private Border GetActiveEditorBorder()
+    {
+        if (DataContext is MainViewModel { ActiveSecondaryPane: { } activePane }
+            && _secondaryEditorBorders.TryGetValue(activePane.Id, out var border))
+        {
+            return border;
+        }
+
+        return EditorBorder;
+    }
+
+    private Control GetActiveTitleAnchor()
+    {
+        if (DataContext is MainViewModel { ActiveSecondaryPane: { } activePane }
+            && _secondaryTitleAnchors.TryGetValue(activePane.Id, out var anchor))
+        {
+            return anchor;
+        }
+
+        return EditorTitleAnchor;
+    }
+
+    private TextBox GetActiveTagsTextBox()
+    {
+        if (DataContext is MainViewModel { ActiveSecondaryPane: { } activePane }
+            && _secondaryTagsTextBoxes.TryGetValue(activePane.Id, out var textBox))
+        {
+            return textBox;
+        }
+
+        return EditorTagsTextBox;
+    }
+
+    private void UpdateActiveEditorBindings()
+    {
+        var activePaneId = (DataContext as MainViewModel)?.ActiveSecondaryPane?.Id;
+        var targetEditor = GetActiveTextEditor();
+        var targetBorder = GetActiveEditorBorder();
+        var targetTitleAnchor = GetActiveTitleAnchor();
+        var targetTagsTextBox = GetActiveTagsTextBox();
+
+        _editorContextTarget = targetEditor;
+        TitleSuggestionsPopup.PlacementTarget = targetTitleAnchor;
+        TagSuggestionsPopup.PlacementTarget = targetTagsTextBox;
+        SlashCommandPopup.PlacementTarget = targetBorder;
+
+        if (_lastBoundSecondaryPaneId == activePaneId)
+        {
+            return;
+        }
+
+        _lastBoundSecondaryPaneId = activePaneId;
+        _slashCommandPopup = new SlashCommandPopupController(
+            targetEditor,
+            targetBorder,
+            SlashCommandPopup,
+            SlashCommandPopupContent,
+            SlashCommandListBox,
+            SlashCommandHintText);
+    }
+
     private double GetEffectiveEditorCanvasWidth()
     {
         var availableWidth = GetAvailableEditorCanvasWidth();
         if (availableWidth <= 0)
         {
             return 0;
+        }
+
+        if (DataContext is MainViewModel vm && vm.HasSecondaryPane)
+        {
+            return availableWidth;
         }
 
         return _editorCanvasPreferredWidth is { } preferredWidth
@@ -598,29 +803,86 @@ public partial class MainWindow : Window
         return Math.Max(EditorCanvasMinWidth, width.Value);
     }
 
+    private static bool IsPointerInsideEditorChrome(object? source)
+    {
+        return source is Visual visual
+            && (visual.FindAncestorOfType<TextEditor>() is not null
+                || visual.FindAncestorOfType<TextBox>() is not null
+                || visual.FindAncestorOfType<Button>() is not null);
+    }
+
+    private static void ConfigureEditorFocusScrollSuppression(TextEditor editor)
+    {
+        ScrollViewer.SetBringIntoViewOnFocusChange(editor, false);
+        ScrollViewer.SetBringIntoViewOnFocusChange(editor.TextArea, false);
+    }
+
+    private void AttachWorkspaceBringIntoViewSuppression(Control control)
+    {
+        control.AddHandler(Control.RequestBringIntoViewEvent, OnPaneWorkspaceDescendantRequestBringIntoView, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+    }
+
+    private void DetachWorkspaceBringIntoViewSuppression(Control control)
+    {
+        control.RemoveHandler(Control.RequestBringIntoViewEvent, OnPaneWorkspaceDescendantRequestBringIntoView);
+    }
+
+    private void OnPaneWorkspaceDescendantRequestBringIntoView(object? sender, RequestBringIntoViewEventArgs e)
+    {
+        if (IsPaneWorkspaceDescendant(sender) || IsPaneWorkspaceDescendant(e.Source))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private bool IsPaneWorkspaceDescendant(object? source)
+    {
+        if (source is not Visual visual)
+        {
+            return false;
+        }
+
+        Visual? current = visual;
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, PaneWorkspaceContent))
+            {
+                return true;
+            }
+
+            current = current.GetVisualParent();
+        }
+
+        return false;
+    }
+
     private void OnFocusEditorRequested(object? sender, EventArgs e)
     {
         var moveCaretToEnd = e is FocusEditorRequestEventArgs fe && fe.MoveCaretToEndOfBody;
-        TryFocusEditor(moveCaretToEnd);
+        var paneId = e is FocusEditorRequestEventArgs request ? request.PaneId : null;
+        TryFocusEditor(moveCaretToEnd, paneId);
     }
 
     /// <summary>
     /// Defers focus to after layout/render so sidebar ListBox / picker controls do not reclaim
     /// keyboard focus when pointer routing completes after a selection change.
     /// </summary>
-    private void TryFocusEditor(bool moveCaretToEndOfBody)
+    private void TryFocusEditor(bool moveCaretToEndOfBody, Guid? paneId)
     {
         void ApplyFocusAndCaret()
         {
-            if (moveCaretToEndOfBody && EditorTextEditor.Document is not null)
+            var editor = paneId is { } id && _secondaryEditorControls.TryGetValue(id, out var secondaryEditor)
+                ? secondaryEditor
+                : EditorTextEditor;
+            if (moveCaretToEndOfBody && editor.Document is not null)
             {
-                var end = EditorTextEditor.Document.TextLength;
-                EditorTextEditor.CaretOffset = end;
-                EditorTextEditor.Select(end, 0);
+                var end = editor.Document.TextLength;
+                editor.CaretOffset = end;
+                editor.Select(end, 0);
             }
 
             Activate();
-            EditorTextEditor.Focus();
+            editor.Focus();
         }
 
         Dispatcher.UIThread.Post(() =>
@@ -699,10 +961,73 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.PropertyName == nameof(MainViewModel.HasSecondaryPane))
+        {
+            UpdateWorkspacePresentation();
+            UpdateEditorCanvasWidth();
+            UpdateSplitEditorAvailability();
+            UpdateActiveEditorBindings();
+            return;
+        }
+
+        if (e.PropertyName is nameof(MainViewModel.ActiveSecondaryPane) or nameof(MainViewModel.IsPrimaryPaneActive))
+        {
+            SyncSidebarSelectionFromActivePane(vm);
+            UpdateActiveEditorBindings();
+            return;
+        }
+
         if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
             return;
 
         AnimateSidebar(vm.SidebarCollapsed);
+        UpdateWorkspacePresentation();
+    }
+
+    private void OnSecondaryPaneViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not EditorPaneViewModel pane)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(EditorPaneViewModel.EditorBody))
+        {
+            SyncSecondaryEditorText(pane);
+        }
+
+    }
+
+    private void OnSecondaryPanesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (var item in e.OldItems.OfType<EditorPaneViewModel>())
+            {
+                item.PropertyChanged -= OnSecondaryPaneViewModelPropertyChanged;
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (var item in e.NewItems.OfType<EditorPaneViewModel>())
+            {
+                item.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
+            }
+        }
+
+    }
+
+    private void DisposeSecondaryEditorHosts()
+    {
+        foreach (var host in _secondaryEditorHosts.Values)
+        {
+            host.Dispose();
+        }
+
+        _secondaryEditorHosts.Clear();
+        _secondaryEditorControls.Clear();
+        _secondaryPaneRoots.Clear();
     }
 
     private async void AnimateSidebar(bool collapse)
@@ -721,15 +1046,12 @@ public partial class MainWindow : Window
         }
 
         SidebarBorder.IsVisible = true;
-        SplitterCol.Width = new GridLength(6, GridUnitType.Pixel);
+        SplitterCol.Width = new GridLength(SidebarSplitterWidth, GridUnitType.Pixel);
         SidebarCol.MinWidth = 0;
+        UpdateWorkspaceHostMargin();
 
         var startOpacity = SidebarBorder.Opacity;
         var targetOpacity = collapse ? 0 : 1;
-        var startMargin = EditorPanel.Margin;
-        var targetMargin = collapse
-            ? new Thickness(14, 14, 14, 14)
-            : new Thickness(8, 14, 14, 14);
 
         var stopwatch = Stopwatch.StartNew();
 
@@ -744,7 +1066,8 @@ public partial class MainWindow : Window
 
                 SidebarCol.Width = new GridLength(Lerp(startWidth, targetWidth, eased), GridUnitType.Pixel);
                 SidebarBorder.Opacity = Lerp(startOpacity, targetOpacity, eased);
-                EditorPanel.Margin = Lerp(startMargin, targetMargin, eased);
+                UpdateWorkspaceHostMargin();
+                UpdateWorkspacePresentation();
                 UpdateEditorCanvasWidth();
 
                 if (progress >= 1)
@@ -762,11 +1085,33 @@ public partial class MainWindow : Window
 
         SidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
         SidebarBorder.Opacity = targetOpacity;
-        EditorPanel.Margin = targetMargin;
+        UpdateWorkspaceHostMargin();
+        UpdateWorkspacePresentation();
         UpdateEditorCanvasWidth();
         SidebarCol.MinWidth = collapse ? 0 : SidebarMinWidth;
-        SplitterCol.Width = new GridLength(collapse ? 0 : 6, GridUnitType.Pixel);
+        SplitterCol.Width = new GridLength(collapse ? 0 : SidebarSplitterWidth, GridUnitType.Pixel);
         SidebarBorder.IsVisible = !collapse;
+        UpdateWorkspaceHostMargin();
+        ScheduleSidebarLayoutRefresh();
+    }
+
+    private void UpdateWorkspaceHostMargin()
+    {
+        var leftGutter = Math.Max(0, EditorOuterGutter - SplitterCol.Width.Value);
+        WorkspaceHost.Margin = new Thickness(leftGutter, EditorOuterGutter, EditorOuterGutter, EditorOuterGutter);
+    }
+
+    private void ScheduleSidebarLayoutRefresh()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                UpdateWorkspaceHostMargin();
+                UpdateWorkspacePresentation();
+                UpdateEditorCanvasWidth();
+            }, DispatcherPriority.Background);
+        }, DispatcherPriority.Render);
     }
 
     private static double Lerp(double from, double to, double progress)
@@ -835,18 +1180,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        TagSuggestionsPopup.PlacementTarget = textBox;
         vm.UpdateTagSuggestions(textBox.CaretIndex);
         _tagSuggestionsPopup.ScheduleRefresh();
     }
 
     private void OnEditorTagsTextBoxGotFocus(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm)
+        if (DataContext is not MainViewModel vm || sender is not TextBox textBox)
         {
             return;
         }
 
-        vm.UpdateTagSuggestions(EditorTagsTextBox.CaretIndex);
+        TagSuggestionsPopup.PlacementTarget = textBox;
+        vm.UpdateTagSuggestions(textBox.CaretIndex);
         _tagSuggestionsPopup.ScheduleRefresh(resetPlacement: true);
     }
 
@@ -859,7 +1206,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (EditorTagsTextBox.IsFocused || TagSuggestionsListBox.IsPointerOver)
+            var activeTextBox = GetActiveTagsTextBox();
+            if (activeTextBox.IsFocused || TagSuggestionsListBox.IsPointerOver)
             {
                 return;
             }
@@ -870,7 +1218,7 @@ public partial class MainWindow : Window
 
     private async void OnEditorTagsTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
-        if (DataContext is not MainViewModel vm)
+        if (DataContext is not MainViewModel vm || sender is not TextBox textBox)
         {
             return;
         }
@@ -887,9 +1235,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key == Key.Tab && vm.TryApplySelectedTagSuggestion(EditorTagsTextBox.CaretIndex, out var nextCaretIndex))
+        if (e.Key == Key.Tab && vm.TryApplySelectedTagSuggestion(textBox.CaretIndex, out var nextCaretIndex))
         {
-            await ApplyTagSuggestionAsync(nextCaretIndex, commitAfterApply: true);
+            await ApplyTagSuggestionAsync(textBox, nextCaretIndex, commitAfterApply: true);
             e.Handled = true;
             return;
         }
@@ -897,7 +1245,7 @@ public partial class MainWindow : Window
         if (e.Key == Key.Enter)
         {
             await vm.CommitEditorTagsAsync();
-            EditorTagsTextBox.CaretIndex = EditorTagsTextBox.Text?.Length ?? 0;
+            textBox.CaretIndex = textBox.Text?.Length ?? 0;
             e.Handled = true;
             return;
         }
@@ -916,30 +1264,164 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!vm.TryApplySelectedTagSuggestion(EditorTagsTextBox.CaretIndex, out var nextCaretIndex))
+        var activeTextBox = GetActiveTagsTextBox();
+        if (!vm.TryApplySelectedTagSuggestion(activeTextBox.CaretIndex, out var nextCaretIndex))
         {
             return;
         }
 
-        await ApplyTagSuggestionAsync(nextCaretIndex, commitAfterApply: true);
+        await ApplyTagSuggestionAsync(activeTextBox, nextCaretIndex, commitAfterApply: true);
         e.Handled = true;
     }
 
-    private async Task ApplyTagSuggestionAsync(int caretIndex, bool commitAfterApply)
+    private async Task ApplyTagSuggestionAsync(TextBox targetTextBox, int caretIndex, bool commitAfterApply)
     {
         var vm = DataContext as MainViewModel;
-        EditorTagsTextBox.Text = vm?.EditorTags;
-        EditorTagsTextBox.CaretIndex = Math.Min(caretIndex, EditorTagsTextBox.Text?.Length ?? 0);
+        targetTextBox.Text = vm?.GetActiveEditorTagsText();
+        targetTextBox.CaretIndex = Math.Min(caretIndex, targetTextBox.Text?.Length ?? 0);
 
         if (commitAfterApply && vm is not null)
         {
             await vm.CommitEditorTagsAsync();
-            EditorTagsTextBox.Text = vm.EditorTags;
-            EditorTagsTextBox.CaretIndex = EditorTagsTextBox.Text?.Length ?? 0;
+            targetTextBox.Text = vm.GetActiveEditorTagsText();
+            targetTextBox.CaretIndex = targetTextBox.Text?.Length ?? 0;
         }
 
-        EditorTagsTextBox.Focus();
+        targetTextBox.Focus();
         _tagSuggestionsPopup.ScheduleRefresh();
+    }
+
+    private void SetSecondaryPaneActive(EditorPaneViewModel? pane)
+    {
+        if (pane is null || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var needsBindingRefresh = !ReferenceEquals(vm.ActiveSecondaryPane, pane) || vm.IsPrimaryPaneActive;
+
+        vm.ActivatePane(pane);
+        SyncSidebarSelectionFromActivePane(vm);
+
+        if (!needsBindingRefresh)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(UpdateActiveEditorBindings, DispatcherPriority.Background);
+    }
+
+    private void OnPrimaryPaneRootPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            ActivatePrimaryPane();
+        }
+    }
+
+    private void ActivatePrimaryPane()
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var needsBindingRefresh = !vm.IsPrimaryPaneActive;
+
+        vm.ActivatePrimaryPane();
+        SyncSidebarSelectionFromActivePane(vm);
+
+        if (!needsBindingRefresh)
+        {
+            return;
+        }
+
+        Dispatcher.UIThread.Post(UpdateActiveEditorBindings, DispatcherPriority.Background);
+    }
+
+    private void SyncSidebarSelectionFromActivePane(MainViewModel vm)
+    {
+        var filePath = vm.ActiveSecondaryPane?.CurrentNote?.FilePath ?? vm.CurrentNote?.FilePath;
+        var selectedItem = string.IsNullOrWhiteSpace(filePath)
+            ? null
+            : vm.VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+        NotesListBox.SelectedItem = selectedItem;
+    }
+
+    private void OnPrimaryPaneTitleGotFocus(object? sender, GotFocusEventArgs e)
+    {
+        ActivatePrimaryPane();
+    }
+
+    private void OnPrimaryPaneChromePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        ActivatePrimaryPane();
+    }
+
+    private void OnPrimaryPaneTagsGotFocus(object? sender, GotFocusEventArgs e)
+    {
+        ActivatePrimaryPane();
+    }
+
+    private void OnPrimaryEditorGotFocus(object? sender, GotFocusEventArgs e)
+    {
+        ActivatePrimaryPane();
+    }
+
+    private void OnSecondaryPaneTitleGotFocus(object? sender, GotFocusEventArgs e)
+    {
+        SetSecondaryPaneActive((sender as StyledElement)?.DataContext as EditorPaneViewModel);
+    }
+
+    private void OnSecondaryPaneChromePointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        SetSecondaryPaneActive((sender as StyledElement)?.DataContext as EditorPaneViewModel);
+    }
+
+    private void OnSecondaryPaneTagsGotFocus(object? sender, GotFocusEventArgs e)
+    {
+        SetSecondaryPaneActive((sender as StyledElement)?.DataContext as EditorPaneViewModel);
+    }
+
+    private void OnSecondaryPaneRootPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        SetSecondaryPaneActive((sender as StyledElement)?.DataContext as EditorPaneViewModel);
+    }
+
+    private void OnSecondaryEditorGotFocus(object? sender, GotFocusEventArgs e)
+    {
+        SetSecondaryPaneActive((sender as StyledElement)?.DataContext as EditorPaneViewModel);
+    }
+
+    private async void OnSecondaryGenerateTitleSuggestionsClick(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if ((sender as StyledElement)?.DataContext is EditorPaneViewModel pane)
+        {
+            SetSecondaryPaneActive(pane);
+            UpdateActiveEditorBindings();
+        }
+
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
     }
 
     private void FocusEditorAfterNotePickerClosed(MainViewModel vm)
@@ -953,6 +1435,39 @@ public partial class MainWindow : Window
     private void FocusNotesListBox()
     {
         Dispatcher.UIThread.Post(() => NotesListBox.Focus(), DispatcherPriority.Input);
+    }
+
+    private async void OnNoteListItemPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not Border { DataContext: NoteListItemViewModel noteItem } border
+            || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var point = e.GetCurrentPoint(this);
+
+        if (point.Properties.IsRightButtonPressed)
+        {
+            e.Handled = true;
+            border.ContextMenu?.Open(border);
+            return;
+        }
+
+        if (!point.Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            await vm.OpenSidebarNoteCommand.ExecuteAsync(noteItem);
+            e.Handled = true;
+            return;
+        }
+
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(noteItem);
+        e.Handled = true;
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -984,10 +1499,11 @@ public partial class MainWindow : Window
 
     private void RebuildEditorContextFlyout()
     {
+        var targetEditor = _editorContextTarget ?? GetActiveTextEditor();
         _editorContextFlyout.Items.Clear();
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", EditorTextEditor.CanCut, async (_, _) => await CutEditorSelectionAsync()));
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", EditorTextEditor.CanCopy, async (_, _) => await CopyEditorSelectionAsync()));
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", EditorTextEditor.CanPaste, (_, _) => EditorTextEditor.Paste()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", targetEditor.CanCut, async (_, _) => await CutEditorSelectionAsync(targetEditor)));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", targetEditor.CanCopy, async (_, _) => await CopyEditorSelectionAsync(targetEditor)));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", targetEditor.CanPaste, (_, _) => targetEditor.Paste()));
 
         if (DataContext is MainViewModel { IsAiEnabled: true })
         {
@@ -1089,15 +1605,16 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selectedText = EditorTextEditor.SelectedText;
+        var targetEditor = _editorContextTarget ?? GetActiveTextEditor();
+        var selectedText = targetEditor.SelectedText;
         if (string.IsNullOrWhiteSpace(selectedText))
         {
             await vm.RunAiPromptAsync(prompt, string.Empty);
             return;
         }
 
-        var selectionStart = EditorTextEditor.SelectionStart;
-        var selectionLength = EditorTextEditor.SelectionLength;
+        var selectionStart = targetEditor.SelectionStart;
+        var selectionLength = targetEditor.SelectionLength;
         try
         {
             var result = await vm.RunAiPromptAsync(prompt, selectedText);
@@ -1106,7 +1623,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var document = EditorTextEditor.Document;
+            var document = targetEditor.Document;
             if (document is null)
             {
                 return;
@@ -1117,15 +1634,15 @@ public partial class MainWindow : Window
             document.Replace(start, length, result);
 
             var caretPosition = start + result.Length;
-            EditorTextEditor.Select(caretPosition, 0);
-            EditorTextEditor.CaretOffset = caretPosition;
+            targetEditor.Select(caretPosition, 0);
+            targetEditor.CaretOffset = caretPosition;
 
             vm.StatusMessage = $"{prompt.Name} applied.";
-            EditorTextEditor.Focus();
+            targetEditor.Focus();
         }
         finally
         {
-            EditorTextEditor.Focus();
+            targetEditor.Focus();
         }
     }
 
@@ -1139,6 +1656,11 @@ public partial class MainWindow : Window
         if (sender is not Control control)
         {
             return;
+        }
+
+        if (control is TextEditor editor)
+        {
+            _editorContextTarget = editor;
         }
 
         e.Handled = true;
@@ -1179,6 +1701,27 @@ public partial class MainWindow : Window
         _slashCommandPopup.ScheduleRefresh();
     }
 
+    private void OnSecondaryEditorTextChanged(object? sender, EventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || sender is not TextEditor editor || editor.DataContext is not EditorPaneViewModel pane)
+        {
+            return;
+        }
+
+        if (!_secondaryEditorHosts.TryGetValue(pane.Id, out var host))
+        {
+            return;
+        }
+
+        var updated = host.SyncToViewModel(() => pane.EditorBody, text => pane.EditorBody = text);
+        if (!updated)
+        {
+            return;
+        }
+
+        _slashCommandPopup.ScheduleRefresh();
+    }
+
     private void SyncEditorText(string text)
     {
         var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out var appendedOnly);
@@ -1194,6 +1737,149 @@ public partial class MainWindow : Window
         }
 
         _slashCommandPopup.ScheduleRefresh();
+    }
+
+    private void SyncSecondaryEditorText(EditorPaneViewModel pane)
+    {
+        if (!_secondaryEditorHosts.TryGetValue(pane.Id, out var host))
+        {
+            return;
+        }
+
+        var changed = host.SyncFromViewModel(pane.EditorBody, appendSuffixWhenPossible: false, out var appendedOnly);
+        if (!changed)
+        {
+            return;
+        }
+
+        if (!appendedOnly)
+        {
+            host.RefreshLayoutAfterDocumentReplace();
+        }
+    }
+
+    private void OnSecondaryEditorAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is not TextEditor editor || editor.DataContext is not EditorPaneViewModel pane)
+        {
+            return;
+        }
+
+        var host = new EditorHostController(editor, new MarkdownColorizingTransformer());
+        _secondaryEditorHosts[pane.Id] = host;
+        _secondaryEditorControls[pane.Id] = editor;
+        editor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        editor.AddHandler(PointerPressedEvent, OnEditorPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AttachWorkspaceBringIntoViewSuppression(editor);
+        AttachWorkspaceBringIntoViewSuppression(editor.TextArea);
+        editor.ContextRequested += OnEditorContextRequested;
+        editor.TextArea.Caret.PositionChanged += OnEditorCaretPositionChanged;
+        editor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
+        editor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
+        ConfigureEditorFocusScrollSuppression(editor);
+
+        if (_editorLayoutState is not null)
+        {
+            if (_hasAppliedInitialEditorLayout)
+            {
+                host.ApplyRuntimeLayout(_editorLayoutState.CurrentSettings);
+            }
+            else
+            {
+                host.ApplyInitialLayout(_editorLayoutState.CurrentSettings);
+            }
+        }
+
+        SyncSecondaryEditorText(pane);
+        UpdateActiveEditorBindings();
+    }
+
+    private void OnSecondaryEditorDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is not TextEditor editor || editor.DataContext is not EditorPaneViewModel pane)
+        {
+            return;
+        }
+
+        if (_secondaryEditorHosts.Remove(pane.Id, out var host))
+        {
+            host.Dispose();
+        }
+
+        editor.ContextRequested -= OnEditorContextRequested;
+        DetachWorkspaceBringIntoViewSuppression(editor);
+        DetachWorkspaceBringIntoViewSuppression(editor.TextArea);
+        editor.TextArea.Caret.PositionChanged -= OnEditorCaretPositionChanged;
+        editor.TextArea.TextView.ScrollOffsetChanged -= OnEditorTextViewScrollOffsetChanged;
+        editor.TextArea.TextView.VisualLinesChanged -= OnEditorTextViewVisualLinesChanged;
+        _secondaryEditorControls.Remove(pane.Id);
+        _secondaryEditorBorders.Remove(pane.Id);
+        _secondaryTitleAnchors.Remove(pane.Id);
+        if (_secondaryTagsTextBoxes.Remove(pane.Id, out var tagsTextBox))
+        {
+            tagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
+            tagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
+            tagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
+        }
+        UpdateActiveEditorBindings();
+    }
+
+    private void OnSecondaryPaneRootAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is Control control && control.DataContext is EditorPaneViewModel pane)
+        {
+            _secondaryPaneRoots[pane.Id] = control;
+            if (control.FindControl<Border>("SecondaryEditorBorder") is { } editorBorder)
+            {
+                _secondaryEditorBorders[pane.Id] = editorBorder;
+            }
+
+            if (control.FindControl<Control>("SecondaryTitleAnchor") is { } titleAnchor)
+            {
+                _secondaryTitleAnchors[pane.Id] = titleAnchor;
+            }
+
+            if (control.FindControl<TextBox>("SecondaryTagsTextBox") is { } tagsTextBox)
+            {
+                _secondaryTagsTextBoxes[pane.Id] = tagsTextBox;
+                AttachWorkspaceBringIntoViewSuppression(tagsTextBox);
+                tagsTextBox.PropertyChanged += OnEditorTagsTextBoxPropertyChanged;
+                tagsTextBox.GotFocus += OnEditorTagsTextBoxGotFocus;
+                tagsTextBox.LostFocus += OnEditorTagsTextBoxLostFocus;
+            }
+
+            UpdateWorkspacePresentation();
+            UpdateActiveEditorBindings();
+        }
+    }
+
+    private void OnSecondaryPaneRootDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        if (sender is Control control && control.DataContext is EditorPaneViewModel pane)
+        {
+            if (_secondaryTagsTextBoxes.Remove(pane.Id, out var tagsTextBox))
+            {
+                DetachWorkspaceBringIntoViewSuppression(tagsTextBox);
+                tagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
+                tagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
+                tagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
+            }
+
+            _secondaryPaneRoots.Remove(pane.Id);
+            UpdateWorkspacePresentation();
+        }
+    }
+
+    private void OnPaneWorkspacePointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+        {
+            return;
+        }
+
+        var nextOffset = PaneWorkspaceScrollViewer.Offset.X - (e.Delta.Y * 64);
+        PaneWorkspaceScrollViewer.Offset = new Vector(Math.Max(0, nextOffset), PaneWorkspaceScrollViewer.Offset.Y);
+        e.Handled = true;
     }
 
     private async void OnWindowKeyDown(object? sender, KeyEventArgs e)
@@ -1275,6 +1961,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
         }
+        else if (IsClosePaneGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            await vm.CloseActivePaneAsync();
+        }
     }
 
     internal static bool IsOpenSettingsGesture(Key key, KeyModifiers modifiers) =>
@@ -1282,6 +1973,9 @@ public partial class MainWindow : Window
 
     internal static bool IsShowShortcutsHelpGesture(Key key, KeyModifiers modifiers) =>
         InputGestureHelper.IsShowShortcutsHelpGesture(key, modifiers);
+
+    internal static bool IsClosePaneGesture(Key key, KeyModifiers modifiers) =>
+        (modifiers == KeyModifiers.Control || modifiers == KeyModifiers.Meta) && key == Key.W;
 
     private void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
@@ -1322,9 +2016,9 @@ public partial class MainWindow : Window
         vm.AcceptNotePickerSelectionCommand.Execute(null);
     }
 
-    private async Task CopyEditorSelectionAsync()
+    private async Task CopyEditorSelectionAsync(TextEditor editor)
     {
-        var selectedText = EditorTextEditor.SelectedText;
+        var selectedText = editor.SelectedText;
         if (string.IsNullOrEmpty(selectedText))
         {
             return;
@@ -1339,9 +2033,9 @@ public partial class MainWindow : Window
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
     }
 
-    private async Task CutEditorSelectionAsync()
+    private async Task CutEditorSelectionAsync(TextEditor editor)
     {
-        var selectedText = EditorTextEditor.SelectedText;
+        var selectedText = editor.SelectedText;
         if (string.IsNullOrEmpty(selectedText))
         {
             return;
@@ -1354,7 +2048,7 @@ public partial class MainWindow : Window
         }
 
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
-        EditorTextEditor.SelectedText = string.Empty;
+        editor.SelectedText = string.Empty;
     }
 
     private async void OnEditorKeyDown(object? sender, KeyEventArgs e)
@@ -1371,7 +2065,7 @@ public partial class MainWindow : Window
 
         var vm = DataContext as MainViewModel;
 
-        if (_slashCommandPopup.HandleKeyDown(e, ApplyEditorEdit))
+        if (_slashCommandPopup.HandleKeyDown(e, edit => ApplyEditorEdit(textEditor, edit)))
         {
             return;
         }
@@ -1408,11 +2102,11 @@ public partial class MainWindow : Window
         {
             if (IsToggleTaskShortcut(e.Key, e.KeyModifiers))
             {
-                var toggleTaskEdit = MarkdownEditingCommands.ToggleTaskState(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength);
+                var toggleTaskEdit = MarkdownEditingCommands.ToggleTaskState(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength);
                 if (toggleTaskEdit.Length != 0 || toggleTaskEdit.Replacement.Length != 0)
                 {
                     e.Handled = true;
-                    ApplyEditorEdit(toggleTaskEdit);
+                    ApplyEditorEdit(textEditor, toggleTaskEdit);
                     return;
                 }
             }
@@ -1427,42 +2121,42 @@ public partial class MainWindow : Window
             if (e.Key == Key.C)
             {
                 e.Handled = true;
-                await CopyEditorSelectionAsync();
+                await CopyEditorSelectionAsync(textEditor);
                 return;
             }
 
             if (e.Key == Key.X)
             {
                 e.Handled = true;
-                await CutEditorSelectionAsync();
+                await CutEditorSelectionAsync(textEditor);
                 return;
             }
 
             if (e.Key == Key.B)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleWrap(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
                 return;
             }
 
             if (e.Key == Key.I)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleWrap(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
                 return;
             }
 
             if (e.Key == Key.K)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleWrap(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
                 return;
             }
 
             if (e.Key == Key.Enter)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.InsertLineBelow(GetEditorText(), textEditor.CaretOffset));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.InsertLineBelow(GetEditorText(textEditor), textEditor.CaretOffset));
                 return;
             }
         }
@@ -1472,8 +2166,8 @@ public partial class MainWindow : Window
             if (IsMoveLineShortcut(e.Key, e.KeyModifiers, out var moveDown))
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.MoveLines(
-                    GetEditorText(),
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(
+                    GetEditorText(textEditor),
                     textEditor.SelectionStart,
                     textEditor.SelectionLength,
                     moveDown));
@@ -1483,21 +2177,21 @@ public partial class MainWindow : Window
             if (e.Key == Key.D)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
                 return;
             }
 
             if (e.Key == Key.D7)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleTaskList(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleTaskList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
                 return;
             }
 
             if (e.Key == Key.D8)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleBulletList(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleBulletList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
                 return;
             }
         }
@@ -1507,21 +2201,21 @@ public partial class MainWindow : Window
             if (e.Key == Key.D1)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleHeading(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, 1));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, 1));
                 return;
             }
 
             if (e.Key == Key.D2)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleHeading(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, 2));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, 2));
                 return;
             }
 
             if (e.Key == Key.D3)
             {
                 e.Handled = true;
-                ApplyEditorEdit(MarkdownEditingCommands.ToggleHeading(GetEditorText(), textEditor.SelectionStart, textEditor.SelectionLength, 3));
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, 3));
                 return;
             }
         }
@@ -1542,7 +2236,7 @@ public partial class MainWindow : Window
         var text = document.Text;
         var selStart = textEditor.SelectionStart;
         var isUnindent = (e.KeyModifiers & KeyModifiers.Shift) != 0;
-        ApplyEditorEdit(MarkdownListEditingCommands.ChangeIndentation(
+        ApplyEditorEdit(textEditor, MarkdownListEditingCommands.ChangeIndentation(
             text,
             selStart,
             textEditor.SelectionLength,
@@ -1644,11 +2338,11 @@ public partial class MainWindow : Window
         await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
     }
 
-    private string GetEditorText() => _editorHost.GetText();
+    private string GetEditorText(TextEditor editor) => GetEditorHost(editor).GetText();
 
-    private void ApplyEditorEdit(MarkdownEditResult edit)
+    private void ApplyEditorEdit(TextEditor editor, MarkdownEditResult edit)
     {
-        var document = EditorTextEditor.Document;
+        var document = editor.Document;
         if (document is null)
         {
             return;
@@ -1661,19 +2355,33 @@ public partial class MainWindow : Window
 
         var selectionStart = Math.Clamp(edit.SelectionStart, 0, document.TextLength);
         var selectionLength = Math.Clamp(edit.SelectionLength, 0, document.TextLength - selectionStart);
-        EditorTextEditor.Select(selectionStart, selectionLength);
-        EditorTextEditor.CaretOffset = selectionStart + selectionLength;
-        EditorTextEditor.Focus();
+        editor.Select(selectionStart, selectionLength);
+        editor.CaretOffset = selectionStart + selectionLength;
+        editor.Focus();
         _slashCommandPopup.ScheduleRefresh();
     }
 
     private void OnSlashCommandListBoxDoubleTapped(object? sender, RoutedEventArgs e)
     {
-        _slashCommandPopup.ApplySelectedCommand(ApplyEditorEdit);
+        _slashCommandPopup.ApplySelectedCommand(edit => ApplyEditorEdit(GetActiveTextEditor(), edit));
     }
 
     private void OnEditorPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        if (sender is StyledElement { DataContext: EditorPaneViewModel pane })
+        {
+            SetSecondaryPaneActive(pane);
+        }
+        else
+        {
+            ActivatePrimaryPane();
+        }
+
         _slashCommandPopup.ScheduleRefresh(DispatcherPriority.Input);
     }
 

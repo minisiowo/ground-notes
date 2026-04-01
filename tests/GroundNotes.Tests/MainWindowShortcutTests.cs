@@ -77,6 +77,19 @@ public sealed class MainWindowShortcutTests
     }
 
     [Theory]
+    [InlineData(Key.W, KeyModifiers.Control, true)]
+    [InlineData(Key.W, KeyModifiers.Meta, true)]
+    [InlineData(Key.W, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    [InlineData(Key.W, KeyModifiers.Control | KeyModifiers.Alt, false)]
+    [InlineData(Key.O, KeyModifiers.Control, false)]
+    public void IsClosePaneGesture_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsClosePaneGesture(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
     [InlineData(Key.Y, KeyModifiers.Control | KeyModifiers.Shift, true)]
     [InlineData(Key.Y, KeyModifiers.Meta | KeyModifiers.Shift, true)]
     [InlineData(Key.Y, KeyModifiers.Control, false)]

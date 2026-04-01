@@ -22,4 +22,7 @@ public sealed partial class NoteListItemViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _renameText;
+
+    [ObservableProperty]
+    private bool _isActive;
 }

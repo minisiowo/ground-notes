@@ -159,6 +159,297 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateTitleSuggestionsCommand_UsesActiveSecondaryPaneNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["beta-outline", "beta-summary", "beta-checklist"]
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService, aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectedVisibleNote = vm.VisibleNotes.First(note => note.DisplayName == "alpha");
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1 && vm.SecondaryPanes[0].CurrentNote is not null);
+
+        vm.ActivatePane(vm.SecondaryPanes[0]);
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        Assert.Equal("beta", aiTitleSuggestionService.LastDocument?.Title);
+        Assert.Equal("body beta", aiTitleSuggestionService.LastDocument?.Body);
+        Assert.Equal(["beta-outline", "beta-summary", "beta-checklist"], vm.TitleSuggestions);
+    }
+
+    [Fact]
+    public async Task OpenNoteInSplitCommand_LoadsSecondPaneWithoutReplacingPrimary()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var alpha = vm.VisibleNotes.First(note => string.Equals(note.DisplayName, "alpha", StringComparison.Ordinal));
+        var beta = vm.VisibleNotes.First(note => string.Equals(note.DisplayName, "beta", StringComparison.Ordinal));
+        vm.SelectedVisibleNote = alpha;
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(beta);
+
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1 && vm.SecondaryPanes[0].CurrentNote is not null);
+        Assert.True(vm.HasSecondaryPane);
+        Assert.Equal("alpha", vm.CurrentNote?.Title);
+        Assert.Equal("beta", vm.SecondaryPanes[0].CurrentNote?.Title);
+        Assert.Equal("body beta", vm.SecondaryPanes[0].EditorBody);
+    }
+
+    [Fact]
+    public async Task OpenNoteInSplitCommand_FocusesExistingPaneWhenNoteAlreadyOpen()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var alpha = vm.VisibleNotes.First(note => string.Equals(note.DisplayName, "alpha", StringComparison.Ordinal));
+        var beta = vm.VisibleNotes.First(note => string.Equals(note.DisplayName, "beta", StringComparison.Ordinal));
+        vm.SelectedVisibleNote = alpha;
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(beta);
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1 && vm.SecondaryPanes[0].CurrentNote is not null);
+
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(beta);
+
+        Assert.True(vm.HasSecondaryPane);
+        Assert.Single(vm.SecondaryPanes);
+        Assert.Equal("beta", vm.SecondaryPanes[0].CurrentNote?.Title);
+    }
+
+    [Fact]
+    public async Task OpenNoteInSplitCommand_FallsBackWhenSplitUnavailable()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SetSplitEditorAvailability(false);
+
+        var beta = vm.VisibleNotes.First(note => string.Equals(note.DisplayName, "beta", StringComparison.Ordinal));
+
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(beta);
+
+        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        Assert.False(vm.HasSecondaryPane);
+        Assert.Equal("beta", vm.CurrentNote?.Title);
+        Assert.Equal("Expand the window to open a second editor.", vm.StatusMessage);
+    }
+
+    [Fact]
+    public async Task OpenNoteInSplitCommand_InsertsPaneToRightOfActivePane()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+        await WriteNoteAsync("gamma.md", "gamma", "body gamma", createdAt: new DateTime(2026, 3, 11, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var alpha = vm.VisibleNotes.First(note => note.DisplayName == "alpha");
+        var beta = vm.VisibleNotes.First(note => note.DisplayName == "beta");
+        var gamma = vm.VisibleNotes.First(note => note.DisplayName == "gamma");
+
+        vm.SelectedVisibleNote = alpha;
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(beta);
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1);
+
+        vm.ActivatePane(vm.SecondaryPanes[0]);
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(gamma);
+
+        Assert.Equal(new[] { "beta", "gamma" }, vm.SecondaryPanes.Select(pane => pane.CurrentNote?.Title).ToArray());
+        Assert.Equal("beta", vm.ActiveSecondaryPane?.CurrentNote?.Title);
+    }
+
+    [Fact]
+    public async Task SelectingNote_LoadsIntoActiveSecondaryPane()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+        await WriteNoteAsync("gamma.md", "gamma", "body gamma", createdAt: new DateTime(2026, 3, 11, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.SelectedVisibleNote = vm.VisibleNotes.First(note => note.DisplayName == "alpha");
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1);
+
+        vm.ActivatePane(vm.SecondaryPanes[0]);
+        vm.SelectedVisibleNote = vm.VisibleNotes.First(note => note.DisplayName == "gamma");
+
+        await WaitForConditionAsync(() => vm.SecondaryPanes[0].CurrentNote?.Title == "gamma");
+        Assert.Equal("alpha", vm.CurrentNote?.Title);
+        Assert.Equal("gamma", vm.SecondaryPanes[0].CurrentNote?.Title);
+    }
+
+    [Fact]
+    public async Task OpenSidebarNoteCommand_LoadsIntoActivePane()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+        await WriteNoteAsync("gamma.md", "gamma", "body gamma", createdAt: new DateTime(2026, 3, 11, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "alpha"));
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1 && vm.SecondaryPanes[0].CurrentNote?.Title == "beta");
+
+        vm.ActivatePane(vm.SecondaryPanes[0]);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "gamma"));
+
+        await WaitForConditionAsync(() => vm.SecondaryPanes[0].CurrentNote?.Title == "gamma");
+        Assert.Equal("alpha", vm.CurrentNote?.Title);
+        Assert.Equal("gamma", vm.SelectedVisibleNote?.DisplayName);
+    }
+
+    [Fact]
+    public async Task ActivatePane_UpdatesSidebarSelectionWithoutReloadingAnotherPane()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "alpha"));
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1 && vm.SecondaryPanes[0].CurrentNote?.Title == "beta");
+
+        vm.ActivatePane(vm.SecondaryPanes[0]);
+
+        Assert.Equal("beta", vm.SelectedVisibleNote?.DisplayName);
+        Assert.Equal("alpha", vm.CurrentNote?.Title);
+        Assert.Equal("beta", vm.SecondaryPanes[0].CurrentNote?.Title);
+    }
+
+    [Fact]
+    public async Task ClosePaneCommand_ActivatesLeftNeighbor()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+        await WriteNoteAsync("gamma.md", "gamma", "body gamma", createdAt: new DateTime(2026, 3, 11, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.SelectedVisibleNote = vm.VisibleNotes.First(note => note.DisplayName == "alpha");
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "gamma"));
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 2);
+
+        Assert.Equal(new[] { "gamma", "beta" }, vm.SecondaryPanes.Select(pane => pane.CurrentNote?.Title).ToArray());
+
+        vm.ActivatePane(vm.SecondaryPanes[1]);
+        await vm.ClosePaneCommand.ExecuteAsync(vm.SecondaryPanes[1]);
+
+        Assert.Single(vm.SecondaryPanes);
+        Assert.Equal("gamma", vm.ActiveSecondaryPane?.CurrentNote?.Title);
+    }
+
+    [Fact]
+    public async Task CloseActivePaneAsync_WhenPrimaryIsActive_PromotesNextPane()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.SelectedVisibleNote = vm.VisibleNotes.First(note => note.DisplayName == "alpha");
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+        await vm.OpenNoteInSplitCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+        await WaitForConditionAsync(() => vm.SecondaryPanes.Count == 1);
+
+        vm.ActivatePrimaryPane();
+        await vm.CloseActivePaneAsync();
+
+        Assert.Equal("beta", vm.CurrentNote?.Title);
+        Assert.False(vm.HasSecondaryPane);
+        Assert.True(vm.IsPrimaryPaneActive);
+    }
+
+    [Fact]
+    public async Task CloseActivePaneAsync_WhenLastPrimaryPaneIsActive_ClearsEditor()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.SelectedVisibleNote = vm.VisibleNotes.First(note => note.DisplayName == "alpha");
+        await WaitForConditionAsync(() => vm.CurrentNote?.Title == "alpha");
+
+        await vm.CloseActivePaneAsync();
+
+        Assert.Null(vm.CurrentNote);
+        Assert.Equal(string.Empty, vm.EditorBody);
+        Assert.True(vm.IsPrimaryPaneActive);
+    }
+
+    [Fact]
     public async Task TagFilters_SelectingMultipleTags_MatchesAnyByDefault()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -273,17 +564,17 @@ public sealed class MainViewModelTests : IDisposable
 
         vm.TagFilterSearchText = "template";
 
-        Assert.Equal(new[] { "luxoft_template", "ai_template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "ai_template", "luxoft_template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
 
         vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft_template", StringComparison.Ordinal)).IsSelected = true;
 
         Assert.Equal("template", vm.TagFilterSearchText);
-        Assert.Equal(new[] { "luxoft_template", "ai_template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "ai_template", "luxoft_template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
         Assert.Equal(new[] { "luxoft_template" }, vm.SelectedTags.ToArray());
 
         vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ai_template", StringComparison.Ordinal)).IsSelected = true;
 
-        Assert.Equal(new[] { "luxoft_template", "ai_template" }, vm.SelectedTags.OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "ai_template", "luxoft_template" }, vm.SelectedTags.OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
     }
 
     [Fact]

@@ -20,6 +20,7 @@ public static class KeyboardShortcutsReference
                 new("Reload notes from disk", "Ctrl+R"),
                 new("New note", "Ctrl+N"),
                 new("Open note picker", "Ctrl+O"),
+                new("Close active pane", "Ctrl+W"),
                 new("Delete current note", "Ctrl+D"),
             ]),
         new KeyboardShortcutSection(

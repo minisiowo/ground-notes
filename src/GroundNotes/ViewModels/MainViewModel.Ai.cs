@@ -20,7 +20,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (!HasSelectedFolder || CurrentNote is null)
+        var note = GetActiveNote();
+        if (!HasSelectedFolder || note is null)
         {
             StatusMessage = "Open a note first.";
             return;
@@ -32,14 +33,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (!UpdateCurrentNoteFromEditor())
+        if (!TryUpdateActiveNoteFromEditor())
         {
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(CurrentNote.Body)
-            && string.IsNullOrWhiteSpace(CurrentNote.Title)
-            && CurrentNote.Tags.Count == 0)
+        note = GetActiveNote();
+        if (note is null)
+        {
+            StatusMessage = "Open a note first.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(note.Body)
+            && string.IsNullOrWhiteSpace(note.Title)
+            && note.Tags.Count == 0)
         {
             StatusMessage = "Add some note content first.";
             return;
@@ -51,7 +59,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try
         {
             var suggestions = await _aiTitleSuggestionService.GetSuggestionsAsync(
-                CurrentNote,
+                note,
                 BuildAiSettings(),
                 TitleSuggestionsContext,
                 cancellationToken);
@@ -82,35 +90,42 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task ApplyTitleSuggestionAsync(string? suggestion)
     {
-        if (string.IsNullOrWhiteSpace(suggestion) || CurrentNote is null || !HasSelectedFolder)
+        var note = GetActiveNote();
+        if (string.IsNullOrWhiteSpace(suggestion) || note is null || !HasSelectedFolder)
         {
             return;
         }
 
-        if (!UpdateCurrentNoteFromEditor())
+        if (!TryUpdateActiveNoteFromEditor())
+        {
+            return;
+        }
+
+        note = GetActiveNote();
+        if (note is null)
         {
             return;
         }
 
         var normalizedSuggestion = suggestion.Trim();
-        if (string.Equals(CurrentNote.Title, normalizedSuggestion, StringComparison.Ordinal))
+        if (string.Equals(note.Title, normalizedSuggestion, StringComparison.Ordinal))
         {
             DismissTitleSuggestions(clearContext: true);
             return;
         }
 
-        CancelScheduledSave();
-        CurrentNote.Title = normalizedSuggestion;
+        CancelActiveNoteSave();
+        note.Title = normalizedSuggestion;
 
         NoteDocument renamed;
         SuppressWatcher();
         using (BeginMutationScope())
         {
-            renamed = await _noteMutationService.SaveAsync(NotesFolder, CurrentNote, CancellationToken.None);
+            renamed = await _noteMutationService.SaveAsync(NotesFolder, note, CancellationToken.None);
         }
 
         DismissTitleSuggestions(clearContext: true);
-        ApplyDocumentToEditor(renamed);
+        ApplyDocumentToActivePane(renamed);
         SelectSummaryByPath(renamed.FilePath);
         StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
     }
