@@ -109,6 +109,8 @@ Fast loop guidance:
 - For multi-pane sizing, preserve the current three-mode model unless the task explicitly changes it: single-pane uses `EditorCanvasWidth`, two-pane uses its own split/overflow logic, and `3+` panes share one common width.
 - When moving from `2` panes to `3+`, preserve the current visible pane width as the shared width instead of resetting all panes to a fresh equal split.
 - Equal-fit pane layouts can clip the last border by a pixel; prefer flooring computed shared widths and keeping a tiny safety gap instead of fitting exactly to the viewport.
+- In single-pane mode, keep resize available from both left and right edges, and treat `Ctrl+0` as a reset back to full-width editor layout.
+- When tuning multi-pane spacing, remember there are two horizontal spacing sources in `MainWindow.axaml`: the outer `PaneWorkspaceContent` stack and the `ItemsControl` panel for secondary panes; keep them in sync or the first gap will differ from later ones.
 ## Code Style
 - Use file-scoped namespaces and 4-space indentation.
 - Prefer one top-level type per file.

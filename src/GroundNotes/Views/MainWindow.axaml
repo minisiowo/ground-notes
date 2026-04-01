@@ -779,7 +779,7 @@
             <ItemsControl ItemsSource="{Binding SecondaryPanes}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <StackPanel Orientation="Horizontal" Spacing="16" />
+                  <StackPanel Orientation="Horizontal" Spacing="10" />
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
