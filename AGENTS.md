@@ -106,6 +106,10 @@ Fast loop guidance:
 - Markdown image syntax is `![](path)|NN`; keep parsing deterministic and treat image previews as render-only behavior layered on top of persisted text.
 - Image asset paste/save logic belongs in app code, but caret/layout fixes for image preview blocks belong in the AvaloniaEdit fork rather than placeholder lines or fake document content.
 - For image preview blocks, preserve the distinction between text-line height and additional render-only preview height so caret navigation and clicks stay aligned with real document lines.
+- `MarkdownImagePreviewProvider` now has layered caches for parsed image lines, rendered previews, and decoded bitmaps; preserve invalidation on document edits, width changes, base-directory changes, and on-disk image file changes.
+- Bitmap caching for markdown previews now uses a bounded LRU policy; avoid reintroducing unbounded bitmap retention unless the task explicitly calls for a different memory strategy.
+- `MarkdownImagePreviewLayer` now relies on three cheap fast paths before doing full work: queued refresh coalescing, whole-view no-op refresh skipping, and per-line rendered-state reuse. Preserve those behaviors when touching preview refresh logic.
+- If a preview change needs to force recomputation without losing all child/image reuse, prefer explicit refresh-state invalidation over bypassing the layer's existing caching and coalescing paths.
 - For multi-pane workspace focus/scroll bugs, remember that Avalonia `ScrollContentPresenter` may consume `RequestBringIntoView` before ancestor handlers see it; source-side suppression on focused descendants can be more effective than only handling the event on the outer `ScrollViewer`.
 - Preserve the distinction between inner editor caret visibility and outer workspace scrolling; fixes should avoid breaking caret visibility inside `AvaloniaEdit` while preventing horizontal workspace jumps.
 - For workspace spacing polish, remember the left editor gutter is affected by both `WorkspaceHost.Margin` and the sidebar splitter column; equal visual gutters may require dynamic compensation when the splitter is shown or hidden.
@@ -169,6 +173,7 @@ Fast loop guidance:
 - If `dotnet run` or `dotnet test` hits a lock on `extern/AvaloniaEdit/.../original.pdb`, stop the stale `dotnet` process or use `--no-build` for reruns after a successful build.
 - For multi-pane editor interaction fixes, validate manually with 3+ open panes and a partially off-screen target pane; verify focus can change without horizontal workspace auto-scroll.
 - For markdown image preview changes, validate image paste, immediate preview rendering, resize via `|NN`, caret navigation below the preview, click mapping on the preview area, and resize behavior after editor width changes.
+- Also validate cache-sensitive image scenarios: repeated refreshes of the same view, forced refresh after width/base-directory changes, overwriting an existing image file on disk, and bitmap-cache eviction behavior when many distinct images are opened.
 - For workspace spacing or sidebar layout fixes, validate both sidebar-visible and sidebar-collapsed states, including collapsing and reopening the sidebar to confirm the editor gutter stays balanced and the right edge does not get clipped.
 - For multi-pane width changes, validate all three modes (`1`, `2`, `3+` panes), including `Ctrl+0`, transitions between pane counts, horizontal overflow in the `2`-pane case, and preservation of shared width when adding another pane.
 - After changes that are ready to try on Windows, run `bash scripts/publish-and-install-wsl.sh` as the final validation/deployment step.
