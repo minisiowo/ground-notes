@@ -8,6 +8,22 @@ internal static class MarkdownDiagnostics
     private static int _fenceCacheHits;
     private static int _fenceCacheMisses;
     private static int _fenceInvalidations;
+    private static int _imagePreviewRequests;
+    private static int _imagePreviewCacheHits;
+    private static int _imagePreviewCacheMisses;
+    private static int _imagePreviewRenderCacheHits;
+    private static int _imagePreviewRenderCacheMisses;
+    private static int _bitmapCacheHits;
+    private static int _bitmapCacheMisses;
+    private static int _bitmapCacheEvictions;
+    private static int _previewLayerRefreshes;
+    private static int _previewLayerRefreshSkips;
+    private static int _previewLayerRefreshRequests;
+    private static int _previewLayerRefreshPosts;
+    private static int _previewLayerLineStateReuses;
+    private static int _previewLayerImageCreates;
+    private static int _previewLayerImageReuses;
+    private static int _previewLayerImageRemovals;
 
     public static MarkdownDiagnosticsSnapshot Snapshot()
         => new(
@@ -16,7 +32,23 @@ internal static class MarkdownDiagnostics
             _analysisCacheMisses,
             _fenceCacheHits,
             _fenceCacheMisses,
-            _fenceInvalidations);
+            _fenceInvalidations,
+            _imagePreviewRequests,
+            _imagePreviewCacheHits,
+            _imagePreviewCacheMisses,
+            _imagePreviewRenderCacheHits,
+            _imagePreviewRenderCacheMisses,
+            _bitmapCacheHits,
+            _bitmapCacheMisses,
+            _bitmapCacheEvictions,
+            _previewLayerRefreshes,
+            _previewLayerRefreshSkips,
+            _previewLayerRefreshRequests,
+            _previewLayerRefreshPosts,
+            _previewLayerLineStateReuses,
+            _previewLayerImageCreates,
+            _previewLayerImageReuses,
+            _previewLayerImageRemovals);
 
     public static void Reset()
     {
@@ -26,6 +58,22 @@ internal static class MarkdownDiagnostics
         _fenceCacheHits = 0;
         _fenceCacheMisses = 0;
         _fenceInvalidations = 0;
+        _imagePreviewRequests = 0;
+        _imagePreviewCacheHits = 0;
+        _imagePreviewCacheMisses = 0;
+        _imagePreviewRenderCacheHits = 0;
+        _imagePreviewRenderCacheMisses = 0;
+        _bitmapCacheHits = 0;
+        _bitmapCacheMisses = 0;
+        _bitmapCacheEvictions = 0;
+        _previewLayerRefreshes = 0;
+        _previewLayerRefreshSkips = 0;
+        _previewLayerRefreshRequests = 0;
+        _previewLayerRefreshPosts = 0;
+        _previewLayerLineStateReuses = 0;
+        _previewLayerImageCreates = 0;
+        _previewLayerImageReuses = 0;
+        _previewLayerImageRemovals = 0;
     }
 
     public static void RecordLineAnalyzed() => Interlocked.Increment(ref _linesAnalyzed);
@@ -39,6 +87,38 @@ internal static class MarkdownDiagnostics
     public static void RecordFenceCacheMiss() => Interlocked.Increment(ref _fenceCacheMisses);
 
     public static void RecordFenceInvalidation() => Interlocked.Increment(ref _fenceInvalidations);
+
+    public static void RecordImagePreviewRequest() => Interlocked.Increment(ref _imagePreviewRequests);
+
+    public static void RecordImagePreviewCacheHit() => Interlocked.Increment(ref _imagePreviewCacheHits);
+
+    public static void RecordImagePreviewCacheMiss() => Interlocked.Increment(ref _imagePreviewCacheMisses);
+
+    public static void RecordImagePreviewRenderCacheHit() => Interlocked.Increment(ref _imagePreviewRenderCacheHits);
+
+    public static void RecordImagePreviewRenderCacheMiss() => Interlocked.Increment(ref _imagePreviewRenderCacheMisses);
+
+    public static void RecordBitmapCacheHit() => Interlocked.Increment(ref _bitmapCacheHits);
+
+    public static void RecordBitmapCacheMiss() => Interlocked.Increment(ref _bitmapCacheMisses);
+
+    public static void RecordBitmapCacheEviction() => Interlocked.Increment(ref _bitmapCacheEvictions);
+
+    public static void RecordPreviewLayerRefresh() => Interlocked.Increment(ref _previewLayerRefreshes);
+
+    public static void RecordPreviewLayerRefreshSkip() => Interlocked.Increment(ref _previewLayerRefreshSkips);
+
+    public static void RecordPreviewLayerRefreshRequest() => Interlocked.Increment(ref _previewLayerRefreshRequests);
+
+    public static void RecordPreviewLayerRefreshPost() => Interlocked.Increment(ref _previewLayerRefreshPosts);
+
+    public static void RecordPreviewLayerLineStateReuse() => Interlocked.Increment(ref _previewLayerLineStateReuses);
+
+    public static void RecordPreviewLayerImageCreate() => Interlocked.Increment(ref _previewLayerImageCreates);
+
+    public static void RecordPreviewLayerImageReuse() => Interlocked.Increment(ref _previewLayerImageReuses);
+
+    public static void RecordPreviewLayerImageRemoval() => Interlocked.Increment(ref _previewLayerImageRemovals);
 }
 
 internal readonly record struct MarkdownDiagnosticsSnapshot(
@@ -47,4 +127,20 @@ internal readonly record struct MarkdownDiagnosticsSnapshot(
     int AnalysisCacheMisses,
     int FenceCacheHits,
     int FenceCacheMisses,
-    int FenceInvalidations);
+    int FenceInvalidations,
+    int ImagePreviewRequests,
+    int ImagePreviewCacheHits,
+    int ImagePreviewCacheMisses,
+    int ImagePreviewRenderCacheHits,
+    int ImagePreviewRenderCacheMisses,
+    int BitmapCacheHits,
+    int BitmapCacheMisses,
+    int BitmapCacheEvictions,
+    int PreviewLayerRefreshes,
+    int PreviewLayerRefreshSkips,
+    int PreviewLayerRefreshRequests,
+    int PreviewLayerRefreshPosts,
+    int PreviewLayerLineStateReuses,
+    int PreviewLayerImageCreates,
+    int PreviewLayerImageReuses,
+    int PreviewLayerImageRemovals);

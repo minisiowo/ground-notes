@@ -93,9 +93,10 @@ internal sealed class EditorThemeController : IDisposable
     public void SetBaseDirectoryPath(string? baseDirectoryPath)
     {
         _imagePreviewProvider.SetBaseDirectoryPath(baseDirectoryPath);
+        _imagePreviewLayer.InvalidateRefreshState();
         UpdatePreviewAvailableWidth(_editor.TextArea.TextView.Bounds.Width);
         _editor.TextArea.TextView.Redraw();
-        _imagePreviewLayer.Refresh();
+        _imagePreviewLayer.RequestRefresh();
     }
 
     private void RefreshTypographyResources(EditorAppearanceSignature currentSignature)
@@ -220,6 +221,7 @@ internal sealed class EditorThemeController : IDisposable
     private void RefreshAfterResize()
     {
         var textView = _editor.TextArea.TextView;
+        _imagePreviewLayer.InvalidateRefreshState();
         UpdatePreviewAvailableWidth(textView.Bounds.Width);
         textView.InvalidateMeasure();
         textView.InvalidateArrange();

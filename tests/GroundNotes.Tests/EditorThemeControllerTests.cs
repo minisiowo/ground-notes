@@ -14,6 +14,9 @@ namespace GroundNotes.Tests;
 
 public sealed class EditorThemeControllerTests
 {
+    private static readonly Lock ApplicationLock = new();
+    private static bool _applicationInitialized;
+
     [Fact]
     public void ConfigureEditorOptions_DisablesBuiltInHyperlinkRendering()
     {
@@ -154,6 +157,213 @@ public sealed class EditorThemeControllerTests
 
         Assert.True(textView.VisualLinesValid);
         AssertIndentedWrappedCode(textView, editor.Document);
+    }
+
+    [Fact]
+    public void ImagePreviewLayer_SkipsIdenticalRefreshes()
+    {
+        EnsureApplication();
+
+        using var tempDirectory = new TempDirectory();
+        var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
+        var document = new TextDocument($"![]({Path.GetRelativePath(tempDirectory.DirectoryPath, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = document,
+            WordWrap = true,
+            Width = 240,
+            Height = 200
+        };
+        var window = new Window
+        {
+            Width = editor.Width,
+            Height = editor.Height,
+            Content = editor
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        editor.ApplyTemplate();
+        editor.Measure(new Size(editor.Width, editor.Height));
+        editor.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+
+        var textView = editor.TextArea.TextView;
+        ApplyTextViewLayout(textView, editor.Width, editor.Height);
+
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new Services.NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
+        previewProvider.SetAvailableWidth(editor.Width);
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        MarkdownDiagnostics.Reset();
+
+        previewLayer.Refresh();
+        previewLayer.Refresh();
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.Equal(2, diagnostics.PreviewLayerRefreshes);
+        Assert.Equal(1, diagnostics.PreviewLayerRefreshSkips);
+        Assert.Equal(1, diagnostics.PreviewLayerImageCreates + diagnostics.PreviewLayerImageReuses);
+        Assert.Equal(0, diagnostics.PreviewLayerImageRemovals);
+        Assert.Single(previewLayer.Children);
+    }
+
+    [Fact]
+    public void ImagePreviewLayer_ReusesImageControlsAfterRefreshStateInvalidation()
+    {
+        EnsureApplication();
+
+        using var tempDirectory = new TempDirectory();
+        var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
+        var document = new TextDocument($"![]({Path.GetRelativePath(tempDirectory.DirectoryPath, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = document,
+            WordWrap = true,
+            Width = 240,
+            Height = 200
+        };
+        var window = new Window
+        {
+            Width = editor.Width,
+            Height = editor.Height,
+            Content = editor
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        editor.ApplyTemplate();
+        editor.Measure(new Size(editor.Width, editor.Height));
+        editor.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+
+        var textView = editor.TextArea.TextView;
+        ApplyTextViewLayout(textView, editor.Width, editor.Height);
+
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new Services.NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
+        previewProvider.SetAvailableWidth(editor.Width);
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        MarkdownDiagnostics.Reset();
+
+        previewLayer.Refresh();
+        previewLayer.InvalidateRefreshState();
+        previewLayer.Refresh();
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.Equal(2, diagnostics.PreviewLayerRefreshes);
+        Assert.Equal(0, diagnostics.PreviewLayerRefreshSkips);
+        Assert.Equal(2, diagnostics.PreviewLayerImageCreates + diagnostics.PreviewLayerImageReuses);
+        Assert.True(diagnostics.PreviewLayerImageReuses > 0, $"Creates={diagnostics.PreviewLayerImageCreates}, Reuses={diagnostics.PreviewLayerImageReuses}");
+    }
+
+    [Fact]
+    public void ImagePreviewLayer_ReusesRenderedLineStateDuringForcedRefresh()
+    {
+        EnsureApplication();
+
+        using var tempDirectory = new TempDirectory();
+        var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
+        var document = new TextDocument($"![]({Path.GetRelativePath(tempDirectory.DirectoryPath, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = document,
+            WordWrap = true,
+            Width = 240,
+            Height = 200
+        };
+        var window = new Window
+        {
+            Width = editor.Width,
+            Height = editor.Height,
+            Content = editor
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        editor.ApplyTemplate();
+        editor.Measure(new Size(editor.Width, editor.Height));
+        editor.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+
+        var textView = editor.TextArea.TextView;
+        ApplyTextViewLayout(textView, editor.Width, editor.Height);
+
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new Services.NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
+        previewProvider.SetAvailableWidth(editor.Width);
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        previewLayer.Refresh();
+        MarkdownDiagnostics.Reset();
+
+        previewLayer.InvalidateRefreshState(clearRenderedLineStates: false);
+        previewLayer.Refresh();
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.Equal(1, diagnostics.PreviewLayerRefreshes);
+        Assert.Equal(1, diagnostics.PreviewLayerLineStateReuses);
+        Assert.Equal(0, diagnostics.ImagePreviewRequests);
+        Assert.Equal(0, diagnostics.PreviewLayerImageCreates);
+        Assert.Equal(0, diagnostics.PreviewLayerImageReuses);
+        Assert.Single(previewLayer.Children);
+    }
+
+    [Fact]
+    public void ImagePreviewLayer_CoalescesQueuedRefreshRequests()
+    {
+        EnsureApplication();
+
+        using var tempDirectory = new TempDirectory();
+        var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
+        var document = new TextDocument($"![]({Path.GetRelativePath(tempDirectory.DirectoryPath, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = document,
+            WordWrap = true,
+            Width = 240,
+            Height = 200
+        };
+        var window = new Window
+        {
+            Width = editor.Width,
+            Height = editor.Height,
+            Content = editor
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        editor.ApplyTemplate();
+        editor.Measure(new Size(editor.Width, editor.Height));
+        editor.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+
+        var textView = editor.TextArea.TextView;
+        ApplyTextViewLayout(textView, editor.Width, editor.Height);
+
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new Services.NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
+        previewProvider.SetAvailableWidth(editor.Width);
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        MarkdownDiagnostics.Reset();
+
+        previewLayer.RequestRefresh();
+        previewLayer.RequestRefresh();
+        var requestDiagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.Equal(2, requestDiagnostics.PreviewLayerRefreshRequests);
+        Assert.Equal(1, requestDiagnostics.PreviewLayerRefreshPosts);
+        Assert.Equal(0, requestDiagnostics.PreviewLayerRefreshes);
+
+        FlushUiDispatcher();
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.True(diagnostics.PreviewLayerRefreshes >= 1);
+        Assert.Equal(1, diagnostics.PreviewLayerImageCreates + diagnostics.PreviewLayerImageReuses);
+        Assert.Single(previewLayer.Children);
     }
 
     [Fact]
@@ -372,12 +582,24 @@ public sealed class EditorThemeControllerTests
 
     private static void EnsureApplication()
     {
-        if (Application.Current is not null)
+        lock (ApplicationLock)
         {
-            return;
-        }
+            if (_applicationInitialized || Application.Current is not null)
+            {
+                _applicationInitialized = true;
+                return;
+            }
 
-        GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
+            try
+            {
+                GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("Setup was already called", StringComparison.Ordinal))
+            {
+            }
+
+            _applicationInitialized = true;
+        }
     }
 
     private static string CreateWrappedCodeSample()
@@ -418,6 +640,14 @@ public sealed class EditorThemeControllerTests
             "This markerless continuation line should render under the bullet text even though it has no list marker of its own.",
             "- [ ] This task list item also owns the indentation for the next markerless line.",
             "This markerless task continuation line should render after the checkbox alignment.");
+    }
+
+    private static string CreateImageAsset(string baseDirectory, string fileName, int width, int height)
+    {
+        var imagePath = Path.Combine(baseDirectory, "assets", fileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(imagePath)!);
+        File.WriteAllBytes(imagePath, CreatePngBytes(width, height));
+        return imagePath;
     }
 
     private static TextEditor CreateWrappedEditor(MarkdownColorizingTransformer colorizer, double width, double height)
@@ -474,6 +704,126 @@ public sealed class EditorThemeControllerTests
     private static void FlushUiDispatcher()
     {
         Dispatcher.UIThread.RunJobs(DispatcherPriority.Render);
+    }
+
+    private static byte[] CreatePngBytes(int width, int height)
+    {
+        using var output = new MemoryStream();
+        output.Write([137, 80, 78, 71, 13, 10, 26, 10]);
+
+        WriteChunk(output, "IHDR", CreateHeaderData(width, height));
+        WriteChunk(output, "IDAT", CreateImageData(width, height));
+        WriteChunk(output, "IEND", []);
+        return output.ToArray();
+    }
+
+    private static byte[] CreateHeaderData(int width, int height)
+    {
+        var header = new byte[13];
+        WriteInt32BigEndian(header.AsSpan(0, 4), width);
+        WriteInt32BigEndian(header.AsSpan(4, 4), height);
+        header[8] = 8;
+        header[9] = 6;
+        header[10] = 0;
+        header[11] = 0;
+        header[12] = 0;
+        return header;
+    }
+
+    private static byte[] CreateImageData(int width, int height)
+    {
+        var stride = width * 4 + 1;
+        var raw = new byte[stride * height];
+        for (var y = 0; y < height; y++)
+        {
+            var rowStart = y * stride;
+            raw[rowStart] = 0;
+            for (var x = 0; x < width; x++)
+            {
+                var pixelStart = rowStart + 1 + x * 4;
+                raw[pixelStart] = 255;
+                raw[pixelStart + 1] = 255;
+                raw[pixelStart + 2] = 255;
+                raw[pixelStart + 3] = 255;
+            }
+        }
+
+        using var compressed = new MemoryStream();
+        using (var zlib = new System.IO.Compression.ZLibStream(compressed, System.IO.Compression.CompressionLevel.SmallestSize, leaveOpen: true))
+        {
+            zlib.Write(raw);
+        }
+
+        return compressed.ToArray();
+    }
+
+    private static void WriteChunk(Stream output, string chunkType, byte[] data)
+    {
+        var typeBytes = System.Text.Encoding.ASCII.GetBytes(chunkType);
+        var lengthBuffer = new byte[4];
+        WriteInt32BigEndian(lengthBuffer, data.Length);
+        output.Write(lengthBuffer);
+        output.Write(typeBytes);
+        output.Write(data);
+
+        var crcBuffer = new byte[typeBytes.Length + data.Length];
+        typeBytes.CopyTo(crcBuffer, 0);
+        data.CopyTo(crcBuffer, typeBytes.Length);
+
+        var crcBytes = new byte[4];
+        WriteUInt32BigEndian(crcBytes, ComputeCrc32(crcBuffer));
+        output.Write(crcBytes);
+    }
+
+    private static uint ComputeCrc32(byte[] bytes)
+    {
+        const uint polynomial = 0xEDB88320u;
+        var crc = 0xFFFFFFFFu;
+        foreach (var b in bytes)
+        {
+            crc ^= b;
+            for (var i = 0; i < 8; i++)
+            {
+                crc = (crc & 1) == 0 ? crc >> 1 : (crc >> 1) ^ polynomial;
+            }
+        }
+
+        return ~crc;
+    }
+
+    private static void WriteInt32BigEndian(Span<byte> destination, int value)
+    {
+        destination[0] = (byte)((value >> 24) & 0xFF);
+        destination[1] = (byte)((value >> 16) & 0xFF);
+        destination[2] = (byte)((value >> 8) & 0xFF);
+        destination[3] = (byte)(value & 0xFF);
+    }
+
+    private static void WriteUInt32BigEndian(Span<byte> destination, uint value)
+    {
+        destination[0] = (byte)((value >> 24) & 0xFF);
+        destination[1] = (byte)((value >> 16) & 0xFF);
+        destination[2] = (byte)((value >> 8) & 0xFF);
+        destination[3] = (byte)(value & 0xFF);
+    }
+
+    private sealed class TempDirectory : IDisposable
+    {
+        public TempDirectory()
+        {
+            DirectoryPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(DirectoryPath);
+        }
+
+        public string DirectoryPath { get; }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(DirectoryPath))
+            {
+                Directory.Delete(DirectoryPath, recursive: true);
+            }
+        }
     }
 
     private static void AssertIndentedWrappedCode(AvaloniaEdit.Rendering.TextView textView, TextDocument document)
