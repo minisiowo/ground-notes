@@ -11,6 +11,7 @@ It is designed for people who want local notes first: no database, no proprietar
 - Stores note metadata in simple YAML-like frontmatter.
 - Lets you search, filter by tag, sort, rename, and edit notes quickly.
 - Includes markdown-aware editor styling for headings, lists, links, inline code, and fenced code blocks.
+- Supports markdown image previews using `![](path)|NN` syntax, including image paste directly into the notes folder `assets/` directory.
 - Watches the notes folder for external filesystem changes.
 - Includes theme, UI font, editor font, code font, indentation, and line-height settings.
 - Supports OpenAI-powered text actions on selected text.
@@ -33,6 +34,25 @@ Build a smaller note-capture flow for quick thoughts.
 ```
 
 Notes remain readable outside the app and can be edited with any text editor.
+
+### Image Previews
+
+GroundNotes can render local markdown image references directly inside the editor.
+
+- Paste an image into the editor with `Ctrl+V` or `Paste`.
+- The image file is saved into `<notes-folder>/assets/`.
+- The editor inserts markdown like `![](assets/image-20260401-123456789.png)|100`.
+- The `|NN` suffix controls preview scale as a percentage of the source image size.
+
+Examples:
+
+```md
+![](assets/photo.png)|100
+![](assets/photo.png)|50
+![](assets/photo.png)|25
+```
+
+The stored note text stays plain markdown; the image preview is render-only behavior in the editor.
 
 ## AI Features
 
@@ -133,6 +153,7 @@ Run the app:
 
 ```bash
 dotnet run --project src/GroundNotes
+dotnet run --project src/GroundNotes --no-build
 ```
 
 On first launch, choose the folder that should hold your notes.
@@ -284,6 +305,13 @@ Install the .NET 10 SDK and make sure it is on your `PATH`.
 ### The app builds but no window opens
 
 Make sure you are running it in a graphical desktop session.
+
+### `original.pdb` is locked during `dotnet run` or `dotnet test`
+
+This can happen when a previous `dotnet` process is still holding the forked `AvaloniaEdit` build output open.
+
+- Close the running app and retry.
+- Or use `dotnet run --project src/GroundNotes --no-build` after a successful build.
 
 ### SDK version mismatch
 
