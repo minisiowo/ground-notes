@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private IWindowLayoutService? _windowLayoutService;
     private readonly MenuFlyout _editorContextFlyout = new();
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
+    private readonly NoteAssetService _noteAssetService = new();
     private readonly EditorHostController _editorHost;
     private readonly Dictionary<Guid, EditorHostController> _secondaryEditorHosts = [];
     private readonly Dictionary<Guid, TextEditor> _secondaryEditorControls = [];
@@ -127,6 +128,7 @@ public partial class MainWindow : Window
                 {
                     pane.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
                 }
+                _editorHost.SetBaseDirectoryPath(vm.NotesFolder);
                 SyncEditorText(vm.EditorBody);
                 UpdateActiveEditorBindings();
             }
@@ -1350,6 +1352,17 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.PropertyName == nameof(MainViewModel.NotesFolder))
+        {
+            _editorHost.SetBaseDirectoryPath(vm.NotesFolder);
+            foreach (var host in _secondaryEditorHosts.Values)
+            {
+                host.SetBaseDirectoryPath(vm.NotesFolder);
+            }
+
+            return;
+        }
+
         if (e.PropertyName is nameof(MainViewModel.SelectedCodeFontFamilyName)
             or nameof(MainViewModel.SelectedCodeFontVariantName))
         {
@@ -2010,7 +2023,7 @@ public partial class MainWindow : Window
         _editorContextFlyout.Items.Clear();
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", targetEditor.CanCut, async (_, _) => await CutEditorSelectionAsync(targetEditor)));
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", targetEditor.CanCopy, async (_, _) => await CopyEditorSelectionAsync(targetEditor)));
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", targetEditor.CanPaste, (_, _) => targetEditor.Paste()));
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", targetEditor.CanPaste, async (_, _) => await PasteIntoEditorAsync(targetEditor)));
 
         if (DataContext is MainViewModel { IsAiEnabled: true })
         {
@@ -2275,6 +2288,11 @@ public partial class MainWindow : Window
         var host = new EditorHostController(editor, new MarkdownColorizingTransformer());
         _secondaryEditorHosts[pane.Id] = host;
         _secondaryEditorControls[pane.Id] = editor;
+        if (DataContext is MainViewModel vm)
+        {
+            host.SetBaseDirectoryPath(vm.NotesFolder);
+        }
+
         editor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         editor.AddHandler(PointerPressedEvent, OnEditorPointerPressed, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         AttachWorkspaceBringIntoViewSuppression(editor);
@@ -2569,6 +2587,46 @@ public partial class MainWindow : Window
         editor.SelectedText = string.Empty;
     }
 
+    private async Task PasteIntoEditorAsync(TextEditor editor)
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            editor.Paste();
+            return;
+        }
+
+        using var data = await topLevel.Clipboard.TryGetDataAsync();
+        var bitmap = data is null ? null : await data.TryGetBitmapAsync();
+        if (bitmap is null || DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.NotesFolder))
+        {
+            editor.Paste();
+            return;
+        }
+
+        var assetFileName = await _noteAssetService.SaveBitmapAsync(vm.NotesFolder, bitmap);
+        var imageReference = _noteAssetService.BuildMarkdownImageReference(assetFileName);
+        InsertTextAtSelection(editor, imageReference);
+    }
+
+    private void InsertTextAtSelection(TextEditor editor, string text, int? caretOffsetWithinInsertedText = null)
+    {
+        var document = editor.Document;
+        if (document is null)
+        {
+            return;
+        }
+
+        var selectionStart = editor.SelectionStart;
+        var selectionLength = editor.SelectionLength;
+        document.Replace(selectionStart, selectionLength, text);
+        var relativeCaretOffset = Math.Clamp(caretOffsetWithinInsertedText ?? text.Length, 0, text.Length);
+        editor.Select(selectionStart + relativeCaretOffset, 0);
+        editor.CaretOffset = selectionStart + relativeCaretOffset;
+        editor.Focus();
+        _slashCommandPopup.ScheduleRefresh();
+    }
+
     private async void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled)
@@ -2647,6 +2705,13 @@ public partial class MainWindow : Window
             {
                 e.Handled = true;
                 await CutEditorSelectionAsync(textEditor);
+                return;
+            }
+
+            if (e.Key == Key.V)
+            {
+                e.Handled = true;
+                await PasteIntoEditorAsync(textEditor);
                 return;
             }
 

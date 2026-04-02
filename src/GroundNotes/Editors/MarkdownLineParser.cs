@@ -42,6 +42,12 @@ internal static partial class MarkdownLineParser
 
         if (lineText.IndexOf('[', StringComparison.Ordinal) >= 0)
         {
+            foreach (var image in FindImages(lineText, protectedSpans))
+            {
+                analysis.Images.Add(image);
+                analysis.LinkSpans.Add(image.FullSpan);
+            }
+
             foreach (var link in FindLinks(lineText, protectedSpans))
             {
                 analysis.Links.Add(link);
@@ -281,6 +287,11 @@ internal static partial class MarkdownLineParser
                 continue;
             }
 
+            if (i > 0 && lineText[i - 1] == '!')
+            {
+                continue;
+            }
+
             var closeBracket = lineText.IndexOf(']', i + 1);
             if (closeBracket <= i + 1 || closeBracket + 1 >= lineText.Length || lineText[closeBracket + 1] != '(')
             {
@@ -317,6 +328,85 @@ internal static partial class MarkdownLineParser
         }
 
         return links;
+    }
+
+    private static List<MarkdownImageMatch> FindImages(string lineText, IReadOnlyList<MarkdownRange>? protectedSpans)
+    {
+        List<MarkdownImageMatch> images = [];
+
+        for (var i = 1; i < lineText.Length; i++)
+        {
+            if (lineText[i] != '[' || lineText[i - 1] != '!')
+            {
+                continue;
+            }
+
+            var imageStart = i - 1;
+            var closeBracket = lineText.IndexOf(']', i + 1);
+            if (closeBracket < 0 || closeBracket + 1 >= lineText.Length || lineText[closeBracket + 1] != '(')
+            {
+                continue;
+            }
+
+            var closeParen = lineText.IndexOf(')', closeBracket + 2);
+            if (closeParen <= closeBracket + 2)
+            {
+                continue;
+            }
+
+            var urlStart = closeBracket + 2;
+            var urlLength = closeParen - urlStart;
+            if (urlLength == 0 || ContainsWhitespace(lineText, urlStart, closeParen))
+            {
+                continue;
+            }
+
+            var fullEnd = closeParen + 1;
+            MarkdownRange? scalePipe = null;
+            MarkdownRange? scaleValue = null;
+            int? scalePercent = null;
+
+            if (closeParen + 1 < lineText.Length && lineText[closeParen + 1] == '|')
+            {
+                var scaleStart = closeParen + 2;
+                var scaleEnd = scaleStart;
+                while (scaleEnd < lineText.Length && char.IsAsciiDigit(lineText[scaleEnd]))
+                {
+                    scaleEnd++;
+                }
+
+                if (scaleEnd > scaleStart && int.TryParse(lineText.AsSpan(scaleStart, scaleEnd - scaleStart), out var parsedPercent))
+                {
+                    scalePipe = new MarkdownRange(closeParen + 1, 1);
+                    scaleValue = new MarkdownRange(scaleStart, scaleEnd - scaleStart);
+                    scalePercent = parsedPercent;
+                    fullEnd = scaleEnd;
+                }
+            }
+
+            var fullSpan = new MarkdownRange(imageStart, fullEnd - imageStart);
+            if (protectedSpans is not null && OverlapsAny(fullSpan, protectedSpans))
+            {
+                continue;
+            }
+
+            images.Add(new MarkdownImageMatch(
+                new(imageStart, 1),
+                new(i, 1),
+                new(i + 1, closeBracket - i - 1),
+                new(closeBracket, 1),
+                new(closeBracket + 1, 1),
+                new(urlStart, urlLength),
+                new(closeParen, 1),
+                scalePipe,
+                scaleValue,
+                scalePercent,
+                IsStandaloneImage(lineText, fullSpan)));
+
+            i = fullEnd - 1;
+        }
+
+        return images;
     }
 
     private static List<MarkdownRange> FindBareUrls(string lineText, IReadOnlyList<MarkdownRange>? protectedSpans, IReadOnlyList<MarkdownRange> linkSpans)
@@ -500,6 +590,27 @@ internal static partial class MarkdownLineParser
         return false;
     }
 
+    private static bool IsStandaloneImage(string lineText, MarkdownRange fullSpan)
+    {
+        for (var i = 0; i < fullSpan.Start; i++)
+        {
+            if (!char.IsWhiteSpace(lineText[i]))
+            {
+                return false;
+            }
+        }
+
+        for (var i = fullSpan.End; i < lineText.Length; i++)
+        {
+            if (!char.IsWhiteSpace(lineText[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool ContainsEither(string value, int start, int endExclusive, char first, char second)
     {
         for (var i = start; i < endExclusive; i++)
@@ -538,6 +649,8 @@ internal sealed class MarkdownLineAnalysis(MarkdownFenceState fenceStateBeforeLi
 
     public MarkdownListMatch? ListMarker { get; set; }
 
+    public List<MarkdownImageMatch> Images { get; } = [];
+
     public List<MarkdownLinkMatch> Links { get; } = [];
 
     public List<MarkdownRange> LinkSpans { get; } = [];
@@ -572,6 +685,22 @@ internal readonly record struct MarkdownListMatch(int IndentLength, MarkdownRang
 internal readonly record struct MarkdownLinkMatch(MarkdownRange OpenBracket, MarkdownRange Label, MarkdownRange CloseBracket, MarkdownRange OpenParen, MarkdownRange Url, MarkdownRange CloseParen)
 {
     public MarkdownRange FullSpan => new(OpenBracket.Start, CloseParen.End - OpenBracket.Start);
+}
+
+internal readonly record struct MarkdownImageMatch(
+    MarkdownRange Bang,
+    MarkdownRange OpenBracket,
+    MarkdownRange AltText,
+    MarkdownRange CloseBracket,
+    MarkdownRange OpenParen,
+    MarkdownRange Url,
+    MarkdownRange CloseParen,
+    MarkdownRange? ScalePipe,
+    MarkdownRange? ScaleValue,
+    int? ScalePercent,
+    bool IsStandalone)
+{
+    public MarkdownRange FullSpan => new(Bang.Start, (ScaleValue ?? CloseParen).End - Bang.Start);
 }
 
 internal readonly record struct MarkdownFenceMatch(char MarkerChar, int MarkerLength, MarkdownRange Fence, MarkdownRange? Info);

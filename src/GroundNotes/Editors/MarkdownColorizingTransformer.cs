@@ -148,6 +148,7 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
         ApplyBlockquote(line, analysis.Blockquote);
         ApplyTaskList(line, analysis.TaskList);
         ApplyListMarker(line, analysis.ListMarker);
+        ApplyImages(line, analysis.Images);
         ApplyLinks(line, analysis.Links);
         ApplyBareUrls(line, analysis.BareUrls);
         var resources = GetResources();
@@ -293,6 +294,37 @@ internal sealed class MarkdownColorizingTransformer : DocumentColorizingTransfor
             QueueSpan(line.Offset + link.OpenParen.Start, line.Offset + link.OpenParen.End, resources.MutedTextBrush);
             QueueSpan(line.Offset + link.Url.Start, line.Offset + link.Url.End, resources.MarkdownLinkUrlBrush);
             QueueSpan(line.Offset + link.CloseParen.Start, line.Offset + link.CloseParen.End, resources.MutedTextBrush);
+        }
+    }
+
+    private void ApplyImages(DocumentLine line, IReadOnlyList<MarkdownImageMatch> images)
+    {
+        var resources = GetResources();
+
+        foreach (var image in images)
+        {
+            QueueSpan(line.Offset + image.Bang.Start, line.Offset + image.Bang.End, resources.MutedTextBrush);
+            QueueSpan(line.Offset + image.OpenBracket.Start, line.Offset + image.OpenBracket.End, resources.MutedTextBrush);
+
+            if (image.AltText.Length > 0)
+            {
+                QueueSpan(line.Offset + image.AltText.Start, line.Offset + image.AltText.End, resources.MarkdownLinkLabelBrush);
+            }
+
+            QueueSpan(line.Offset + image.CloseBracket.Start, line.Offset + image.CloseBracket.End, resources.MutedTextBrush);
+            QueueSpan(line.Offset + image.OpenParen.Start, line.Offset + image.OpenParen.End, resources.MutedTextBrush);
+            QueueSpan(line.Offset + image.Url.Start, line.Offset + image.Url.End, resources.MarkdownLinkUrlBrush);
+            QueueSpan(line.Offset + image.CloseParen.Start, line.Offset + image.CloseParen.End, resources.MutedTextBrush);
+
+            if (image.ScalePipe is { } scalePipe)
+            {
+                QueueSpan(line.Offset + scalePipe.Start, line.Offset + scalePipe.End, resources.MutedTextBrush);
+            }
+
+            if (image.ScaleValue is { } scaleValue)
+            {
+                QueueSpan(line.Offset + scaleValue.Start, line.Offset + scaleValue.End, resources.MarkdownLinkUrlBrush);
+            }
         }
     }
 

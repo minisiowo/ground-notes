@@ -35,6 +35,8 @@ internal sealed class EditorHostController : IDisposable
 
     public void ForceRefreshTypographyResources() => _themeController.ForceRefreshTypographyResources();
 
+    public void SetBaseDirectoryPath(string? baseDirectoryPath) => _themeController.SetBaseDirectoryPath(baseDirectoryPath);
+
     public void ApplyInitialLayout(EditorLayoutSettings settings) => _layoutController.ApplyInitialLayout(settings);
 
     public void ApplyRuntimeLayout(EditorLayoutSettings settings) => _layoutController.ApplyRuntimeLayout(settings);

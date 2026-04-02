@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using AvaloniaEdit;
 using GroundNotes.Editors;
 using GroundNotes.Models;
+using GroundNotes.Services;
 using GroundNotes.Styles;
 
 namespace GroundNotes.Views;
@@ -16,6 +17,9 @@ internal sealed class EditorThemeController : IDisposable
     private readonly TextEditor _editor;
     private readonly MarkdownColorizingTransformer _colorizer;
     private readonly CodeBlockBackgroundRenderer _codeBlockRenderer;
+    private readonly MarkdownImagePreviewProvider _imagePreviewProvider;
+    private readonly MarkdownImageVisualLineTransformer _imageVisualLineTransformer;
+    private readonly MarkdownImagePreviewLayer _imagePreviewLayer;
     private readonly MarkdownVisualLineIndentationProvider _visualLineIndentationProvider;
     private EditorAppearanceSignature _lastAppearanceSignature;
     private Size _lastTextViewBounds;
@@ -26,6 +30,9 @@ internal sealed class EditorThemeController : IDisposable
         _editor = editor;
         _colorizer = colorizer;
         _codeBlockRenderer = new CodeBlockBackgroundRenderer(colorizer);
+        _imagePreviewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        _imageVisualLineTransformer = new MarkdownImageVisualLineTransformer(_imagePreviewProvider);
+        _imagePreviewLayer = new MarkdownImagePreviewLayer(_editor.TextArea.TextView, _imagePreviewProvider);
         _visualLineIndentationProvider = new MarkdownVisualLineIndentationProvider(colorizer);
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
@@ -34,6 +41,8 @@ internal sealed class EditorThemeController : IDisposable
         _editor.Options.WordWrapIndentation = 0;
         _editor.Options.InheritWordWrapIndentation = true;
         _editor.TextArea.TextView.VisualLineIndentationProvider = _visualLineIndentationProvider;
+        _editor.TextArea.TextView.InsertLayer(_imagePreviewLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
+        _editor.TextArea.TextView.LineTransformers.Add(_imageVisualLineTransformer);
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.ResourcesChanged += OnEditorResourcesChanged;
@@ -42,6 +51,7 @@ internal sealed class EditorThemeController : IDisposable
 
         _lastAppearanceSignature = CaptureAppearanceSignature();
         _lastTextViewBounds = _editor.TextArea.TextView.Bounds.Size;
+        UpdatePreviewAvailableWidth(_lastTextViewBounds.Width);
         ApplyEditorOptions(_lastAppearanceSignature);
         ApplySelectionTheme();
     }
@@ -80,6 +90,14 @@ internal sealed class EditorThemeController : IDisposable
         RefreshTypographyResources(CaptureAppearanceSignature());
     }
 
+    public void SetBaseDirectoryPath(string? baseDirectoryPath)
+    {
+        _imagePreviewProvider.SetBaseDirectoryPath(baseDirectoryPath);
+        UpdatePreviewAvailableWidth(_editor.TextArea.TextView.Bounds.Width);
+        _editor.TextArea.TextView.Redraw();
+        _imagePreviewLayer.Refresh();
+    }
+
     private void RefreshTypographyResources(EditorAppearanceSignature currentSignature)
     {
         _lastAppearanceSignature = currentSignature;
@@ -113,8 +131,12 @@ internal sealed class EditorThemeController : IDisposable
         _editor.TextArea.TextView.PropertyChanged -= OnTextViewPropertyChanged;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
         _editor.TextArea.TextView.VisualLineIndentationProvider = null;
+        _editor.TextArea.TextView.Layers.Remove(_imagePreviewLayer);
+        _editor.TextArea.TextView.LineTransformers.Remove(_imageVisualLineTransformer);
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
+        _imagePreviewLayer.Dispose();
+        _imagePreviewProvider.Dispose();
     }
 
     private void OnColorizerRedrawRequested(object? sender, int startLine)
@@ -167,6 +189,7 @@ internal sealed class EditorThemeController : IDisposable
         }
 
         _lastTextViewBounds = newBounds;
+        UpdatePreviewAvailableWidth(newBounds.Width);
         RefreshAfterResize();
     }
 
@@ -197,6 +220,7 @@ internal sealed class EditorThemeController : IDisposable
     private void RefreshAfterResize()
     {
         var textView = _editor.TextArea.TextView;
+        UpdatePreviewAvailableWidth(textView.Bounds.Width);
         textView.InvalidateMeasure();
         textView.InvalidateArrange();
         textView.InvalidateVisual();
@@ -227,6 +251,11 @@ internal sealed class EditorThemeController : IDisposable
                 currentTextView.EnsureVisualLines();
             }
         }, DispatcherPriority.Render);
+    }
+
+    private void UpdatePreviewAvailableWidth(double width)
+    {
+        _imagePreviewProvider.SetAvailableWidth(width);
     }
 
     private readonly record struct EditorAppearanceSignature(

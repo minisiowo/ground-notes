@@ -39,6 +39,45 @@ public sealed class MarkdownLineParserTests
     }
 
     [Fact]
+    public void Analyze_DetectsMarkdownImagesWithOptionalScale()
+    {
+        const string line = "![](assets/photo.png)|50";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        var image = Assert.Single(analysis.Images);
+        Assert.Equal("assets/photo.png", line[image.Url.Start..image.Url.End]);
+        Assert.Equal(50, image.ScalePercent);
+        Assert.True(image.IsStandalone);
+        Assert.Empty(analysis.Links);
+        Assert.Empty(analysis.BareUrls);
+    }
+
+    [Fact]
+    public void Analyze_DetectsMarkdownImagesWithoutScale()
+    {
+        const string line = "  ![cover](assets/cover.png)  ";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        var image = Assert.Single(analysis.Images);
+        Assert.Equal("cover", line[image.AltText.Start..image.AltText.End]);
+        Assert.Null(image.ScalePercent);
+        Assert.True(image.IsStandalone);
+    }
+
+    [Fact]
+    public void Analyze_DoesNotTreatImagesAsLinks()
+    {
+        const string line = "![cover](assets/cover.png) and [docs](https://example.com)";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.Single(analysis.Images);
+        Assert.Single(analysis.Links);
+    }
+
+    [Fact]
     public void Analyze_DetectsMultipleLinksWithoutBareUrlDuplication()
     {
         const string line = "[one](https://one.example) and [two](https://two.example)";

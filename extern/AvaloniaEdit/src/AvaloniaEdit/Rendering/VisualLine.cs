@@ -124,6 +124,8 @@ namespace AvaloniaEdit.Rendering
         /// </summary>
         public double Height { get; private set; }
 
+        internal double AdditionalVisualHeight { get; private set; }
+
         internal double WrappedLineContinuationIndent { get; set; }
 
         /// <summary>
@@ -312,6 +314,13 @@ namespace AvaloniaEdit.Rendering
             Height = 0;
             foreach (var line in textLines)
                 Height += Math.Max(line.Height, defaultLineHeight);
+
+            Height += AdditionalVisualHeight;
+        }
+
+        public void SetAdditionalVisualHeight(double additionalVisualHeight)
+        {
+            AdditionalVisualHeight = Math.Max(0, additionalVisualHeight);
         }
 
         /// <summary>
