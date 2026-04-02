@@ -47,6 +47,7 @@ dotnet build extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj
 Run the desktop app:
 ```bash
 dotnet run --project src/GroundNotes
+dotnet run --project src/GroundNotes --no-build
 ```
 Publish a release build:
 ```bash
@@ -102,6 +103,9 @@ Fast loop guidance:
 - Treat `MarkdownColorizingTransformer.QueryIsFencedCodeLine(...)` as the source of truth for fenced-code state.
 - Fork-level editor fixes belong in `extern/AvaloniaEdit/src/AvaloniaEdit/`, not in app-side workarounds.
 - Changes in `extern/AvaloniaEdit/src/AvaloniaEdit/Rendering/VisualLine.cs` or `TextView.cs` are high risk and need extra validation.
+- Markdown image syntax is `![](path)|NN`; keep parsing deterministic and treat image previews as render-only behavior layered on top of persisted text.
+- Image asset paste/save logic belongs in app code, but caret/layout fixes for image preview blocks belong in the AvaloniaEdit fork rather than placeholder lines or fake document content.
+- For image preview blocks, preserve the distinction between text-line height and additional render-only preview height so caret navigation and clicks stay aligned with real document lines.
 - For multi-pane workspace focus/scroll bugs, remember that Avalonia `ScrollContentPresenter` may consume `RequestBringIntoView` before ancestor handlers see it; source-side suppression on focused descendants can be more effective than only handling the event on the outer `ScrollViewer`.
 - Preserve the distinction between inner editor caret visibility and outer workspace scrolling; fixes should avoid breaking caret visibility inside `AvaloniaEdit` while preventing horizontal workspace jumps.
 - For workspace spacing polish, remember the left editor gutter is affected by both `WorkspaceHost.Margin` and the sidebar splitter column; equal visual gutters may require dynamic compensation when the splitter is shown or hidden.
@@ -162,7 +166,9 @@ Fast loop guidance:
 - For search/list behavior, prefer `MainViewModelTests`; for AI behavior, prefer `ChatViewModelTests` and the `OpenAi*` service tests.
 - For settings/editor behavior, prefer the related service/view-model tests already in `tests/GroundNotes.Tests/`.
 - When changing the AvaloniaEdit fork, build the fork and app before running tests.
+- If `dotnet run` or `dotnet test` hits a lock on `extern/AvaloniaEdit/.../original.pdb`, stop the stale `dotnet` process or use `--no-build` for reruns after a successful build.
 - For multi-pane editor interaction fixes, validate manually with 3+ open panes and a partially off-screen target pane; verify focus can change without horizontal workspace auto-scroll.
+- For markdown image preview changes, validate image paste, immediate preview rendering, resize via `|NN`, caret navigation below the preview, click mapping on the preview area, and resize behavior after editor width changes.
 - For workspace spacing or sidebar layout fixes, validate both sidebar-visible and sidebar-collapsed states, including collapsing and reopening the sidebar to confirm the editor gutter stays balanced and the right edge does not get clipped.
 - For multi-pane width changes, validate all three modes (`1`, `2`, `3+` panes), including `Ctrl+0`, transitions between pane counts, horizontal overflow in the `2`-pane case, and preservation of shared width when adding another pane.
 - After changes that are ready to try on Windows, run `bash scripts/publish-and-install-wsl.sh` as the final validation/deployment step.
