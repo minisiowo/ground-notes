@@ -221,8 +221,10 @@ internal sealed class SlashCommandPopupController
 
         try
         {
+            var textView = _editor.TextArea.TextView;
             var caretRect = _editor.TextArea.Caret.CalculateCaretRectangle();
-            var popupTopLeft = _editor.TextArea.TextView.TranslatePoint(new Point(caretRect.X, caretRect.Y), _editorBorder);
+            var viewportCaretTopLeft = caretRect.Position - textView.ScrollOffset;
+            var popupTopLeft = textView.TranslatePoint(viewportCaretTopLeft, _editorBorder);
             if (popupTopLeft is null || _editorBorder.Bounds.Width <= 0 || _editorBorder.Bounds.Height <= 0)
             {
                 return;

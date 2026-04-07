@@ -21,9 +21,8 @@ internal static class MarkdownDiagnostics
     private static int _previewLayerRefreshRequests;
     private static int _previewLayerRefreshPosts;
     private static int _previewLayerLineStateReuses;
-    private static int _previewLayerImageCreates;
-    private static int _previewLayerImageReuses;
-    private static int _previewLayerImageRemovals;
+    private static int _previewLayerDraws;
+    private static int _previewLayerDrawnPreviews;
 
     public static MarkdownDiagnosticsSnapshot Snapshot()
         => new(
@@ -46,9 +45,8 @@ internal static class MarkdownDiagnostics
             _previewLayerRefreshRequests,
             _previewLayerRefreshPosts,
             _previewLayerLineStateReuses,
-            _previewLayerImageCreates,
-            _previewLayerImageReuses,
-            _previewLayerImageRemovals);
+            _previewLayerDraws,
+            _previewLayerDrawnPreviews);
 
     public static void Reset()
     {
@@ -71,9 +69,8 @@ internal static class MarkdownDiagnostics
         _previewLayerRefreshRequests = 0;
         _previewLayerRefreshPosts = 0;
         _previewLayerLineStateReuses = 0;
-        _previewLayerImageCreates = 0;
-        _previewLayerImageReuses = 0;
-        _previewLayerImageRemovals = 0;
+        _previewLayerDraws = 0;
+        _previewLayerDrawnPreviews = 0;
     }
 
     public static void RecordLineAnalyzed() => Interlocked.Increment(ref _linesAnalyzed);
@@ -114,11 +111,9 @@ internal static class MarkdownDiagnostics
 
     public static void RecordPreviewLayerLineStateReuse() => Interlocked.Increment(ref _previewLayerLineStateReuses);
 
-    public static void RecordPreviewLayerImageCreate() => Interlocked.Increment(ref _previewLayerImageCreates);
+    public static void RecordPreviewLayerDraw() => Interlocked.Increment(ref _previewLayerDraws);
 
-    public static void RecordPreviewLayerImageReuse() => Interlocked.Increment(ref _previewLayerImageReuses);
-
-    public static void RecordPreviewLayerImageRemoval() => Interlocked.Increment(ref _previewLayerImageRemovals);
+    public static void RecordPreviewLayerDrawnPreview() => Interlocked.Increment(ref _previewLayerDrawnPreviews);
 }
 
 internal readonly record struct MarkdownDiagnosticsSnapshot(
@@ -141,6 +136,5 @@ internal readonly record struct MarkdownDiagnosticsSnapshot(
     int PreviewLayerRefreshRequests,
     int PreviewLayerRefreshPosts,
     int PreviewLayerLineStateReuses,
-    int PreviewLayerImageCreates,
-    int PreviewLayerImageReuses,
-    int PreviewLayerImageRemovals);
+    int PreviewLayerDraws,
+    int PreviewLayerDrawnPreviews);

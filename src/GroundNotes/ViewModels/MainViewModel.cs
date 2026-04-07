@@ -809,7 +809,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(ShowTitleWatermark));
         ClearTransientStatusOnEdit();
-        DismissTitleSuggestions(clearContext: false);
 
         if (_isApplyingSelection || !HasSelectedFolder || CurrentNote is null)
         {

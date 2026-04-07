@@ -204,9 +204,7 @@ public sealed class EditorThemeControllerTests
 
         Assert.Equal(2, diagnostics.PreviewLayerRefreshes);
         Assert.Equal(1, diagnostics.PreviewLayerRefreshSkips);
-        Assert.Equal(1, diagnostics.PreviewLayerImageCreates + diagnostics.PreviewLayerImageReuses);
-        Assert.Equal(0, diagnostics.PreviewLayerImageRemovals);
-        Assert.Single(previewLayer.Children);
+        Assert.Equal(1, diagnostics.ImagePreviewRequests);
     }
 
     [Fact]
@@ -255,8 +253,7 @@ public sealed class EditorThemeControllerTests
 
         Assert.Equal(2, diagnostics.PreviewLayerRefreshes);
         Assert.Equal(0, diagnostics.PreviewLayerRefreshSkips);
-        Assert.Equal(2, diagnostics.PreviewLayerImageCreates + diagnostics.PreviewLayerImageReuses);
-        Assert.True(diagnostics.PreviewLayerImageReuses > 0, $"Creates={diagnostics.PreviewLayerImageCreates}, Reuses={diagnostics.PreviewLayerImageReuses}");
+        Assert.Equal(2, diagnostics.ImagePreviewRequests);
     }
 
     [Fact]
@@ -306,9 +303,6 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(1, diagnostics.PreviewLayerRefreshes);
         Assert.Equal(1, diagnostics.PreviewLayerLineStateReuses);
         Assert.Equal(0, diagnostics.ImagePreviewRequests);
-        Assert.Equal(0, diagnostics.PreviewLayerImageCreates);
-        Assert.Equal(0, diagnostics.PreviewLayerImageReuses);
-        Assert.Single(previewLayer.Children);
     }
 
     [Fact]
@@ -362,8 +356,7 @@ public sealed class EditorThemeControllerTests
         var diagnostics = MarkdownDiagnostics.Snapshot();
 
         Assert.True(diagnostics.PreviewLayerRefreshes >= 1);
-        Assert.Equal(1, diagnostics.PreviewLayerImageCreates + diagnostics.PreviewLayerImageReuses);
-        Assert.Single(previewLayer.Children);
+        Assert.Equal(1, diagnostics.ImagePreviewRequests);
     }
 
     [Fact]

@@ -513,7 +513,8 @@
                                  PlacementAnchor="BottomLeft"
                                  PlacementGravity="BottomRight"
                                  VerticalOffset="6"
-                                 IsLightDismissEnabled="True"
+                                 IsLightDismissEnabled="False"
+                                 TakesFocusFromNativeControl="False"
                                  IsOpen="{Binding IsTitleSuggestionsOpen, Mode=TwoWay}">
                             <Border x:Name="TitleSuggestionsPopupContent"
                                     Classes="sectionSurface toolPopupSurface"
@@ -529,9 +530,22 @@
                                         Padding="4,2"
                                         Background="{DynamicResource SurfaceRaisedBrush}"
                                         CornerRadius="1">
-                                  <TextBlock Classes="sidebarFooterStatus"
-                                             FontWeight="SemiBold"
-                                             Text="AI title suggestions" />
+                                  <Grid ColumnDefinitions="*,Auto"
+                                        ColumnSpacing="8">
+                                    <TextBlock Classes="sidebarFooterStatus"
+                                               VerticalAlignment="Center"
+                                               FontWeight="SemiBold"
+                                               Text="AI title suggestions" />
+                                    <Button Grid.Column="1"
+                                            Classes="compactIconButton"
+                                            Width="24"
+                                            Height="24"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            ToolTip.Tip="Close"
+                                            Content="X"
+                                            Command="{Binding CloseTitleSuggestionsCommand}" />
+                                  </Grid>
                                 </Border>
                                 <StackPanel Spacing="4">
                                   <Button IsVisible="{Binding IsGeneratingTitleSuggestions}"

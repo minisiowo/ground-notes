@@ -1,18 +1,18 @@
+using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using AvaloniaEdit.Rendering;
 
 namespace GroundNotes.Editors;
 
-internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
+internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
 {
     private const double VerticalSpacing = 6;
 
     private readonly TextView _textView;
     private readonly MarkdownImagePreviewProvider _previewProvider;
-    private readonly Dictionary<int, Image> _imagesByLineNumber = [];
+    private readonly Dictionary<int, RenderedPreview> _renderedPreviews = [];
     private readonly Dictionary<int, RenderedLineState> _renderedLineStates = [];
     private bool _isDisposed;
     private bool _isRefreshQueued;
@@ -41,7 +41,7 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
 
         if (!_textView.VisualLinesValid)
         {
-            RemoveAllImages();
+            ClearRenderedState();
             return;
         }
 
@@ -63,9 +63,13 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
                 && renderedLineState.LineSnapshot.Equals(lineState))
             {
                 MarkdownDiagnostics.RecordPreviewLayerLineStateReuse();
-                if (renderedLineState.HasPreview && _imagesByLineNumber.TryGetValue(lineNumber, out var existingImage))
+                if (renderedLineState.HasPreview
+                    && _renderedPreviews.TryGetValue(lineNumber, out var renderedPreview))
                 {
-                    UpdateImagePosition(existingImage, visualLine);
+                    _renderedPreviews[lineNumber] = renderedPreview with
+                    {
+                        Bounds = GetPreviewRect(visualLine, renderedPreview.Width, renderedPreview.Height)
+                    };
                 }
 
                 continue;
@@ -74,33 +78,16 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
             var preview = _previewProvider.GetPreview(_textView.Document, visualLine.FirstDocumentLine);
             if (preview is null || visualLine.TextLines.Count == 0)
             {
-                RemoveImage(lineNumber);
+                _renderedPreviews.Remove(lineNumber);
                 _renderedLineStates[lineNumber] = new RenderedLineState(lineState, false);
                 continue;
             }
 
-            if (!_imagesByLineNumber.TryGetValue(lineNumber, out var image))
-            {
-                image = new Image
-                {
-                    Stretch = Stretch.Uniform,
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    IsHitTestVisible = false
-                };
-                _imagesByLineNumber[lineNumber] = image;
-                Children.Add(image);
-                MarkdownDiagnostics.RecordPreviewLayerImageCreate();
-            }
-            else
-            {
-                MarkdownDiagnostics.RecordPreviewLayerImageReuse();
-            }
-
-            image.Source = preview.Value.Bitmap;
-            image.Width = preview.Value.Width;
-            image.Height = preview.Value.Height;
-            image.MaxWidth = preview.Value.Width;
-            UpdateImagePosition(image, visualLine);
+            _renderedPreviews[lineNumber] = new RenderedPreview(
+                preview.Value.Bitmap,
+                preview.Value.Width,
+                preview.Value.Height,
+                GetPreviewRect(visualLine, preview.Value.Width, preview.Value.Height));
             _renderedLineStates[lineNumber] = new RenderedLineState(lineState, true);
         }
 
@@ -108,10 +95,29 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
         foreach (var lineNumber in linesToRemove)
         {
             _renderedLineStates.Remove(lineNumber);
-            RemoveImage(lineNumber);
+            _renderedPreviews.Remove(lineNumber);
         }
 
         _lastRefreshSnapshot = refreshSnapshot;
+        InvalidateVisual();
+    }
+
+    public override void Render(DrawingContext context)
+    {
+        base.Render(context);
+        MarkdownDiagnostics.RecordPreviewLayerDraw();
+
+        if (_renderedPreviews.Count == 0)
+        {
+            return;
+        }
+
+        using var _ = context.PushClip(new Rect(Bounds.Size));
+        foreach (var renderedPreview in _renderedPreviews.Values)
+        {
+            context.DrawImage(renderedPreview.Bitmap, new Rect(renderedPreview.Bitmap.Size), renderedPreview.Bounds);
+            MarkdownDiagnostics.RecordPreviewLayerDrawnPreview();
+        }
     }
 
     public void InvalidateRefreshState(bool clearRenderedLineStates = true)
@@ -161,20 +167,17 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
         _renderedLineStates.Clear();
         _textView.VisualLinesChanged -= OnVisualLinesChanged;
         _textView.ScrollOffsetChanged -= OnVisualLinesChanged;
-        RemoveAllImages();
+        ClearRenderedState();
     }
 
     private void OnVisualLinesChanged(object? sender, EventArgs e) => RequestRefresh();
 
-    private void RemoveAllImages()
+    private void ClearRenderedState()
     {
         _lastRefreshSnapshot = null;
         _renderedLineStates.Clear();
-        var lineNumbers = _imagesByLineNumber.Keys.ToArray();
-        foreach (var lineNumber in lineNumbers)
-        {
-            RemoveImage(lineNumber);
-        }
+        _renderedPreviews.Clear();
+        InvalidateVisual();
     }
 
     private VisibleLineSnapshot CreateVisibleLineSnapshot(VisualLine visualLine)
@@ -185,13 +188,16 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
             visualLine.Height,
             visualLine.TextLines.Count);
 
-    private void UpdateImagePosition(Image image, VisualLine visualLine)
+    private Rect GetPreviewRect(VisualLine visualLine, double width, double height)
     {
         var lineStart = visualLine.GetVisualPosition(0, VisualYPosition.LineTop);
         var lastTextLine = visualLine.TextLines[visualLine.TextLines.Count - 1];
         var textBottom = visualLine.GetTextLineVisualYPosition(lastTextLine, VisualYPosition.LineBottom);
-        SetLeft(image, lineStart.X - _textView.ScrollOffset.X);
-        SetTop(image, textBottom - _textView.ScrollOffset.Y + VerticalSpacing);
+        return new Rect(
+            lineStart.X - _textView.ScrollOffset.X,
+            textBottom - _textView.ScrollOffset.Y + VerticalSpacing,
+            width,
+            height);
     }
 
     private RefreshSnapshot CreateRefreshSnapshot()
@@ -208,17 +214,6 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
         }
 
         return new RefreshSnapshot(_textView.ScrollOffset.X, _textView.ScrollOffset.Y, visibleLines);
-    }
-
-    private void RemoveImage(int lineNumber)
-    {
-        if (!_imagesByLineNumber.Remove(lineNumber, out var image))
-        {
-            return;
-        }
-
-        Children.Remove(image);
-        MarkdownDiagnostics.RecordPreviewLayerImageRemoval();
     }
 
     private sealed class RefreshSnapshot : IEquatable<RefreshSnapshot>
@@ -275,6 +270,8 @@ internal sealed class MarkdownImagePreviewLayer : Canvas, IDisposable
             return hash.ToHashCode();
         }
     }
+
+    private readonly record struct RenderedPreview(Avalonia.Media.Imaging.Bitmap Bitmap, double Width, double Height, Rect Bounds);
 
     private readonly record struct VisibleLineSnapshot(int LineNumber, int DocumentLineLength, double VisualTop, double Height, int TextLineCount)
     {
