@@ -38,6 +38,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly INoteSearchService _noteSearchService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private HashSet<DateTime> _calendarNoteDates = [];
+    private readonly Dictionary<string, bool> _tagFilterExpansionStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Guid _mutationOriginId = Guid.NewGuid();
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontFamilyOption> _allFonts =
@@ -103,6 +104,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private ObservableCollection<TagFilterItemViewModel> _availableTagFilters = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasVisibleTagFilterTree))]
+    private ObservableCollection<TagFilterTreeItemViewModel> _visibleTagFilterTree = [];
 
     [ObservableProperty]
     private string _tagFilterSearchText = string.Empty;
@@ -558,6 +563,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ShowSelectedTagFilters));
         OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
         OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
         RefreshAvailableTagFiltersView();
     }
 
@@ -584,6 +590,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public bool HasTagFilterSearchResults => !string.IsNullOrWhiteSpace(TagFilterSearchText) && AvailableTagFilters.Count > 0;
 
+    public bool HasVisibleTagFilterTree => VisibleTagFilterTree.Count > 0;
+
+    public bool ShowEmptyTagFilterSearchHint => !string.IsNullOrWhiteSpace(TagFilterSearchText) && !HasVisibleTagFilterTree;
+
     public IReadOnlyList<string> SelectedTags => _allTagFilters
         .Where(tag => tag.IsSelected)
         .Select(tag => tag.Tag)
@@ -591,7 +601,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public string TagFilterModeText => MatchAllSelectedTags ? "All" : "Any";
 
-    public double TagFilterPanelMaxHeight => IsTagFilterExpanded ? 196 : 0;
+    public double TagFilterPanelMaxHeight => IsTagFilterExpanded ? 248 : 0;
 
     public double TagFilterPanelOpacity => IsTagFilterExpanded ? 1 : 0;
 
@@ -1279,7 +1289,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _isApplyingSelection = true;
         try
         {
-            foreach (var tagFilter in AvailableTagFilters)
+            foreach (var tagFilter in _allTagFilters)
             {
                 tagFilter.IsSelected = selectedTags.Contains(tagFilter.Tag);
             }
@@ -1313,6 +1323,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ShowSelectedTagFilters));
         OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
         OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
         OnPropertyChanged(nameof(TagFilterTriggerText));
         OnPropertyChanged(nameof(TagFilterTriggerBadgeText));
         OnPropertyChanged(nameof(ShowTagFilterTriggerBadge));

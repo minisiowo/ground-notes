@@ -550,8 +550,8 @@ public sealed class MainViewModelTests : IDisposable
     public async Task TagFilterSearchText_RemainsActiveAfterSelectingMatchingTag()
     {
         Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("luxoft.md", "luxoft", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft_template"]);
-        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["ai_template"]);
+        await WriteNoteAsync("luxoft.md", "luxoft", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
+        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["ai/template"]);
         await WriteNoteAsync("other.md", "other", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["other"]);
 
         var dialogService = new FakeWorkspaceDialogService
@@ -564,17 +564,106 @@ public sealed class MainViewModelTests : IDisposable
 
         vm.TagFilterSearchText = "template";
 
-        Assert.Equal(new[] { "ai_template", "luxoft_template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "ai/template", "luxoft/template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
 
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft_template", StringComparison.Ordinal)).IsSelected = true;
+        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft/template", StringComparison.Ordinal)).IsSelected = true;
 
         Assert.Equal("template", vm.TagFilterSearchText);
-        Assert.Equal(new[] { "ai_template", "luxoft_template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
-        Assert.Equal(new[] { "luxoft_template" }, vm.SelectedTags.ToArray());
+        Assert.Equal(new[] { "ai/template", "luxoft/template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "luxoft/template" }, vm.SelectedTags.ToArray());
 
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ai_template", StringComparison.Ordinal)).IsSelected = true;
+        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ai/template", StringComparison.Ordinal)).IsSelected = true;
 
-        Assert.Equal(new[] { "ai_template", "luxoft_template" }, vm.SelectedTags.OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+        Assert.Equal(new[] { "ai/template", "luxoft/template" }, vm.SelectedTags.OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
+    }
+
+    [Fact]
+    public async Task TagFilters_IncludeImplicitParentTagsAndCounts()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
+        await WriteNoteAsync("jql.md", "jql", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["luxoft/jql"]);
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var parent = vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft", StringComparison.Ordinal));
+
+        Assert.Equal(2, parent.NoteCount);
+        Assert.Contains(vm.AvailableTagFilters, tag => string.Equals(tag.Tag, "luxoft/template", StringComparison.Ordinal));
+        Assert.Contains(vm.AvailableTagFilters, tag => string.Equals(tag.Tag, "luxoft/jql", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task TagFilters_ParentSelectionMatchesNestedTags()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
+        await WriteNoteAsync("other.md", "other", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["other"]);
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft", StringComparison.Ordinal)).IsSelected = true;
+
+        var match = Assert.Single(vm.VisibleNotes);
+        Assert.Equal("template", match.DisplayName);
+    }
+
+    [Fact]
+    public async Task TagFilterTree_GroupsNestedTagsUnderParents()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
+        await WriteNoteAsync("jql.md", "jql", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["luxoft/jql"]);
+        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["ai/template"]);
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        Assert.Equal(new[] { "ai", "luxoft" }, vm.VisibleTagFilterTree.Select(node => node.Tag).ToArray());
+
+        var luxoft = vm.VisibleTagFilterTree.Single(node => string.Equals(node.Tag, "luxoft", StringComparison.Ordinal));
+        Assert.Equal(2, luxoft.NoteCount);
+        Assert.Equal(new[] { "luxoft/jql", "luxoft/template" }, luxoft.Children.Select(child => child.Tag).ToArray());
+    }
+
+    [Fact]
+    public async Task TagFilterTree_SearchShowsMatchingBranchesWithAncestors()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
+        await WriteNoteAsync("jql.md", "jql", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["luxoft/jql"]);
+        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["ai/template"]);
+
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot
+        };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.TagFilterSearchText = "template";
+
+        Assert.Equal(new[] { "ai", "luxoft" }, vm.VisibleTagFilterTree.Select(node => node.Tag).ToArray());
+        Assert.All(vm.VisibleTagFilterTree, node => Assert.True(node.IsExpanded));
+        Assert.Equal(new[] { "ai/template", "luxoft/template" }, FlattenTagTree(vm.VisibleTagFilterTree).Where(tag => tag.Contains('/', StringComparison.Ordinal)).ToArray());
     }
 
     [Fact]
@@ -1057,6 +1146,19 @@ public sealed class MainViewModelTests : IDisposable
             """;
 
         await File.WriteAllTextAsync(Path.Combine(_tempRoot, fileName), content);
+    }
+
+    private static IReadOnlyList<string> FlattenTagTree(IEnumerable<TagFilterTreeItemViewModel> nodes)
+    {
+        var flattened = new List<string>();
+
+        foreach (var node in nodes)
+        {
+            flattened.Add(node.Tag);
+            flattened.AddRange(FlattenTagTree(node.Children));
+        }
+
+        return flattened;
     }
 
     public void Dispose()

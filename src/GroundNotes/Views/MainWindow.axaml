@@ -211,31 +211,53 @@
                                 IsVisible="{Binding ShowEmptySelectedTagHint}" />
                     <Border Padding="0"
                             BorderThickness="0"
-                            IsVisible="{Binding HasTagFilterSearchResults}">
-                      <ListBox MaxHeight="122"
-                               Background="Transparent"
-                               BorderThickness="0"
-                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                               ScrollViewer.VerticalScrollBarVisibility="Auto"
-                               ItemsSource="{Binding AvailableTagFilters}">
-                        <ListBox.ItemTemplate>
-                          <DataTemplate x:DataType="viewModels:TagFilterItemViewModel">
-                            <CheckBox Classes="compactTagFilterCheckBox"
-                                      Margin="3,0"
-                                      IsChecked="{Binding IsSelected}">
-                              <Grid ColumnDefinitions="*,Auto"
-                                    ColumnSpacing="4">
-                                <TextBlock Text="{Binding Tag}"
+                            IsVisible="{Binding HasVisibleTagFilterTree}">
+                      <Border.Resources>
+                        <DataTemplate x:Key="TagFilterTreeItemTemplate"
+                                      x:DataType="viewModels:TagFilterTreeItemViewModel">
+                          <StackPanel Margin="{Binding IndentMargin}">
+                            <Grid ColumnSpacing="2"
+                                  Margin="1,0,1,0">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="14" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock Grid.Column="0"
+                                         Classes="tagFilterCountText"
+                                         Text="{Binding NoteCount}"
+                                         VerticalAlignment="Center" />
+                              <ToggleButton Grid.Column="1"
+                                            Classes="tagFilterRow"
+                                            Classes.tagFilterParent="{Binding HasChildren}"
+                                            HorizontalAlignment="Stretch"
+                                            IsChecked="{Binding TagFilter.IsSelected}">
+                                <TextBlock Text="{Binding Label}"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="1"
-                                           Classes="sidebarFooterStatus"
-                                           Text="{Binding NoteCount}" />
-                              </Grid>
-                            </CheckBox>
-                          </DataTemplate>
-                        </ListBox.ItemTemplate>
-                      </ListBox>
+                              </ToggleButton>
+                              <Button Grid.Column="2"
+                                      Classes="tagFilterExpand"
+                                      IsVisible="{Binding HasChildren}"
+                                      Command="{Binding ToggleExpandedCommand}"
+                                      Content="{Binding ExpansionGlyph}" />
+                            </Grid>
+                            <ItemsControl Margin="0,0,0,0"
+                                          IsVisible="{Binding ShowChildren}"
+                                          ItemsSource="{Binding Children}"
+                                          ItemTemplate="{StaticResource TagFilterTreeItemTemplate}" />
+                          </StackPanel>
+                        </DataTemplate>
+                      </Border.Resources>
+                      <ScrollViewer MaxHeight="172"
+                                    HorizontalScrollBarVisibility="Disabled"
+                                    VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding VisibleTagFilterTree}"
+                                      ItemTemplate="{StaticResource TagFilterTreeItemTemplate}" />
+                      </ScrollViewer>
                     </Border>
+                    <TextBlock Classes="sidebarFooterStatus"
+                                Text="No matching tags"
+                                IsVisible="{Binding ShowEmptyTagFilterSearchHint}" />
                   </StackPanel>
                 </Border>
           </Border>
@@ -664,7 +686,7 @@
                                    FontFamily="{DynamicResource TerminalFont}"
                                    FontSize="{DynamicResource AppFontSize}"
                                    Foreground="{DynamicResource PlaceholderTextBrush}"
-                                   Text="Tags (comma)"
+                                   Text="Tags"
                                    TextWrapping="NoWrap" />
                       </Grid>
                     </Grid>

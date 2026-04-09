@@ -15,6 +15,7 @@ internal static class TagSuggestionHelper
 
         return availableTags
             .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Select(TagHierarchyHelper.Normalize)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(tag => !context.OtherTags.Contains(tag, StringComparer.OrdinalIgnoreCase))
             .Where(tag => !string.Equals(tag, context.Query, StringComparison.OrdinalIgnoreCase))
@@ -37,7 +38,7 @@ internal static class TagSuggestionHelper
             .ToList();
 
         var targetSegment = updatedSegments.First(segment => segment.IsTarget);
-        var replacement = targetSegment with { Tag = suggestion.Trim() };
+        var replacement = targetSegment with { Tag = TagHierarchyHelper.Normalize(suggestion) };
         updatedSegments[targetSegment.Index] = replacement;
 
         var keptSegments = updatedSegments
@@ -92,9 +93,19 @@ internal static class TagSuggestionHelper
 
     private static int Score(string candidate, string query)
     {
+        if (string.Equals(candidate, query, StringComparison.OrdinalIgnoreCase))
+        {
+            return 3_000 - candidate.Length;
+        }
+
         if (candidate.StartsWith(query, StringComparison.OrdinalIgnoreCase))
         {
             return 2_000 - candidate.Length;
+        }
+
+        if (candidate.Contains($"/{query}", StringComparison.OrdinalIgnoreCase))
+        {
+            return 1_500 - candidate.Length;
         }
 
         var containsIndex = candidate.IndexOf(query, StringComparison.OrdinalIgnoreCase);

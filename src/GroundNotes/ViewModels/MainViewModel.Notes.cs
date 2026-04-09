@@ -595,7 +595,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         var selectedTags = SelectedTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var tagCounts = _allNotes
-            .SelectMany(note => note.Tags)
+            .SelectMany(note => TagHierarchyHelper.ExpandWithAncestors(note.Tags)
+                .Distinct(StringComparer.OrdinalIgnoreCase))
             .GroupBy(tag => tag, StringComparer.OrdinalIgnoreCase)
             .Select(group => new
             {
@@ -620,6 +621,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
         OnPropertyChanged(nameof(HasActiveTagFilter));
         OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        OnPropertyChanged(nameof(HasVisibleTagFilterTree));
+        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
         OnPropertyChanged(nameof(TagFilterTriggerText));
         OnPropertyChanged(nameof(TagFilterTriggerBadgeText));
         OnPropertyChanged(nameof(ShowTagFilterTriggerBadge));
@@ -635,6 +638,72 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         AvailableTagFilters = new ObservableCollection<TagFilterItemViewModel>(filteredTags);
         OnPropertyChanged(nameof(HasTagFilterSearchResults));
+        RefreshVisibleTagFilterTree();
+        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
+    }
+
+    private void RefreshVisibleTagFilterTree()
+    {
+        VisibleTagFilterTree = new ObservableCollection<TagFilterTreeItemViewModel>(BuildVisibleTagFilterTree());
+    }
+
+    private IReadOnlyList<TagFilterTreeItemViewModel> BuildVisibleTagFilterTree()
+    {
+        const string RootTag = "\0";
+
+        var searchText = TagFilterSearchText.Trim();
+        var hasSearchText = searchText.Length > 0;
+        var nodesByParent = _allTagFilters
+            .GroupBy(tag => TagHierarchyHelper.GetParentTag(tag.Tag) ?? RootTag, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderBy(tag => TagHierarchyHelper.GetLeafName(tag.Tag), StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
+
+        return BuildNodes(parentTag: RootTag, depth: 0);
+
+        List<TagFilterTreeItemViewModel> BuildNodes(string parentTag, int depth)
+        {
+            if (!nodesByParent.TryGetValue(parentTag, out var childFilters))
+            {
+                return [];
+            }
+
+            var visibleNodes = new List<TagFilterTreeItemViewModel>();
+            foreach (var childFilter in childFilters)
+            {
+                var childNodes = BuildNodes(childFilter.Tag, depth + 1);
+                var isDirectMatch = !hasSearchText || childFilter.Tag.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+                if (!isDirectMatch && childNodes.Count == 0)
+                {
+                    continue;
+                }
+
+                var isExpanded = hasSearchText
+                    ? childNodes.Count > 0
+                    : _tagFilterExpansionStates.TryGetValue(childFilter.Tag, out var expanded)
+                        ? expanded
+                        : string.Equals(parentTag, RootTag, StringComparison.Ordinal);
+
+                visibleNodes.Add(new TagFilterTreeItemViewModel(
+                    childFilter,
+                    TagHierarchyHelper.GetLeafName(childFilter.Tag),
+                    childNodes,
+                    depth,
+                    isExpanded,
+                    OnTagFilterTreeExpansionChanged));
+            }
+
+            return visibleNodes;
+        }
+    }
+
+    private void OnTagFilterTreeExpansionChanged(string tag, bool isExpanded)
+    {
+        _tagFilterExpansionStates[tag] = isExpanded;
     }
 
     private void ReplaceSummary(string previousPath, NoteSummary summary)
@@ -728,10 +797,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private static List<string> ParseTags(string input)
     {
-        return input
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return TagHierarchyHelper.ParseCommaSeparated(input);
     }
 
     private static string FormatLastSavedText(DateTimeOffset updatedAt)

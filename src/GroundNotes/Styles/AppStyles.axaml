@@ -208,14 +208,69 @@
     <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
   </Style>
 
-  <Style Selector="CheckBox.compactTagFilterCheckBox">
-    <Setter Property="MinHeight" Value="16" />
-    <Setter Property="FontSize" Value="10" />
+  <Style Selector="ToggleButton.tagFilterRow">
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="MinHeight" Value="14" />
+    <Setter Property="FontSize" Value="9" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
 
-  <Style Selector="CheckBox.compactTagFilterCheckBox /template/ PathIcon">
-    <Setter Property="Width" Value="10" />
-    <Setter Property="Height" Value="10" />
+  <Style Selector="ToggleButton.tagFilterRow /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#20FFFFFF" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterRow:checked /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#12FFFFFF" />
+  </Style>
+
+  <Style Selector="ToggleButton.tagFilterRow.tagFilterParent">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="Button.tagFilterExpand">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="MinWidth" Value="14" />
+    <Setter Property="Width" Value="14" />
+    <Setter Property="MinHeight" Value="14" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="FontFamily" Value="{DynamicResource SidebarFont}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="FontStyle" Value="Normal" />
+    <Setter Property="FontSize" Value="9" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button.tagFilterExpand /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <Style Selector="Button.tagFilterExpand:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.tagFilterCountText">
+    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
+    <Setter Property="FontSize" Value="9" />
+    <Setter Property="TextAlignment" Value="Right" />
+    <Setter Property="Margin" Value="0" />
   </Style>
 
   <Style Selector="Button.titleBarButton">

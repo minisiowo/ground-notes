@@ -129,8 +129,8 @@ public sealed class NotesRepository : INotesRepository
         if (selectedTags.Count > 0)
         {
             query = matchAllSelectedTags
-                ? query.Where(note => selectedTags.All(selectedTag => note.Tags.Contains(selectedTag, StringComparer.OrdinalIgnoreCase)))
-                : query.Where(note => selectedTags.Any(selectedTag => note.Tags.Contains(selectedTag, StringComparer.OrdinalIgnoreCase)));
+                ? query.Where(note => selectedTags.All(selectedTag => TagHierarchyHelper.MatchesSelection(note.Tags, selectedTag)))
+                : query.Where(note => selectedTags.Any(selectedTag => TagHierarchyHelper.MatchesSelection(note.Tags, selectedTag)));
         }
 
         if (selectedDate is not null)
@@ -525,7 +525,7 @@ public sealed class NotesRepository : INotesRepository
                 continue;
             }
 
-            var bestTagScore = note.Tags
+            var bestTagScore = TagHierarchyHelper.ExpandWithAncestors(note.Tags)
                 .Select(tag => ScorePickerTextMatch(tag, token))
                 .Where(score => score is not null)
                 .Select(score => score!.Value)
@@ -672,24 +672,7 @@ public sealed class NotesRepository : INotesRepository
 
     private static List<string> ParseTags(string value)
     {
-        var trimmed = value.Trim();
-        if (!trimmed.StartsWith('[') || !trimmed.EndsWith(']'))
-        {
-            return [];
-        }
-
-        trimmed = trimmed[1..^1];
-        if (string.IsNullOrWhiteSpace(trimmed))
-        {
-            return [];
-        }
-
-        return trimmed
-            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Select(part => part.Trim().Trim('"'))
-            .Where(part => !string.IsNullOrWhiteSpace(part))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return TagHierarchyHelper.ParseYamlList(value);
     }
 
     private readonly record struct FileMetadata(DateTime CreatedAt, DateTime UpdatedAt);

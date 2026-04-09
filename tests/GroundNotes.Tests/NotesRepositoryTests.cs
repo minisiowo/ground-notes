@@ -28,7 +28,7 @@ public sealed class NotesRepositoryTests : IDisposable
             Title = "sample",
             OriginalTitle = "sample",
             Body = "hello\nworld",
-            Tags = ["alpha", "beta"],
+            Tags = ["alpha", "project/roadmap"],
             CreatedAt = new DateTime(2026, 3, 9, 7, 33, 0, DateTimeKind.Local),
             UpdatedAt = new DateTime(2026, 3, 9, 7, 34, 0, DateTimeKind.Local)
         };
@@ -283,6 +283,56 @@ public sealed class NotesRepositoryTests : IDisposable
         var queried = _repository.QueryNotes(notes, string.Empty, ["ops", "deploy"], false, null, SortOption.Title);
 
         Assert.Equal(new[] { "alpha", "beta", "gamma" }, queried.Select(note => note.Title).ToArray());
+    }
+
+    [Fact]
+    public void QueryNotes_ParentTagMatchesDescendants()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
+                Title = "alpha",
+                Tags = ["luxoft/template"]
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "beta.txt"),
+                Title = "beta",
+                Tags = ["other/template"]
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, string.Empty, ["luxoft"], false, null, SortOption.Title);
+
+        var match = Assert.Single(queried);
+        Assert.Equal("alpha", match.Title);
+    }
+
+    [Fact]
+    public void QueryNotes_ChildSelectionMatchesDescendantBranchOnly()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
+                Title = "alpha",
+                Tags = ["luxoft/template/api"]
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "beta.txt"),
+                Title = "beta",
+                Tags = ["luxoft/jql"]
+            }
+        };
+
+        var queried = _repository.QueryNotes(notes, string.Empty, ["luxoft/template"], false, null, SortOption.Title);
+
+        var match = Assert.Single(queried);
+        Assert.Equal("alpha", match.Title);
     }
 
     [Fact]
@@ -587,6 +637,33 @@ public sealed class NotesRepositoryTests : IDisposable
         };
 
         var queried = _repository.QueryNotesForPicker(notes, "roadmap", 10);
+
+        var note = Assert.Single(queried);
+        Assert.Equal("meeting-notes", note.Title);
+    }
+
+    [Fact]
+    public void QueryNotesForPicker_MatchesParentTagAgainstNestedTags()
+    {
+        var notes = new[]
+        {
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "meeting-notes.txt"),
+                Title = "meeting-notes",
+                Tags = ["luxoft/template"],
+                UpdatedAt = new DateTime(2026, 3, 5)
+            },
+            new NoteSummary
+            {
+                FilePath = Path.Combine(_tempRoot, "scratchpad.txt"),
+                Title = "scratchpad",
+                Tags = ["misc"],
+                UpdatedAt = new DateTime(2026, 3, 7)
+            }
+        };
+
+        var queried = _repository.QueryNotesForPicker(notes, "luxoft", 10);
 
         var note = Assert.Single(queried);
         Assert.Equal("meeting-notes", note.Title);

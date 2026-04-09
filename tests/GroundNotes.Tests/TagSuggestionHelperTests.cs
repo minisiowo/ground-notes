@@ -38,4 +38,29 @@ public sealed class TagSuggestionHelperTests
         Assert.Equal("ops, deploy, later", result.Text);
         Assert.Equal("ops, deploy".Length, result.CaretIndex);
     }
+
+    [Fact]
+    public void GetSuggestions_IncludesNestedTagsForParentQuery()
+    {
+        var suggestions = TagSuggestionHelper.GetSuggestions("lux", 3, ["luxoft", "luxoft/template", "luxoft/jql", "other"]);
+
+        Assert.Equal(new[] { "luxoft", "luxoft/jql", "luxoft/template" }, suggestions.ToArray());
+    }
+
+    [Fact]
+    public void GetSuggestions_PrefersChildrenWhenQueryEndsWithSlash()
+    {
+        var suggestions = TagSuggestionHelper.GetSuggestions("luxoft/", 8, ["luxoft", "luxoft/template", "luxoft/jql", "other"]);
+
+        Assert.Equal(new[] { "luxoft/jql", "luxoft/template" }, suggestions.ToArray());
+    }
+
+    [Fact]
+    public void ApplySuggestion_NormalizesNestedTag()
+    {
+        var result = TagSuggestionHelper.ApplySuggestion("luxoft/ , de", 7, " luxoft/template ");
+
+        Assert.Equal("luxoft/template, de", result.Text);
+        Assert.Equal("luxoft/template".Length, result.CaretIndex);
+    }
 }
