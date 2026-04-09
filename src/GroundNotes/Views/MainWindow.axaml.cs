@@ -73,6 +73,7 @@ public partial class MainWindow : Window
                 ShouldSuppressTitleBarDoubleTap = e => e.Source is Control control && control.FindAncestorOfType<Button>() is not null
             });
         _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer);
+        _editorHost.SetDocumentDisplayMode(EditorDocumentDisplayMode.Markdown);
         _slashCommandPopup = new SlashCommandPopupController(
             EditorTextEditor,
             EditorBorder,
@@ -129,6 +130,7 @@ public partial class MainWindow : Window
                     pane.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
                 }
                 _editorHost.SetBaseDirectoryPath(vm.NotesFolder);
+                ApplyEditorDisplayMode(vm.ShowYamlFrontMatterInEditor);
                 SyncEditorText(vm.EditorBody);
                 UpdateActiveEditorBindings();
             }
@@ -1349,6 +1351,10 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainViewModel.SelectedThemeName))
         {
             _editorHost.RefreshVisualResources();
+            foreach (var host in _secondaryEditorHosts.Values)
+            {
+                host.RefreshVisualResources();
+            }
             return;
         }
 
@@ -1367,6 +1373,16 @@ public partial class MainWindow : Window
             or nameof(MainViewModel.SelectedCodeFontVariantName))
         {
             _editorHost.RefreshTypographyResources();
+            foreach (var host in _secondaryEditorHosts.Values)
+            {
+                host.RefreshTypographyResources();
+            }
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.ShowYamlFrontMatterInEditor))
+        {
+            ApplyEditorDisplayMode(vm.ShowYamlFrontMatterInEditor);
             return;
         }
 
@@ -2291,6 +2307,7 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel vm)
         {
             host.SetBaseDirectoryPath(vm.NotesFolder);
+            host.SetDocumentDisplayMode(vm.ShowYamlFrontMatterInEditor ? EditorDocumentDisplayMode.PlainText : EditorDocumentDisplayMode.Markdown);
         }
 
         editor.AddHandler(KeyDownEvent, OnEditorKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
@@ -2347,6 +2364,19 @@ public partial class MainWindow : Window
             tagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
         }
         UpdateActiveEditorBindings();
+    }
+
+    private void ApplyEditorDisplayMode(bool showYamlFrontMatterInEditor)
+    {
+        var mode = showYamlFrontMatterInEditor
+            ? EditorDocumentDisplayMode.PlainText
+            : EditorDocumentDisplayMode.Markdown;
+
+        _editorHost.SetDocumentDisplayMode(mode);
+        foreach (var host in _secondaryEditorHosts.Values)
+        {
+            host.SetDocumentDisplayMode(mode);
+        }
     }
 
     private void OnSecondaryPaneRootAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)

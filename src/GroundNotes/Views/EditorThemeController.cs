@@ -24,6 +24,7 @@ internal sealed class EditorThemeController : IDisposable
     private EditorAppearanceSignature _lastAppearanceSignature;
     private Size _lastTextViewBounds;
     private bool _isResizeRefreshQueued;
+    private bool _markdownFormattingEnabled = true;
 
     public EditorThemeController(TextEditor editor, MarkdownColorizingTransformer colorizer)
     {
@@ -55,6 +56,8 @@ internal sealed class EditorThemeController : IDisposable
         ApplyEditorOptions(_lastAppearanceSignature);
         ApplySelectionTheme();
     }
+
+    public bool IsMarkdownFormattingEnabled => _markdownFormattingEnabled;
 
     public void ApplySelectionTheme()
     {
@@ -96,7 +99,31 @@ internal sealed class EditorThemeController : IDisposable
         _imagePreviewLayer.InvalidateRefreshState();
         UpdatePreviewAvailableWidth(_editor.TextArea.TextView.Bounds.Width);
         _editor.TextArea.TextView.Redraw();
-        _imagePreviewLayer.RequestRefresh();
+        if (_markdownFormattingEnabled)
+        {
+            _imagePreviewLayer.RequestRefresh();
+        }
+    }
+
+    public void SetMarkdownFormattingEnabled(bool enabled)
+    {
+        if (_markdownFormattingEnabled == enabled)
+        {
+            return;
+        }
+
+        _markdownFormattingEnabled = enabled;
+
+        if (enabled)
+        {
+            AttachMarkdownPresentation();
+        }
+        else
+        {
+            DetachMarkdownPresentation();
+        }
+
+        RefreshPresentation();
     }
 
     private void RefreshTypographyResources(EditorAppearanceSignature currentSignature)
@@ -138,6 +165,68 @@ internal sealed class EditorThemeController : IDisposable
         _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
         _imagePreviewLayer.Dispose();
         _imagePreviewProvider.Dispose();
+    }
+
+    private void AttachMarkdownPresentation()
+    {
+        var textView = _editor.TextArea.TextView;
+
+        textView.VisualLineIndentationProvider = _visualLineIndentationProvider;
+        if (!textView.Layers.Contains(_imagePreviewLayer))
+        {
+            textView.InsertLayer(_imagePreviewLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
+        }
+
+        if (!textView.LineTransformers.Contains(_imageVisualLineTransformer))
+        {
+            textView.LineTransformers.Add(_imageVisualLineTransformer);
+        }
+
+        if (!textView.LineTransformers.Contains(_colorizer))
+        {
+            textView.LineTransformers.Add(_colorizer);
+        }
+
+        if (!textView.BackgroundRenderers.Contains(_codeBlockRenderer))
+        {
+            textView.BackgroundRenderers.Add(_codeBlockRenderer);
+        }
+
+        _imagePreviewLayer.InvalidateRefreshState();
+        _imagePreviewLayer.RequestRefresh();
+    }
+
+    private void DetachMarkdownPresentation()
+    {
+        var textView = _editor.TextArea.TextView;
+        textView.VisualLineIndentationProvider = null;
+        textView.Layers.Remove(_imagePreviewLayer);
+        textView.LineTransformers.Remove(_imageVisualLineTransformer);
+        textView.LineTransformers.Remove(_colorizer);
+        textView.BackgroundRenderers.Remove(_codeBlockRenderer);
+        _imagePreviewLayer.InvalidateRefreshState();
+    }
+
+    private void RefreshPresentation()
+    {
+        _colorizer.InvalidateResourceCache();
+        _codeBlockRenderer.InvalidateBrush();
+        ApplySelectionTheme();
+
+        var textView = _editor.TextArea.TextView;
+        textView.InvalidateMeasure();
+        textView.InvalidateArrange();
+        textView.InvalidateVisual();
+        textView.Redraw();
+
+        if (textView.Bounds.Width > 0 && textView.Bounds.Height > 0)
+        {
+            textView.EnsureVisualLines();
+        }
+
+        _editor.InvalidateMeasure();
+        _editor.InvalidateArrange();
+        _editor.InvalidateVisual();
     }
 
     private void OnColorizerRedrawRequested(object? sender, int startLine)

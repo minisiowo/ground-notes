@@ -9,6 +9,7 @@ internal sealed class EditorMarkdownListController : IDisposable
 {
     private readonly TextEditor _editor;
     private readonly MarkdownColorizingTransformer _colorizer;
+    private bool _markdownFormattingEnabled = true;
 
     public EditorMarkdownListController(TextEditor editor, MarkdownColorizingTransformer colorizer)
     {
@@ -22,9 +23,14 @@ internal sealed class EditorMarkdownListController : IDisposable
         _editor.RemoveHandler(InputElement.KeyDownEvent, OnEditorKeyDown);
     }
 
+    public void SetMarkdownFormattingEnabled(bool enabled)
+    {
+        _markdownFormattingEnabled = enabled;
+    }
+
     private void OnEditorKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || _editor.Document is null)
+        if (e.Handled || _editor.Document is null || !_markdownFormattingEnabled)
         {
             return;
         }

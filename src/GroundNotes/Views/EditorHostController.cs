@@ -41,6 +41,13 @@ internal sealed class EditorHostController : IDisposable
 
     public void ApplyRuntimeLayout(EditorLayoutSettings settings) => _layoutController.ApplyRuntimeLayout(settings);
 
+    public void SetDocumentDisplayMode(EditorDocumentDisplayMode mode)
+    {
+        var markdownFormattingEnabled = mode == EditorDocumentDisplayMode.Markdown;
+        _themeController.SetMarkdownFormattingEnabled(markdownFormattingEnabled);
+        _listController.SetMarkdownFormattingEnabled(markdownFormattingEnabled);
+    }
+
     internal void RefreshLayoutAfterDocumentReplace() => _layoutController.RefreshLayout();
 
     public bool SyncFromViewModel(string? text, bool appendSuffixWhenPossible, out bool appendedOnly)

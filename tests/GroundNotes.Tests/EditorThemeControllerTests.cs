@@ -33,6 +33,63 @@ public sealed class EditorThemeControllerTests
     }
 
     [Fact]
+    public void SetMarkdownFormattingEnabled_DisablesMarkdownPresentationButKeepsWordWrap()
+    {
+        EnsureApplication();
+        FlushUiDispatcher();
+        MarkdownDiagnostics.Reset();
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = new TextDocument("# heading\n\n![](photo.png)"),
+            WordWrap = true,
+            Width = 320,
+            Height = 200
+        };
+
+        using var controller = new EditorThemeController(editor, colorizer);
+
+        controller.SetMarkdownFormattingEnabled(false);
+
+        Assert.True(editor.WordWrap);
+        Assert.Null(editor.TextArea.TextView.VisualLineIndentationProvider);
+        Assert.DoesNotContain(colorizer, editor.TextArea.TextView.LineTransformers);
+
+        FlushUiDispatcher();
+        MarkdownDiagnostics.Reset();
+    }
+
+    [Fact]
+    public void SetMarkdownFormattingEnabled_ReEnablesMarkdownPresentation()
+    {
+        EnsureApplication();
+        FlushUiDispatcher();
+        MarkdownDiagnostics.Reset();
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = new TextDocument("# heading"),
+            WordWrap = true,
+            Width = 320,
+            Height = 200
+        };
+
+        using var controller = new EditorThemeController(editor, colorizer);
+
+        controller.SetMarkdownFormattingEnabled(false);
+        controller.SetMarkdownFormattingEnabled(true);
+
+        Assert.True(controller.IsMarkdownFormattingEnabled);
+        Assert.Same(colorizer, Assert.Single(editor.TextArea.TextView.LineTransformers.OfType<MarkdownColorizingTransformer>()));
+        Assert.NotNull(editor.TextArea.TextView.VisualLineIndentationProvider);
+
+        FlushUiDispatcher();
+        MarkdownDiagnostics.Reset();
+    }
+
+    [Fact]
     public void WrappedCodeBlock_PreservesHookIndentAcrossSegments()
     {
         EnsureApplication();
@@ -196,6 +253,7 @@ public sealed class EditorThemeControllerTests
         previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
         previewProvider.SetAvailableWidth(editor.Width);
         using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        FlushUiDispatcher();
         MarkdownDiagnostics.Reset();
 
         previewLayer.Refresh();
@@ -244,6 +302,7 @@ public sealed class EditorThemeControllerTests
         previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
         previewProvider.SetAvailableWidth(editor.Width);
         using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        FlushUiDispatcher();
         MarkdownDiagnostics.Reset();
 
         previewLayer.Refresh();
@@ -294,6 +353,7 @@ public sealed class EditorThemeControllerTests
         previewProvider.SetAvailableWidth(editor.Width);
         using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
         previewLayer.Refresh();
+        FlushUiDispatcher();
         MarkdownDiagnostics.Reset();
 
         previewLayer.InvalidateRefreshState(clearRenderedLineStates: false);
@@ -342,6 +402,7 @@ public sealed class EditorThemeControllerTests
         previewProvider.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
         previewProvider.SetAvailableWidth(editor.Width);
         using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        FlushUiDispatcher();
         MarkdownDiagnostics.Reset();
 
         previewLayer.RequestRefresh();
