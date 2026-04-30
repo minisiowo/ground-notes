@@ -86,6 +86,10 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
             _renderedPreviews[lineNumber] = new RenderedPreview(
                 lineNumber,
                 preview.Value.ResolvedPath,
+                visualLine.FirstDocumentLine.Offset + preview.Value.Image.FullSpan.Start,
+                preview.Value.Image.FullSpan.Length,
+                visualLine.FirstDocumentLine.Offset + preview.Value.Image.Url.Start,
+                preview.Value.Image.Url.Length,
                 preview.Value.Bitmap,
                 preview.Value.Width,
                 preview.Value.Height,
@@ -131,7 +135,11 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
                 return new MarkdownImagePreviewHitTestResult(
                     renderedPreview.ResolvedPath,
                     renderedPreview.Bounds,
-                    renderedPreview.LineNumber);
+                    renderedPreview.LineNumber,
+                    renderedPreview.ReferenceStart,
+                    renderedPreview.ReferenceLength,
+                    renderedPreview.UrlStart,
+                    renderedPreview.UrlLength);
             }
         }
 
@@ -291,7 +299,17 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
         }
     }
 
-    private readonly record struct RenderedPreview(int LineNumber, string ResolvedPath, Avalonia.Media.Imaging.Bitmap Bitmap, double Width, double Height, Rect Bounds);
+    private readonly record struct RenderedPreview(
+        int LineNumber,
+        string ResolvedPath,
+        int ReferenceStart,
+        int ReferenceLength,
+        int UrlStart,
+        int UrlLength,
+        Avalonia.Media.Imaging.Bitmap Bitmap,
+        double Width,
+        double Height,
+        Rect Bounds);
 
     private readonly record struct VisibleLineSnapshot(int LineNumber, int DocumentLineLength, string LineText, double VisualTop, double Height, int TextLineCount)
     {
@@ -314,4 +332,11 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
     private readonly record struct RenderedLineState(VisibleLineSnapshot LineSnapshot, bool HasPreview);
 }
 
-internal readonly record struct MarkdownImagePreviewHitTestResult(string ResolvedPath, Rect Bounds, int LineNumber);
+internal readonly record struct MarkdownImagePreviewHitTestResult(
+    string ResolvedPath,
+    Rect Bounds,
+    int LineNumber,
+    int ReferenceStart,
+    int ReferenceLength,
+    int UrlStart,
+    int UrlLength);

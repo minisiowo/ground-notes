@@ -22,6 +22,7 @@ public partial class MainWindow : Window
 {
     private IWindowLayoutService? _windowLayoutService;
     private readonly MenuFlyout _editorContextFlyout = new();
+    private readonly MenuFlyout _imageContextFlyout = new();
     private readonly MarkdownColorizingTransformer _markdownColorizer = new();
     private readonly NoteAssetService _noteAssetService = new();
     private readonly EditorHostController _editorHost;
@@ -2212,6 +2213,11 @@ public partial class MainWindow : Window
         if (control is TextEditor editor)
         {
             _editorContextTarget = editor;
+            if (TryShowImageContextFlyout(editor, e))
+            {
+                e.Handled = true;
+                return;
+            }
         }
 
         e.Handled = true;
@@ -2224,6 +2230,137 @@ public partial class MainWindow : Window
         }
 
         _editorContextFlyout.ShowAt(control);
+    }
+
+    private bool TryShowImageContextFlyout(TextEditor editor, ContextRequestedEventArgs e)
+    {
+        if (!e.TryGetPosition(editor.TextArea.TextView, out var point))
+        {
+            return false;
+        }
+
+        var hit = GetEditorHost(editor).TryHitTestImagePreview(point);
+        if (hit is null)
+        {
+            return false;
+        }
+
+        RebuildImageContextFlyout(editor, hit.Value);
+        _imageContextFlyout.ShowAt(editor, true);
+        return true;
+    }
+
+    private void RebuildImageContextFlyout(TextEditor editor, MarkdownImagePreviewHitTestResult hit)
+    {
+        _imageContextFlyout.Items.Clear();
+
+        var openItem = new MenuItem
+        {
+            Header = "Open image"
+        };
+        openItem.Click += (_, _) => OpenImageViewer(hit.ResolvedPath);
+        _imageContextFlyout.Items.Add(openItem);
+
+        _imageContextFlyout.Items.Add(new Separator());
+
+        var canManageAsset = DataContext is MainViewModel vm
+            && _noteAssetService.IsManagedAssetPath(vm.NotesFolder, hit.ResolvedPath);
+
+        var renameItem = new MenuItem
+        {
+            Header = "Rename image...",
+            IsEnabled = canManageAsset
+        };
+        renameItem.Click += async (_, _) => await RenameImageAssetAsync(editor, hit);
+        _imageContextFlyout.Items.Add(renameItem);
+
+        var deleteItem = new MenuItem
+        {
+            Header = "Delete image",
+            IsEnabled = canManageAsset
+        };
+        deleteItem.Click += async (_, _) => await DeleteImageAssetAsync(editor, hit);
+        _imageContextFlyout.Items.Add(deleteItem);
+    }
+
+    private async Task RenameImageAssetAsync(TextEditor editor, MarkdownImagePreviewHitTestResult hit)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var dialog = new RenameImageWindow(Path.GetFileName(hit.ResolvedPath));
+        var requestedFileName = await dialog.ShowDialog<string?>(this);
+        if (string.IsNullOrWhiteSpace(requestedFileName))
+        {
+            return;
+        }
+
+        if (!_noteAssetService.TryBuildRenameAssetPath(vm.NotesFolder, hit.ResolvedPath, requestedFileName, out var newAssetPath, out var newMarkdownPath, out var errorMessage))
+        {
+            vm.StatusMessage = errorMessage;
+            return;
+        }
+
+        try
+        {
+            File.Move(hit.ResolvedPath, newAssetPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            vm.StatusMessage = $"Could not rename image: {ex.Message}";
+            return;
+        }
+
+        ApplyEditorEdit(editor, MarkdownImageEditingCommands.RenameImageUrl(GetEditorText(editor), hit.UrlStart, hit.UrlLength, newMarkdownPath));
+        vm.StatusMessage = $"Renamed image to {Path.GetFileName(newAssetPath)}";
+    }
+
+    private async Task DeleteImageAssetAsync(TextEditor editor, MarkdownImagePreviewHitTestResult hit)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (!_noteAssetService.IsManagedAssetPath(vm.NotesFolder, hit.ResolvedPath))
+        {
+            vm.StatusMessage = "Only images from this note folder's assets directory can be deleted.";
+            return;
+        }
+
+        var fileName = Path.GetFileName(hit.ResolvedPath);
+        if (!File.Exists(hit.ResolvedPath))
+        {
+            vm.StatusMessage = $"Image file was not found: {fileName}";
+            return;
+        }
+
+        var dialog = new ConfirmDeleteWindow(
+            "Delete image",
+            "Delete image?",
+            $"Delete '{fileName}' from disk and remove it from this note?",
+            "Delete");
+        var shouldDelete = await dialog.ShowDialog<bool>(this);
+        if (!shouldDelete)
+        {
+            vm.StatusMessage = "Delete canceled.";
+            return;
+        }
+
+        try
+        {
+            File.Delete(hit.ResolvedPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            vm.StatusMessage = $"Could not delete image: {ex.Message}";
+            return;
+        }
+
+        ApplyEditorEdit(editor, MarkdownImageEditingCommands.DeleteImageReference(GetEditorText(editor), hit.ReferenceStart, hit.ReferenceLength));
+        vm.StatusMessage = $"Deleted image {fileName}";
     }
 
     private void OnEditorTextChanged(object? sender, EventArgs e)

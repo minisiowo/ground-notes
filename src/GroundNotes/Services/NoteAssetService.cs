@@ -34,6 +34,74 @@ internal sealed class NoteAssetService
         return Path.GetFullPath(Path.Combine(baseDirectoryPath, relativeOrAbsolutePath));
     }
 
+    public bool IsManagedAssetPath(string? notesFolderPath, string? assetPath)
+    {
+        if (string.IsNullOrWhiteSpace(notesFolderPath) || string.IsNullOrWhiteSpace(assetPath))
+        {
+            return false;
+        }
+
+        var assetsDirectoryPath = Path.GetFullPath(Path.Combine(notesFolderPath, AssetsDirectoryName));
+        var fullAssetPath = Path.GetFullPath(assetPath);
+        return string.Equals(Path.GetDirectoryName(fullAssetPath), assetsDirectoryPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public string BuildAssetMarkdownPath(string assetFileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetFileName);
+        return $"{AssetsDirectoryName}/{assetFileName.Replace('\\', '/')}";
+    }
+
+    public bool TryBuildRenameAssetPath(
+        string notesFolderPath,
+        string currentAssetPath,
+        string requestedFileName,
+        out string newAssetPath,
+        out string newMarkdownPath,
+        out string errorMessage)
+    {
+        newAssetPath = string.Empty;
+        newMarkdownPath = string.Empty;
+        errorMessage = string.Empty;
+
+        if (!IsManagedAssetPath(notesFolderPath, currentAssetPath))
+        {
+            errorMessage = "Only images from this note folder's assets directory can be renamed.";
+            return false;
+        }
+
+        var sanitizedFileName = NormalizeAssetRenameFileName(requestedFileName, Path.GetExtension(currentAssetPath));
+        if (sanitizedFileName is null)
+        {
+            errorMessage = "Use a file name without folders or invalid characters.";
+            return false;
+        }
+
+        var assetsDirectoryPath = Path.GetFullPath(Path.Combine(notesFolderPath, AssetsDirectoryName));
+        var candidatePath = Path.GetFullPath(Path.Combine(assetsDirectoryPath, sanitizedFileName));
+        if (!IsManagedAssetPath(notesFolderPath, candidatePath))
+        {
+            errorMessage = "Use a file name inside the assets directory.";
+            return false;
+        }
+
+        if (string.Equals(Path.GetFullPath(currentAssetPath), candidatePath, StringComparison.OrdinalIgnoreCase))
+        {
+            errorMessage = "The image already has that name.";
+            return false;
+        }
+
+        if (File.Exists(candidatePath))
+        {
+            errorMessage = "An image with that name already exists.";
+            return false;
+        }
+
+        newAssetPath = candidatePath;
+        newMarkdownPath = BuildAssetMarkdownPath(sanitizedFileName);
+        return true;
+    }
+
     public async Task<string> SaveBitmapAsync(string notesFolderPath, Bitmap bitmap, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(notesFolderPath);
@@ -57,6 +125,31 @@ internal sealed class NoteAssetService
     internal static string BuildAssetFileName(DateTimeOffset timestamp)
     {
         return $"image-{timestamp:yyyyMMdd-HHmmssfff}.png";
+    }
+
+    internal static string? NormalizeAssetRenameFileName(string requestedFileName, string fallbackExtension)
+    {
+        var trimmed = requestedFileName.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed)
+            || trimmed.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || trimmed.Contains(Path.DirectorySeparatorChar)
+            || trimmed.Contains(Path.AltDirectorySeparatorChar))
+        {
+            return null;
+        }
+
+        var fileName = Path.GetFileName(trimmed);
+        if (!string.Equals(fileName, trimmed, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(Path.GetExtension(fileName)))
+        {
+            fileName += fallbackExtension;
+        }
+
+        return fileName;
     }
 
     private static string GetUniqueAssetPath(string assetsDirectoryPath, string fileName)

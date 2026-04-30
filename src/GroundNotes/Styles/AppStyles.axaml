@@ -719,7 +719,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="ContextMenu /template/ Border">
@@ -727,7 +727,8 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="1" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="ClipToBounds" Value="True" />
     <Setter Property="BoxShadow" Value="{DynamicResource MenuFlyoutBoxShadow}" />
   </Style>
 
@@ -740,7 +741,7 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
   </Style>
 
   <Style Selector="MenuFlyoutPresenter /template/ Border">
@@ -748,7 +749,8 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="1" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="ClipToBounds" Value="True" />
     <Setter Property="BoxShadow" Value="{DynamicResource MenuFlyoutBoxShadow}" />
   </Style>
 
@@ -785,7 +787,8 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="ClipToBounds" Value="True" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Popup Border">
@@ -803,7 +806,8 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MenuFlyoutPresenterBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="Padding" Value="0" />
-    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="ClipToBounds" Value="True" />
   </Style>
 
   <Style Selector="MenuItem:selected /template/ Popup /template/ Border">

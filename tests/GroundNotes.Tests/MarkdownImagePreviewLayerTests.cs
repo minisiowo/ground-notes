@@ -169,6 +169,10 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Equal(imagePath, hit.Value.ResolvedPath);
         Assert.Equal(1, hit.Value.LineNumber);
         Assert.Equal(bounds, hit.Value.Bounds);
+        Assert.Equal(0, hit.Value.ReferenceStart);
+        Assert.Equal(document.TextLength, hit.Value.ReferenceLength);
+        Assert.Equal(4, hit.Value.UrlStart);
+        Assert.Equal(relativeImagePath.Length, hit.Value.UrlLength);
     }
 
     [Fact]

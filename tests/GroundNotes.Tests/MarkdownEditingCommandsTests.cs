@@ -453,4 +453,38 @@ public sealed class MarkdownEditingCommandsTests
         Assert.Equal("only line".Length, all.Length);
         Assert.Equal(string.Empty, all.Replacement);
     }
+
+    [Fact]
+    public void RenameImageUrl_ReplacesOnlyUrl()
+    {
+        var text = "![](assets/photo.png)|40";
+        var edit = MarkdownImageEditingCommands.RenameImageUrl(text, 4, "assets/photo.png".Length, "assets/renamed.png");
+
+        Assert.Equal("![](assets/renamed.png)|40", ApplyEdit(text, edit));
+    }
+
+    [Fact]
+    public void DeleteImageReference_RemovesStandaloneImageLine()
+    {
+        var text = "before\n![](assets/photo.png)|40\nafter";
+        var referenceStart = "before\n".Length;
+        var edit = MarkdownImageEditingCommands.DeleteImageReference(text, referenceStart, "![](assets/photo.png)|40".Length);
+
+        Assert.Equal("before\nafter", ApplyEdit(text, edit));
+    }
+
+    [Fact]
+    public void DeleteImageReference_RemovesOnlyImageSpanWhenLineHasOtherText()
+    {
+        var text = "before ![](assets/photo.png)|40 after";
+        var referenceStart = "before ".Length;
+        var edit = MarkdownImageEditingCommands.DeleteImageReference(text, referenceStart, "![](assets/photo.png)|40".Length);
+
+        Assert.Equal("before  after", ApplyEdit(text, edit));
+    }
+
+    private static string ApplyEdit(string text, MarkdownEditResult edit)
+    {
+        return text.Remove(edit.Start, edit.Length).Insert(edit.Start, edit.Replacement);
+    }
 }

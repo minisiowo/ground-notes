@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:GroundNotes.Views"
+        x:Class="GroundNotes.Views.RenameImageWindow"
+        Title="Rename Image"
+        Width="420"
+        Height="210"
+        CanResize="False"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*">
+    <views:TitleBarControl Grid.Row="0"
+                           Title="Rename image"
+                           TitleBarPointerPressed="OnTitleBarPointerPressed"
+                           CloseRequested="OnTitleBarCloseRequested" />
+
+    <Border Grid.Row="1" Classes="sectionSurface" Margin="12" Padding="14" BorderThickness="1">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Text="Rename image file" FontSize="{DynamicResource AppFontSizeLarge}" FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1"
+                   Classes="metaText"
+                   Margin="0,8,0,8"
+                   Text="Use a file name only. Leave the extension empty to keep the current one." />
+        <TextBox x:Name="FileNameTextBox"
+                 Grid.Row="2"
+                 VerticalContentAlignment="Center" />
+        <StackPanel Grid.Row="3"
+                    Margin="0,14,0,0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8">
+          <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" />
+          <Button x:Name="RenameButton" Content="Rename" Click="OnRenameClick" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>
