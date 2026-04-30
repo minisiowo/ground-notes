@@ -102,7 +102,7 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         }
 
         var scaledSize = ComputeScaledSize(bitmap, previewLine.Value.Image.ScalePercent, _availableWidth);
-        var preview = new MarkdownImagePreview(previewLine.Value.Image, bitmap, scaledSize.Width, scaledSize.Height);
+        var preview = new MarkdownImagePreview(previewLine.Value.Image, previewLine.Value.ResolvedPath, bitmap, scaledSize.Width, scaledSize.Height);
         _previewRenderCache[line.LineNumber] = new PreviewRenderCacheEntry(lineText, _baseDirectoryPath, _availableWidth, preview, fileStamp);
         return preview;
     }
@@ -321,4 +321,4 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
     }
 }
 
-internal readonly record struct MarkdownImagePreview(MarkdownImageMatch Image, Bitmap Bitmap, double Width, double Height);
+internal readonly record struct MarkdownImagePreview(MarkdownImageMatch Image, string ResolvedPath, Bitmap Bitmap, double Width, double Height);

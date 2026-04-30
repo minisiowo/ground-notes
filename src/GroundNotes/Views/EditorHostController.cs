@@ -1,3 +1,4 @@
+using Avalonia;
 using AvaloniaEdit;
 using GroundNotes.Editors;
 using GroundNotes.Models;
@@ -34,6 +35,8 @@ internal sealed class EditorHostController : IDisposable
     public void RefreshTypographyResources() => _themeController.RefreshTypographyResources();
 
     public void ForceRefreshTypographyResources() => _themeController.ForceRefreshTypographyResources();
+
+    public MarkdownImagePreviewHitTestResult? TryHitTestImagePreview(Point point) => _themeController.TryHitTestImagePreview(point);
 
     public void SetBaseDirectoryPath(string? baseDirectoryPath) => _themeController.SetBaseDirectoryPath(baseDirectoryPath);
 

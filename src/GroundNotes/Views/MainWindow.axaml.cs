@@ -3001,16 +3001,44 @@ public partial class MainWindow : Window
             return;
         }
 
+        EditorHostController? host = null;
+        var textEditor = sender as TextEditor;
         if (sender is StyledElement { DataContext: EditorPaneViewModel pane })
         {
             SetSecondaryPaneActive(pane);
+            _secondaryEditorHosts.TryGetValue(pane.Id, out host);
         }
         else
         {
             ActivatePrimaryPane();
+            host = _editorHost;
+        }
+
+        if (textEditor is not null
+            && host is not null
+            && TryOpenImageViewerFromEditorClick(textEditor, host, e))
+        {
+            e.Handled = true;
+            return;
         }
 
         _slashCommandPopup.ScheduleRefresh(DispatcherPriority.Input);
+    }
+
+    private bool TryOpenImageViewerFromEditorClick(TextEditor editor, EditorHostController host, PointerPressedEventArgs e)
+    {
+        var hit = host.TryHitTestImagePreview(e.GetPosition(editor.TextArea.TextView));
+        if (hit is null)
+        {
+            return false;
+        }
+
+        return OpenImageViewer(hit.Value.ResolvedPath);
+    }
+
+    private bool OpenImageViewer(string imagePath)
+    {
+        return ImageViewerWindow.TryOpen(this, imagePath);
     }
 
     private void OnEditorLayoutSettingsChanged(object? sender, EditorLayoutSettings settings)

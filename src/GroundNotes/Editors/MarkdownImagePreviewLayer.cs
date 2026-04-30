@@ -84,6 +84,8 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
             }
 
             _renderedPreviews[lineNumber] = new RenderedPreview(
+                lineNumber,
+                preview.Value.ResolvedPath,
                 preview.Value.Bitmap,
                 preview.Value.Width,
                 preview.Value.Height,
@@ -118,6 +120,22 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
             context.DrawImage(renderedPreview.Bitmap, new Rect(renderedPreview.Bitmap.Size), renderedPreview.Bounds);
             MarkdownDiagnostics.RecordPreviewLayerDrawnPreview();
         }
+    }
+
+    public MarkdownImagePreviewHitTestResult? TryHitTestPreview(Point point)
+    {
+        foreach (var renderedPreview in _renderedPreviews.Values.OrderByDescending(preview => preview.LineNumber))
+        {
+            if (renderedPreview.Bounds.Contains(point))
+            {
+                return new MarkdownImagePreviewHitTestResult(
+                    renderedPreview.ResolvedPath,
+                    renderedPreview.Bounds,
+                    renderedPreview.LineNumber);
+            }
+        }
+
+        return null;
     }
 
     public void InvalidateRefreshState(bool clearRenderedLineStates = true)
@@ -273,7 +291,7 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
         }
     }
 
-    private readonly record struct RenderedPreview(Avalonia.Media.Imaging.Bitmap Bitmap, double Width, double Height, Rect Bounds);
+    private readonly record struct RenderedPreview(int LineNumber, string ResolvedPath, Avalonia.Media.Imaging.Bitmap Bitmap, double Width, double Height, Rect Bounds);
 
     private readonly record struct VisibleLineSnapshot(int LineNumber, int DocumentLineLength, string LineText, double VisualTop, double Height, int TextLineCount)
     {
@@ -295,3 +313,5 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
 
     private readonly record struct RenderedLineState(VisibleLineSnapshot LineSnapshot, bool HasPreview);
 }
+
+internal readonly record struct MarkdownImagePreviewHitTestResult(string ResolvedPath, Rect Bounds, int LineNumber);

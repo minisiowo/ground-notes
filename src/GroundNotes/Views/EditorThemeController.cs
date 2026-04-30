@@ -93,6 +93,13 @@ internal sealed class EditorThemeController : IDisposable
         RefreshTypographyResources(CaptureAppearanceSignature());
     }
 
+    public MarkdownImagePreviewHitTestResult? TryHitTestImagePreview(Point point)
+    {
+        return _markdownFormattingEnabled
+            ? _imagePreviewLayer.TryHitTestPreview(point)
+            : null;
+    }
+
     public void RefreshAfterDocumentReplace()
     {
         _imagePreviewLayer.ClearRenderedState();

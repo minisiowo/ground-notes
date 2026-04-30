@@ -124,6 +124,101 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
     }
 
     [Fact]
+    public void TryHitTestPreview_ReturnsPreviewForPointInsideRenderedBounds()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+
+        var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
+        var relativeImagePath = Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/');
+        var document = new TextDocument($"![]({relativeImagePath})|100");
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(_tempDirectory);
+        previewProvider.SetAvailableWidth(240);
+
+        var textView = new TextView
+        {
+            Document = document,
+            Width = 240,
+            Height = 200
+        };
+        textView.LineTransformers.Add(new MarkdownImageVisualLineTransformer(previewProvider));
+        textView.LineTransformers.Add(colorizer);
+
+        var window = new Window
+        {
+            Width = textView.Width,
+            Height = textView.Height,
+            Content = textView
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        ApplyTextViewLayout(textView, textView.Width, textView.Height);
+
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        previewLayer.Refresh();
+        var bounds = GetRenderedPreviewBounds(previewLayer, 1);
+
+        var hit = previewLayer.TryHitTestPreview(bounds.Center);
+
+        Assert.NotNull(hit);
+        Assert.Equal(imagePath, hit.Value.ResolvedPath);
+        Assert.Equal(1, hit.Value.LineNumber);
+        Assert.Equal(bounds, hit.Value.Bounds);
+    }
+
+    [Fact]
+    public void TryHitTestPreview_ReturnsNullOutsideRenderedBoundsAndAfterClear()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+
+        var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
+        var relativeImagePath = Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/');
+        var document = new TextDocument($"![]({relativeImagePath})|100");
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(_tempDirectory);
+        previewProvider.SetAvailableWidth(240);
+
+        var textView = new TextView
+        {
+            Document = document,
+            Width = 240,
+            Height = 200
+        };
+        textView.LineTransformers.Add(new MarkdownImageVisualLineTransformer(previewProvider));
+        textView.LineTransformers.Add(colorizer);
+
+        var window = new Window
+        {
+            Width = textView.Width,
+            Height = textView.Height,
+            Content = textView
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        ApplyTextViewLayout(textView, textView.Width, textView.Height);
+
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        previewLayer.Refresh();
+        var bounds = GetRenderedPreviewBounds(previewLayer, 1);
+
+        Assert.Null(previewLayer.TryHitTestPreview(new Point(bounds.Right + 1, bounds.Bottom + 1)));
+
+        previewLayer.ClearRenderedState();
+
+        Assert.Null(previewLayer.TryHitTestPreview(bounds.Center));
+    }
+
+    [Fact]
     public void Refresh_DoesNotReuseRenderedPreviewWhenLineTextChanges()
     {
         EnsureApplication();
