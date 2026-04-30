@@ -1507,6 +1507,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         if (!string.IsNullOrWhiteSpace(settings.NotesFolder))
         {
+            StatusMessage = "Loading notes...";
             await SetFolderAsync(settings.NotesFolder, focusEditorWhenReady: true);
         }
     }

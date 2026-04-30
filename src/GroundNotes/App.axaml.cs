@@ -87,6 +87,7 @@ public partial class App : Application
 
         try
         {
+            await mainWindow.CompleteStartupInitializationAsync();
             await mainViewModel.InitializeAsync();
         }
         catch (Exception ex)
@@ -96,7 +97,8 @@ public partial class App : Application
                 vm.StatusMessage = $"Startup failed: {ex.Message}";
             }
         }
-        finally
+
+        if (mainWindow.Opacity == 0)
         {
             await mainWindow.CompleteStartupInitializationAsync();
         }

@@ -48,7 +48,11 @@ internal sealed class EditorHostController : IDisposable
         _listController.SetMarkdownFormattingEnabled(markdownFormattingEnabled);
     }
 
-    internal void RefreshLayoutAfterDocumentReplace() => _layoutController.RefreshLayout();
+    internal void RefreshLayoutAfterDocumentReplace()
+    {
+        _themeController.RefreshAfterDocumentReplace();
+        _layoutController.RefreshLayout();
+    }
 
     public bool SyncFromViewModel(string? text, bool appendSuffixWhenPossible, out bool appendedOnly)
         => _textSyncController.SyncFromViewModel(text, appendSuffixWhenPossible, out appendedOnly);

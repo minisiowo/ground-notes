@@ -721,10 +721,11 @@
                                PlacementMode="AnchorAndGravity"
                                TakesFocusFromNativeControl="False">
                           <Border x:Name="SlashCommandPopupContent"
-                                  Classes="sectionSurface"
+                                  Classes="sectionSurface toolPopupSurface"
                                   Focusable="False"
                                   Padding="6"
                                   BorderThickness="1"
+                                  CornerRadius="0"
                                   BoxShadow="0 4 12 0 #40000000"
                                   ClipToBounds="True">
                             <Border.Transitions>

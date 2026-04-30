@@ -129,6 +129,14 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
         }
     }
 
+    public void ClearRenderedState()
+    {
+        _lastRefreshSnapshot = null;
+        _renderedLineStates.Clear();
+        _renderedPreviews.Clear();
+        InvalidateVisual();
+    }
+
     public void RequestRefresh()
     {
         MarkdownDiagnostics.RecordPreviewLayerRefreshRequest();
@@ -172,18 +180,11 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
 
     private void OnVisualLinesChanged(object? sender, EventArgs e) => RequestRefresh();
 
-    private void ClearRenderedState()
-    {
-        _lastRefreshSnapshot = null;
-        _renderedLineStates.Clear();
-        _renderedPreviews.Clear();
-        InvalidateVisual();
-    }
-
     private VisibleLineSnapshot CreateVisibleLineSnapshot(VisualLine visualLine)
         => new(
             visualLine.FirstDocumentLine.LineNumber,
             visualLine.FirstDocumentLine.Length,
+            _textView.Document.GetText(visualLine.FirstDocumentLine.Offset, visualLine.FirstDocumentLine.Length),
             visualLine.VisualTop,
             visualLine.Height,
             visualLine.TextLines.Count);
@@ -208,6 +209,7 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
             visibleLines.Add(new VisibleLineSnapshot(
                 visualLine.FirstDocumentLine.LineNumber,
                 visualLine.FirstDocumentLine.Length,
+                _textView.Document.GetText(visualLine.FirstDocumentLine.Offset, visualLine.FirstDocumentLine.Length),
                 visualLine.VisualTop,
                 visualLine.Height,
                 visualLine.TextLines.Count));
@@ -273,7 +275,7 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
 
     private readonly record struct RenderedPreview(Avalonia.Media.Imaging.Bitmap Bitmap, double Width, double Height, Rect Bounds);
 
-    private readonly record struct VisibleLineSnapshot(int LineNumber, int DocumentLineLength, double VisualTop, double Height, int TextLineCount)
+    private readonly record struct VisibleLineSnapshot(int LineNumber, int DocumentLineLength, string LineText, double VisualTop, double Height, int TextLineCount)
     {
         private const double Tolerance = 0.01;
 
@@ -281,13 +283,14 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
         {
             return LineNumber == other.LineNumber
                 && DocumentLineLength == other.DocumentLineLength
+                && string.Equals(LineText, other.LineText, StringComparison.Ordinal)
                 && Math.Abs(VisualTop - other.VisualTop) <= Tolerance
                 && Math.Abs(Height - other.Height) <= Tolerance
                 && TextLineCount == other.TextLineCount;
         }
 
         public override int GetHashCode()
-            => HashCode.Combine(LineNumber, DocumentLineLength, Math.Round(VisualTop, 2), Math.Round(Height, 2), TextLineCount);
+            => HashCode.Combine(LineNumber, DocumentLineLength, LineText, Math.Round(VisualTop, 2), Math.Round(Height, 2), TextLineCount);
     }
 
     private readonly record struct RenderedLineState(VisibleLineSnapshot LineSnapshot, bool HasPreview);

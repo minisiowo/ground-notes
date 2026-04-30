@@ -93,6 +93,15 @@ internal sealed class EditorThemeController : IDisposable
         RefreshTypographyResources(CaptureAppearanceSignature());
     }
 
+    public void RefreshAfterDocumentReplace()
+    {
+        _imagePreviewLayer.ClearRenderedState();
+        if (_markdownFormattingEnabled)
+        {
+            _imagePreviewLayer.RequestRefresh();
+        }
+    }
+
     public void SetBaseDirectoryPath(string? baseDirectoryPath)
     {
         _imagePreviewProvider.SetBaseDirectoryPath(baseDirectoryPath);
@@ -200,11 +209,12 @@ internal sealed class EditorThemeController : IDisposable
     {
         var textView = _editor.TextArea.TextView;
         textView.VisualLineIndentationProvider = null;
+        _imagePreviewLayer.ClearRenderedState();
         textView.Layers.Remove(_imagePreviewLayer);
         textView.LineTransformers.Remove(_imageVisualLineTransformer);
         textView.LineTransformers.Remove(_colorizer);
         textView.BackgroundRenderers.Remove(_codeBlockRenderer);
-        _imagePreviewLayer.InvalidateRefreshState();
+        textView.InvalidateVisual();
     }
 
     private void RefreshPresentation()

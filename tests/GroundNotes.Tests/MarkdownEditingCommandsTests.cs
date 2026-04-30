@@ -402,6 +402,14 @@ public sealed class MarkdownEditingCommandsTests
     }
 
     [Fact]
+    public void ShouldSuppressBackspaceInListPrefix_AtStartOfEmptyFirstLineDoesNotThrow()
+    {
+        var text = "\n- item";
+
+        Assert.False(MarkdownListEditingCommands.ShouldSuppressBackspaceInListPrefix(text, 0, 0));
+    }
+
+    [Fact]
     public void TryBackspaceListIndentation_OnEmptyNestedListItemRemovesWholeMarkerWithoutJumping()
     {
         var text = "  - ";

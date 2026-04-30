@@ -59,6 +59,7 @@ public partial class MainWindow : Window
     private double _multiPaneResizeDistributableWidth;
     private int _multiPaneResizeDirection = 1;
     private bool _isResizingSharedPaneWidth;
+    private bool _isSidebarLayoutRefreshQueued;
 
     public MainWindow()
     {
@@ -460,6 +461,7 @@ public partial class MainWindow : Window
         newWidth = Math.Min(maxWidth, newWidth);
 
         SidebarCol.Width = new GridLength(newWidth, GridUnitType.Pixel);
+        ScheduleSidebarLayoutRefresh();
         e.Handled = true;
     }
 
@@ -469,6 +471,7 @@ public partial class MainWindow : Window
             return;
 
         _isResizingSidebar = false;
+        ScheduleSidebarLayoutRefresh();
         EndResizeHandleInteraction(sender, e);
     }
 
@@ -779,7 +782,7 @@ public partial class MainWindow : Window
         {
             _paneSplitWeights.Clear();
             _multiPaneEqualizedPaneWidth = null;
-            PrimaryPaneRoot.Width = viewportWidth;
+            PrimaryPaneRoot.Width = GetSinglePaneFitWidth(viewportWidth);
             foreach (var paneRoot in _secondaryPaneRoots.Values)
             {
                 paneRoot.Width = double.NaN;
@@ -812,6 +815,11 @@ public partial class MainWindow : Window
                 paneRoot.Width = paneWidths[index + 1];
             }
         }
+    }
+
+    private static double GetSinglePaneFitWidth(double viewportWidth)
+    {
+        return Math.Max(0, Math.Floor(viewportWidth - EqualFitSafetyGap));
     }
 
     private double GetTwoPaneDistributableWidth(double viewportWidth)
@@ -1639,10 +1647,17 @@ public partial class MainWindow : Window
 
     private void ScheduleSidebarLayoutRefresh()
     {
+        if (_isSidebarLayoutRefreshQueued)
+        {
+            return;
+        }
+
+        _isSidebarLayoutRefreshQueued = true;
         Dispatcher.UIThread.Post(() =>
         {
             Dispatcher.UIThread.Post(() =>
             {
+                _isSidebarLayoutRefreshQueued = false;
                 UpdateWorkspaceHostMargin();
                 UpdateWorkspacePresentation();
                 UpdateEditorCanvasWidth();

@@ -221,7 +221,9 @@ internal static class MarkdownListEditingCommands
     private static (int Start, int End) GetLineBounds(string text, int offset)
     {
         var clampedOffset = Clamp(offset, 0, text.Length);
-        var lineStart = text.LastIndexOf('\n', Math.Max(clampedOffset - 1, 0));
+        var lineStart = clampedOffset == 0
+            ? -1
+            : text.LastIndexOf('\n', clampedOffset - 1);
         lineStart = lineStart < 0 ? 0 : lineStart + 1;
 
         var lineEnd = clampedOffset < text.Length ? text.IndexOf('\n', clampedOffset) : -1;
@@ -235,7 +237,9 @@ internal static class MarkdownListEditingCommands
 
     private static (int Start, int End) GetBlockBounds(string text, int start, int end)
     {
-        var blockStart = text.LastIndexOf('\n', Math.Max(start - 1, 0));
+        var blockStart = start == 0
+            ? -1
+            : text.LastIndexOf('\n', Math.Max(start - 1, 0));
         blockStart = blockStart < 0 ? 0 : blockStart + 1;
 
         var blockEnd = end < text.Length ? text.IndexOf('\n', end) : -1;
