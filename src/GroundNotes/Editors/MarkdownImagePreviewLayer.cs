@@ -9,10 +9,11 @@ namespace GroundNotes.Editors;
 internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
 {
     private const double VerticalSpacing = 6;
+    private const double ColumnGap = 12;
 
     private readonly TextView _textView;
     private readonly MarkdownImagePreviewProvider _previewProvider;
-    private readonly Dictionary<int, RenderedPreview> _renderedPreviews = [];
+    private readonly Dictionary<int, IReadOnlyList<RenderedPreview>> _renderedPreviews = [];
     private readonly Dictionary<int, RenderedLineState> _renderedLineStates = [];
     private bool _isDisposed;
     private bool _isRefreshQueued;
@@ -64,36 +65,23 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
             {
                 MarkdownDiagnostics.RecordPreviewLayerLineStateReuse();
                 if (renderedLineState.HasPreview
-                    && _renderedPreviews.TryGetValue(lineNumber, out var renderedPreview))
+                    && _renderedPreviews.TryGetValue(lineNumber, out var renderedPreviewList))
                 {
-                    _renderedPreviews[lineNumber] = renderedPreview with
-                    {
-                        Bounds = GetPreviewRect(visualLine, renderedPreview.Width, renderedPreview.Height)
-                    };
+                    _renderedPreviews[lineNumber] = RebuildPreviewRects(visualLine, renderedPreviewList);
                 }
 
                 continue;
             }
 
-            var preview = _previewProvider.GetPreview(_textView.Document, visualLine.FirstDocumentLine);
-            if (preview is null || visualLine.TextLines.Count == 0)
+            var previews = _previewProvider.GetPreview(_textView.Document, visualLine.FirstDocumentLine);
+            if (previews.Count == 0 || visualLine.TextLines.Count == 0)
             {
                 _renderedPreviews.Remove(lineNumber);
                 _renderedLineStates[lineNumber] = new RenderedLineState(lineState, false);
                 continue;
             }
 
-            _renderedPreviews[lineNumber] = new RenderedPreview(
-                lineNumber,
-                preview.Value.ResolvedPath,
-                visualLine.FirstDocumentLine.Offset + preview.Value.Image.FullSpan.Start,
-                preview.Value.Image.FullSpan.Length,
-                visualLine.FirstDocumentLine.Offset + preview.Value.Image.Url.Start,
-                preview.Value.Image.Url.Length,
-                preview.Value.Bitmap,
-                preview.Value.Width,
-                preview.Value.Height,
-                GetPreviewRect(visualLine, preview.Value.Width, preview.Value.Height));
+            _renderedPreviews[lineNumber] = BuildRenderedPreviews(visualLine, previews);
             _renderedLineStates[lineNumber] = new RenderedLineState(lineState, true);
         }
 
@@ -119,27 +107,33 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
         }
 
         using var _ = context.PushClip(new Rect(Bounds.Size));
-        foreach (var renderedPreview in _renderedPreviews.Values)
+        foreach (var previewList in _renderedPreviews.Values)
         {
-            context.DrawImage(renderedPreview.Bitmap, new Rect(renderedPreview.Bitmap.Size), renderedPreview.Bounds);
-            MarkdownDiagnostics.RecordPreviewLayerDrawnPreview();
+            foreach (var renderedPreview in previewList)
+            {
+                context.DrawImage(renderedPreview.Bitmap, new Rect(renderedPreview.Bitmap.Size), renderedPreview.Bounds);
+                MarkdownDiagnostics.RecordPreviewLayerDrawnPreview();
+            }
         }
     }
 
     public MarkdownImagePreviewHitTestResult? TryHitTestPreview(Point point)
     {
-        foreach (var renderedPreview in _renderedPreviews.Values.OrderByDescending(preview => preview.LineNumber))
+        foreach (var previewList in _renderedPreviews.Values.OrderByDescending(list => list[0].LineNumber))
         {
-            if (renderedPreview.Bounds.Contains(point))
+            foreach (var renderedPreview in previewList)
             {
-                return new MarkdownImagePreviewHitTestResult(
-                    renderedPreview.ResolvedPath,
-                    renderedPreview.Bounds,
-                    renderedPreview.LineNumber,
-                    renderedPreview.ReferenceStart,
-                    renderedPreview.ReferenceLength,
-                    renderedPreview.UrlStart,
-                    renderedPreview.UrlLength);
+                if (renderedPreview.Bounds.Contains(point))
+                {
+                    return new MarkdownImagePreviewHitTestResult(
+                        renderedPreview.ResolvedPath,
+                        renderedPreview.Bounds,
+                        renderedPreview.LineNumber,
+                        renderedPreview.ReferenceStart,
+                        renderedPreview.ReferenceLength,
+                        renderedPreview.UrlStart,
+                        renderedPreview.UrlLength);
+                }
             }
         }
 
@@ -215,16 +209,61 @@ internal sealed class MarkdownImagePreviewLayer : Control, IDisposable
             visualLine.Height,
             visualLine.TextLines.Count);
 
-    private Rect GetPreviewRect(VisualLine visualLine, double width, double height)
+    private Rect GetPreviewRect(VisualLine visualLine, double width, double height, double xOffset)
     {
         var lineStart = visualLine.GetVisualPosition(0, VisualYPosition.LineTop);
         var lastTextLine = visualLine.TextLines[visualLine.TextLines.Count - 1];
         var textBottom = visualLine.GetTextLineVisualYPosition(lastTextLine, VisualYPosition.LineBottom);
         return new Rect(
-            lineStart.X - _textView.ScrollOffset.X,
+            lineStart.X - _textView.ScrollOffset.X + xOffset,
             textBottom - _textView.ScrollOffset.Y + VerticalSpacing,
             width,
             height);
+    }
+
+    private IReadOnlyList<RenderedPreview> BuildRenderedPreviews(VisualLine visualLine, IReadOnlyList<MarkdownImagePreview> previews)
+    {
+        var lineNumber = visualLine.FirstDocumentLine.LineNumber;
+        var lineOffset = visualLine.FirstDocumentLine.Offset;
+        var result = new List<RenderedPreview>();
+        double xOffset = 0;
+
+        foreach (var preview in previews)
+        {
+            result.Add(new RenderedPreview(
+                lineNumber,
+                preview.ResolvedPath,
+                lineOffset + preview.Image.FullSpan.Start,
+                preview.Image.FullSpan.Length,
+                lineOffset + preview.Image.Url.Start,
+                preview.Image.Url.Length,
+                preview.Bitmap,
+                preview.Width,
+                preview.Height,
+                GetPreviewRect(visualLine, preview.Width, preview.Height, xOffset)));
+
+            xOffset += preview.Width + ColumnGap;
+        }
+
+        return result;
+    }
+
+    private IReadOnlyList<RenderedPreview> RebuildPreviewRects(VisualLine visualLine, IReadOnlyList<RenderedPreview> existing)
+    {
+        var result = new List<RenderedPreview>();
+        double xOffset = 0;
+
+        foreach (var preview in existing)
+        {
+            result.Add(preview with
+            {
+                Bounds = GetPreviewRect(visualLine, preview.Width, preview.Height, xOffset)
+            });
+
+            xOffset += preview.Width + ColumnGap;
+        }
+
+        return result;
     }
 
     private RefreshSnapshot CreateRefreshSnapshot()

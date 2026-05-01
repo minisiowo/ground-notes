@@ -14,10 +14,10 @@ public sealed class NoteMutationService : INoteMutationService
 
     public event EventHandler<NoteMutationEventArgs>? NoteMutated;
 
-    public async Task<NoteDocument> SaveAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default)
+    public async Task<NoteDocument> SaveAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default, bool preserveTimestamp = false)
     {
         var previousPath = document.FilePath;
-        var saved = await _notesRepository.SaveNoteAsync(folderPath, document, cancellationToken);
+        var saved = await _notesRepository.SaveNoteAsync(folderPath, document, cancellationToken, preserveTimestamp);
         NoteMutated?.Invoke(this, new NoteMutationEventArgs(NoteMutationKind.Saved, previousPath, saved, s_currentOriginId.Value));
         return saved;
     }

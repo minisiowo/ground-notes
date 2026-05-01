@@ -233,4 +233,76 @@ public sealed class MarkdownLineParserTests
         Assert.NotSame(line5Before, line5After);
         Assert.True(line5After.IsFencedCodeLine);
     }
+
+    [Fact]
+    public void Analyze_DetectsColumnLayoutWithTwoImages()
+    {
+        const string line = "![](assets/a.png)|40||![](assets/b.png)|40";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.True(analysis.IsColumnLayout);
+        Assert.Equal(2, analysis.ColumnImages.Count);
+        Assert.Equal("assets/a.png", line[analysis.ColumnImages[0].Url.Start..analysis.ColumnImages[0].Url.End]);
+        Assert.Equal("assets/b.png", line[analysis.ColumnImages[1].Url.Start..analysis.ColumnImages[1].Url.End]);
+        Assert.Equal(40, analysis.ColumnImages[0].ScalePercent);
+        Assert.Equal(40, analysis.ColumnImages[1].ScalePercent);
+    }
+
+    [Fact]
+    public void Analyze_DetectsColumnLayoutWithSpacesAroundSeparator()
+    {
+        const string line = "![](assets/a.png)|40 || ![](assets/b.png)|40";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.True(analysis.IsColumnLayout);
+        Assert.Equal(2, analysis.ColumnImages.Count);
+    }
+
+    [Fact]
+    public void Analyze_DetectsColumnLayoutWithThreeImages()
+    {
+        const string line = "![](assets/a.png)|40||![](assets/b.png)|40||![](assets/c.png)|40";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.True(analysis.IsColumnLayout);
+        Assert.Equal(3, analysis.ColumnImages.Count);
+    }
+
+    [Fact]
+    public void Analyze_RejectsColumnLayoutWithTrailingText()
+    {
+        const string line = "![](assets/a.png)|40||![](assets/b.png)|40 text";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.False(analysis.IsColumnLayout);
+        Assert.Empty(analysis.ColumnImages);
+        Assert.Equal(2, analysis.Images.Count);
+    }
+
+    [Fact]
+    public void Analyze_SingleImageIsNotColumnLayout()
+    {
+        const string line = "![](assets/a.png)|40";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.False(analysis.IsColumnLayout);
+        Assert.Empty(analysis.ColumnImages);
+        Assert.Single(analysis.Images);
+    }
+
+    [Fact]
+    public void Analyze_ColumnLayoutRequiresAtLeastTwoImages()
+    {
+        const string line = "![](assets/a.png)|40||";
+
+        var analysis = MarkdownLineParser.Analyze(line, MarkdownFenceState.None);
+
+        Assert.False(analysis.IsColumnLayout);
+        Assert.Empty(analysis.ColumnImages);
+    }
 }

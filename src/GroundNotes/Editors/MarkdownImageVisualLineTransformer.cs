@@ -15,12 +15,21 @@ internal sealed class MarkdownImageVisualLineTransformer : IVisualLineTransforme
 
     public void Transform(ITextRunConstructionContext context, IList<VisualLineElement> elements)
     {
-        var preview = _previewProvider.GetPreview(context.Document, context.VisualLine.FirstDocumentLine);
-        if (preview is null)
+        var previews = _previewProvider.GetPreview(context.Document, context.VisualLine.FirstDocumentLine);
+        if (previews.Count == 0)
         {
             return;
         }
 
-        context.VisualLine.SetAdditionalVisualHeight(preview.Value.Height + VerticalSpacing * 2);
+        var maxHeight = 0.0;
+        foreach (var preview in previews)
+        {
+            if (preview.Height > maxHeight)
+            {
+                maxHeight = preview.Height;
+            }
+        }
+
+        context.VisualLine.SetAdditionalVisualHeight(maxHeight + VerticalSpacing * 2);
     }
 }

@@ -30,10 +30,10 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         var secondPreview = provider.GetPreview(document, document.GetLineByNumber(1));
         var diagnostics = MarkdownDiagnostics.Snapshot();
 
-        Assert.NotNull(firstPreview);
-        Assert.NotNull(secondPreview);
-        Assert.Equal(8, firstPreview.Value.Width);
-        Assert.Equal(8, secondPreview.Value.Width);
+        Assert.Single(firstPreview);
+        Assert.Single(secondPreview);
+        Assert.Equal(8, firstPreview[0].Width);
+        Assert.Equal(8, secondPreview[0].Width);
         Assert.Equal(2, diagnostics.ImagePreviewRequests);
         Assert.Equal(1, diagnostics.ImagePreviewCacheHits);
         Assert.Equal(1, diagnostics.ImagePreviewCacheMisses);
@@ -61,10 +61,10 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         var widePreview = provider.GetPreview(document, document.GetLineByNumber(1));
         var diagnostics = MarkdownDiagnostics.Snapshot();
 
-        Assert.NotNull(narrowPreview);
-        Assert.NotNull(widePreview);
-        Assert.Equal(1, narrowPreview.Value.Width);
-        Assert.Equal(8, widePreview.Value.Width);
+        Assert.Single(narrowPreview);
+        Assert.Single(widePreview);
+        Assert.Equal(1, narrowPreview[0].Width);
+        Assert.Equal(8, widePreview[0].Width);
         Assert.Equal(1, diagnostics.ImagePreviewCacheHits);
         Assert.Equal(1, diagnostics.ImagePreviewCacheMisses);
         Assert.Equal(0, diagnostics.ImagePreviewRenderCacheHits);
@@ -84,7 +84,7 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
 
         var preview = provider.GetPreview(document, document.GetLineByNumber(3));
 
-        Assert.Null(preview);
+        Assert.Empty(preview);
     }
 
     [Fact]
@@ -107,10 +107,10 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         var secondPreview = provider.GetPreview(document, document.GetLineByNumber(1));
         var diagnostics = MarkdownDiagnostics.Snapshot();
 
-        Assert.NotNull(firstPreview);
-        Assert.NotNull(secondPreview);
-        Assert.Equal(2, firstPreview.Value.Width);
-        Assert.Equal(4, secondPreview.Value.Width);
+        Assert.Single(firstPreview);
+        Assert.Single(secondPreview);
+        Assert.Equal(2, firstPreview[0].Width);
+        Assert.Equal(4, secondPreview[0].Width);
         Assert.Equal(1, diagnostics.ImagePreviewCacheHits);
         Assert.Equal(1, diagnostics.ImagePreviewCacheMisses);
         Assert.Equal(0, diagnostics.ImagePreviewRenderCacheHits);
@@ -290,6 +290,74 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         destination[1] = (byte)((value >> 16) & 0xFF);
         destination[2] = (byte)((value >> 8) & 0xFF);
         destination[3] = (byte)(value & 0xFF);
+    }
+
+    [Fact]
+    public void GetPreview_ReturnsColumnLayoutWithTwoImages()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 1000, 1);
+        var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 1000, 1);
+        var relA = Path.GetRelativePath(_tempDirectory, imagePathA).Replace('\\', '/');
+        var relB = Path.GetRelativePath(_tempDirectory, imagePathB).Replace('\\', '/');
+        var document = new TextDocument($"![]({relA})|100||![]({relB})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(240);
+
+        var preview = provider.GetPreview(document, document.GetLineByNumber(1));
+
+        Assert.Equal(2, preview.Count);
+        Assert.True(preview[0].Width > 0);
+        Assert.True(preview[0].Width <= 102);
+        Assert.True(preview[1].Width > 0);
+        Assert.True(preview[1].Width <= 102);
+    }
+
+    [Fact]
+    public void GetPreview_ColumnLayoutSkipsBrokenImage()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePath = CreateImageAsset(_tempDirectory, "valid.png", 1000, 1);
+        var relValid = Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/');
+        var document = new TextDocument($"![]({relValid})|100||![](missing.png)|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(240);
+
+        var preview = provider.GetPreview(document, document.GetLineByNumber(1));
+
+        Assert.Single(preview);
+        Assert.Equal(imagePath, preview[0].ResolvedPath);
+    }
+
+    [Fact]
+    public void GetPreview_ColumnLayoutRecomputesWhenWidthChanges()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 1000, 1);
+        var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 1000, 1);
+        var relA = Path.GetRelativePath(_tempDirectory, imagePathA).Replace('\\', '/');
+        var relB = Path.GetRelativePath(_tempDirectory, imagePathB).Replace('\\', '/');
+        var document = new TextDocument($"![]({relA})|100||![]({relB})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(240);
+
+        var widePreview = provider.GetPreview(document, document.GetLineByNumber(1));
+        provider.SetAvailableWidth(120);
+        var narrowPreview = provider.GetPreview(document, document.GetLineByNumber(1));
+
+        Assert.Equal(2, widePreview.Count);
+        Assert.Equal(2, narrowPreview.Count);
+        Assert.True(narrowPreview[0].Width < widePreview[0].Width);
+        Assert.True(narrowPreview[1].Width < widePreview[1].Width);
     }
 
     private static void EnsureApplication()

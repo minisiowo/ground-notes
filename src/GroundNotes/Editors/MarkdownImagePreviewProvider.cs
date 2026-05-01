@@ -10,6 +10,7 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
 {
     private const double HorizontalPadding = 24;
     private const double MaxRenderWidth = 960;
+    private const double ColumnGap = 12;
     private const int DefaultMaxBitmapCacheEntries = 32;
 
     private readonly MarkdownColorizingTransformer _colorizer;
@@ -70,14 +71,15 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
 
         foreach (var pair in _previewRenderCache.ToArray())
         {
-            if (string.Equals(pair.Value.Preview?.ResolvedPath, fullPath, StringComparison.OrdinalIgnoreCase))
+            var previews = pair.Value.Previews;
+            if (previews is not null && previews.Any(p => string.Equals(p.ResolvedPath, fullPath, StringComparison.OrdinalIgnoreCase)))
             {
                 _previewRenderCache.Remove(pair.Key);
             }
         }
     }
 
-    public MarkdownImagePreview? GetPreview(TextDocument document, DocumentLine line)
+    public IReadOnlyList<MarkdownImagePreview> GetPreview(TextDocument document, DocumentLine line)
     {
         MarkdownDiagnostics.RecordImagePreviewRequest();
         Attach(document);
@@ -86,47 +88,68 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         {
             _previewLineCache.Remove(line.LineNumber);
             _previewRenderCache.Remove(line.LineNumber);
-            return null;
+            return [];
         }
 
-        var previewLine = GetPreviewLine(document, line);
+        var previewLines = GetPreviewLines(document, line);
         var lineText = document.GetText(line.Offset, line.Length);
         if (_previewRenderCache.TryGetValue(line.LineNumber, out var cachedPreview)
             && string.Equals(cachedPreview.LineText, lineText, StringComparison.Ordinal)
             && string.Equals(cachedPreview.BaseDirectoryPath, _baseDirectoryPath, StringComparison.Ordinal)
             && Math.Abs(cachedPreview.AvailableWidth - _availableWidth) < double.Epsilon
-            && HasMatchingFileStamp(previewLine?.ResolvedPath, cachedPreview.FileStamp))
+            && HasMatchingFileStamps(previewLines, cachedPreview.FileStamps))
         {
             MarkdownDiagnostics.RecordImagePreviewRenderCacheHit();
-            return cachedPreview.Preview;
+            return cachedPreview.Previews ?? [];
         }
 
         MarkdownDiagnostics.RecordImagePreviewRenderCacheMiss();
 
-        if (previewLine is null)
+        if (previewLines is null || previewLines.Count == 0)
         {
             _previewRenderCache[line.LineNumber] = new PreviewRenderCacheEntry(lineText, _baseDirectoryPath, _availableWidth, null, null);
-            return null;
+            return [];
         }
 
-        var fileStamp = TryGetFileStamp(previewLine.Value.ResolvedPath);
-        if (fileStamp is null)
+        var previews = new List<MarkdownImagePreview>();
+        var fileStamps = new List<FileStamp>();
+        double maxWidthPerImage;
+        if (previewLines.Count == 1)
+        {
+            maxWidthPerImage = Math.Max(1, Math.Min(MaxRenderWidth, _availableWidth - HorizontalPadding));
+        }
+        else
+        {
+            maxWidthPerImage = Math.Max(1, Math.Min(MaxRenderWidth, (_availableWidth - HorizontalPadding - (previewLines.Count - 1) * ColumnGap) / previewLines.Count));
+        }
+
+        foreach (var previewLine in previewLines)
+        {
+            var fileStamp = TryGetFileStamp(previewLine.ResolvedPath);
+            if (fileStamp is null)
+            {
+                continue;
+            }
+
+            var bitmap = TryGetBitmap(previewLine.ResolvedPath, fileStamp.Value);
+            if (bitmap is null)
+            {
+                continue;
+            }
+
+            var scaledSize = ComputeScaledSize(bitmap, previewLine.Image.ScalePercent, maxWidthPerImage);
+            previews.Add(new MarkdownImagePreview(previewLine.Image, previewLine.ResolvedPath, bitmap, scaledSize.Width, scaledSize.Height));
+            fileStamps.Add(fileStamp.Value);
+        }
+
+        if (previews.Count == 0)
         {
             _previewRenderCache[line.LineNumber] = new PreviewRenderCacheEntry(lineText, _baseDirectoryPath, _availableWidth, null, null);
-            return null;
+            return [];
         }
 
-        var bitmap = TryGetBitmap(previewLine.Value.ResolvedPath, fileStamp.Value);
-        if (bitmap is null)
-        {
-            _previewRenderCache[line.LineNumber] = new PreviewRenderCacheEntry(lineText, _baseDirectoryPath, _availableWidth, null, fileStamp);
-            return null;
-        }
-
-        var scaledSize = ComputeScaledSize(bitmap, previewLine.Value.Image.ScalePercent, _availableWidth);
-        var preview = new MarkdownImagePreview(previewLine.Value.Image, previewLine.Value.ResolvedPath, bitmap, scaledSize.Width, scaledSize.Height);
-        _previewRenderCache[line.LineNumber] = new PreviewRenderCacheEntry(lineText, _baseDirectoryPath, _availableWidth, preview, fileStamp);
-        return preview;
+        _previewRenderCache[line.LineNumber] = new PreviewRenderCacheEntry(lineText, _baseDirectoryPath, _availableWidth, previews, fileStamps);
+        return previews;
     }
 
     public void Dispose()
@@ -144,9 +167,8 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         _previewRenderCache.Clear();
     }
 
-    private Size ComputeScaledSize(Bitmap bitmap, int? scalePercent, double availableWidth)
+    private Size ComputeScaledSize(Bitmap bitmap, int? scalePercent, double maxWidth)
     {
-        var maxWidth = Math.Max(1, Math.Min(MaxRenderWidth, availableWidth - HorizontalPadding));
         var percent = Math.Clamp(scalePercent ?? 100, 1, 400);
         var scaledWidth = bitmap.Size.Width * percent / 100d;
         var width = Math.Min(maxWidth, scaledWidth);
@@ -156,7 +178,7 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         return new Size(Math.Max(1, width), Math.Max(1, height));
     }
 
-    private PreviewLine? GetPreviewLine(TextDocument document, DocumentLine line)
+    private IReadOnlyList<PreviewLine>? GetPreviewLines(TextDocument document, DocumentLine line)
     {
         var lineText = document.GetText(line.Offset, line.Length);
         if (_previewLineCache.TryGetValue(line.LineNumber, out var cachedEntry)
@@ -164,33 +186,52 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
             && string.Equals(cachedEntry.BaseDirectoryPath, _baseDirectoryPath, StringComparison.Ordinal))
         {
             MarkdownDiagnostics.RecordImagePreviewCacheHit();
-            return cachedEntry.PreviewLine;
+            return cachedEntry.PreviewLines;
         }
 
         MarkdownDiagnostics.RecordImagePreviewCacheMiss();
 
-        PreviewLine? previewLine = null;
         var analysis = MarkdownLineParser.Analyze(lineText, MarkdownFenceState.None);
-        foreach (var image in analysis.Images)
-        {
-            if (!image.IsStandalone)
-            {
-                continue;
-            }
+        List<PreviewLine>? previewLines = null;
 
-            var imagePath = lineText[image.Url.Start..image.Url.End];
-            var resolvedPath = _noteAssetService.ResolveImagePath(_baseDirectoryPath, imagePath);
-            if (string.IsNullOrWhiteSpace(resolvedPath))
+        if (analysis.IsColumnLayout && analysis.ColumnImages.Count > 0)
+        {
+            previewLines = [];
+            foreach (var image in analysis.ColumnImages)
             {
+                var imagePath = lineText[image.Url.Start..image.Url.End];
+                var resolvedPath = _noteAssetService.ResolveImagePath(_baseDirectoryPath, imagePath);
+                if (string.IsNullOrWhiteSpace(resolvedPath))
+                {
+                    continue;
+                }
+
+                previewLines.Add(new PreviewLine(image, resolvedPath));
+            }
+        }
+        else
+        {
+            foreach (var image in analysis.Images)
+            {
+                if (!image.IsStandalone)
+                {
+                    continue;
+                }
+
+                var imagePath = lineText[image.Url.Start..image.Url.End];
+                var resolvedPath = _noteAssetService.ResolveImagePath(_baseDirectoryPath, imagePath);
+                if (string.IsNullOrWhiteSpace(resolvedPath))
+                {
+                    break;
+                }
+
+                previewLines = [new PreviewLine(image, resolvedPath)];
                 break;
             }
-
-            previewLine = new PreviewLine(image, resolvedPath);
-            break;
         }
 
-        _previewLineCache[line.LineNumber] = new PreviewLineCacheEntry(lineText, _baseDirectoryPath, previewLine);
-        return previewLine;
+        _previewLineCache[line.LineNumber] = new PreviewLineCacheEntry(lineText, _baseDirectoryPath, previewLines);
+        return previewLines;
     }
 
     private Bitmap? TryGetBitmap(string resolvedPath, FileStamp fileStamp)
@@ -274,9 +315,9 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
 
     private readonly record struct PreviewLine(MarkdownImageMatch Image, string ResolvedPath);
 
-    private readonly record struct PreviewLineCacheEntry(string LineText, string? BaseDirectoryPath, PreviewLine? PreviewLine);
+    private readonly record struct PreviewLineCacheEntry(string LineText, string? BaseDirectoryPath, IReadOnlyList<PreviewLine>? PreviewLines);
 
-    private readonly record struct PreviewRenderCacheEntry(string LineText, string? BaseDirectoryPath, double AvailableWidth, MarkdownImagePreview? Preview, FileStamp? FileStamp);
+    private readonly record struct PreviewRenderCacheEntry(string LineText, string? BaseDirectoryPath, double AvailableWidth, IReadOnlyList<MarkdownImagePreview>? Previews, IReadOnlyList<FileStamp>? FileStamps);
 
     private sealed record BitmapCacheEntry(Bitmap Bitmap, FileStamp FileStamp, LinkedListNode<string> LruNode);
 
@@ -291,6 +332,24 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
 
         var fileInfo = new FileInfo(resolvedPath);
         return new FileStamp(fileInfo.LastWriteTimeUtc, fileInfo.Length);
+    }
+
+    private static bool HasMatchingFileStamps(IReadOnlyList<PreviewLine>? previewLines, IReadOnlyList<FileStamp>? expectedStamps)
+    {
+        if (previewLines is null || expectedStamps is null || previewLines.Count != expectedStamps.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < previewLines.Count; i++)
+        {
+            if (!HasMatchingFileStamp(previewLines[i].ResolvedPath, expectedStamps[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool HasMatchingFileStamp(string? resolvedPath, FileStamp? expectedStamp)

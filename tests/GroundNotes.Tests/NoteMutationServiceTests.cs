@@ -78,5 +78,20 @@ public sealed class NoteMutationServiceTests : IDisposable
         Assert.Null(captured.OriginId);
     }
 
+    [Fact]
+    public async Task SaveAsync_ForwardsPreserveTimestampToRepository()
+    {
+        Directory.CreateDirectory(_temp.Root);
+        var service = new NoteMutationService(_repository);
+        var doc = _repository.CreateDraftNote(_temp.Root, DateTimeOffset.Now);
+        doc.Body = "body";
+        var originalUpdatedAt = doc.UpdatedAt;
+
+        await Task.Delay(50);
+        var saved = await service.SaveAsync(_temp.Root, doc, preserveTimestamp: true);
+
+        Assert.Equal(originalUpdatedAt, saved.UpdatedAt);
+    }
+
     public void Dispose() => _temp.Dispose();
 }

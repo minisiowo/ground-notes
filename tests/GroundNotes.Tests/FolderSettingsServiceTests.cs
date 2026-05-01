@@ -211,6 +211,34 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal(840, syncSettings.WindowLayout?.EditorCanvasWidth);
     }
 
+    [Fact]
+    public void GetSettingsSync_ReturnsDefaultsWhenSettingsFileContainsInvalidJson()
+    {
+        File.WriteAllText(_settingsFilePath, "not json {");
+
+        var settings = _service.GetSettingsSync();
+
+        Assert.Null(settings.NotesFolder);
+        Assert.Null(settings.ThemeName);
+        Assert.Null(settings.WindowLayout);
+        Assert.Equal(AiSettings.Default, settings.AiSettings);
+        Assert.True(settings.ShowScrollBars);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_ReturnsDefaultsWhenSettingsFileContainsInvalidJson()
+    {
+        await File.WriteAllTextAsync(_settingsFilePath, "not json {");
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Null(settings.NotesFolder);
+        Assert.Null(settings.ThemeName);
+        Assert.Null(settings.WindowLayout);
+        Assert.Equal(AiSettings.Default, settings.AiSettings);
+        Assert.True(settings.ShowScrollBars);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempRoot))

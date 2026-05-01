@@ -10,7 +10,7 @@ public interface INotesRepository
 
     NoteDocument CreateDraftNote(string folderPath, DateTimeOffset timestamp);
 
-    Task<NoteDocument> SaveNoteAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default);
+    Task<NoteDocument> SaveNoteAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default, bool preserveTimestamp = false);
 
     Task<NoteDocument> RenameNoteAsync(string folderPath, NoteDocument document, string newTitle, CancellationToken cancellationToken = default);
 

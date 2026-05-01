@@ -80,12 +80,15 @@ public sealed class NotesRepository : INotesRepository
         };
     }
 
-    public async Task<NoteDocument> SaveNoteAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default)
+    public async Task<NoteDocument> SaveNoteAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default, bool preserveTimestamp = false)
     {
         Directory.CreateDirectory(folderPath);
         var persisted = Clone(document);
         persisted.Title = SanitizeTitle(document.Title);
-        persisted.UpdatedAt = DateTime.Now;
+        if (!preserveTimestamp)
+        {
+            persisted.UpdatedAt = DateTime.Now;
+        }
 
         var targetPath = GetUniqueFilePath(folderPath, persisted.Title, persisted.FilePath);
 

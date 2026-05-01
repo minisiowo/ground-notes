@@ -6,6 +6,7 @@ using GroundNotes.Models;
 using GroundNotes.Services;
 using GroundNotes.ViewModels;
 using GroundNotes.Views;
+using GroundNotes.Styles;
 
 namespace GroundNotes;
 
@@ -43,7 +44,36 @@ public partial class App : Application
         var settingsService = new FolderSettingsService();
         var fontCatalog = new FontCatalogService();
         var startupStateService = new StartupStateService(settingsService, fontCatalog);
-        var startup = startupStateService.Load();
+
+        StartupStateSnapshot startup;
+        try
+        {
+            startup = startupStateService.Load();
+        }
+        catch (Exception)
+        {
+            var fonts = fontCatalog.LoadBundledFonts();
+            var defaultFont = FontResolutionHelper.FindByKey(fonts, FontCatalogService.DefaultFontKey) ?? fonts[0];
+            var defaultVariant = FontResolutionHelper.GetDefaultVariant(defaultFont);
+            var fallbackSettings = new AppSettings(
+                null, null, null, null, null,
+                null, null, null, null, null, null,
+                null, false, true, null,
+                GroundNotes.Models.AiSettings.Default);
+            startup = new StartupStateSnapshot(
+                fallbackSettings,
+                null,
+                AppTheme.Dark,
+                fonts,
+                defaultFont,
+                defaultVariant,
+                defaultFont,
+                defaultVariant,
+                defaultFont,
+                defaultVariant,
+                12);
+        }
+
         ApplyStartupAppearance(startup);
         var editorLayoutState = new EditorLayoutState(new EditorLayoutSettings(
             EditorDisplaySettings.NormalizeIndentSize(startup.Settings.EditorIndentSize),

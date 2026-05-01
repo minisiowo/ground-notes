@@ -271,6 +271,165 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Equal(0, GetRenderedPreviewCount(previewLayer));
     }
 
+    [Fact]
+    public void Refresh_RendersTwoPreviewsSideBySideForColumnLayout()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+
+        var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 6, 3);
+        var relativeA = Path.GetRelativePath(_tempDirectory, imagePathA).Replace('\\', '/');
+        var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 6, 3);
+        var relativeB = Path.GetRelativePath(_tempDirectory, imagePathB).Replace('\\', '/');
+        var document = new TextDocument($"![]({relativeA})|100||![]({relativeB})|100");
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(_tempDirectory);
+        previewProvider.SetAvailableWidth(240);
+
+        var textView = new TextView
+        {
+            Document = document,
+            Width = 240,
+            Height = 200
+        };
+        textView.LineTransformers.Add(new MarkdownImageVisualLineTransformer(previewProvider));
+        textView.LineTransformers.Add(colorizer);
+
+        var window = new Window
+        {
+            Width = textView.Width,
+            Height = textView.Height,
+            Content = textView
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        ApplyTextViewLayout(textView, textView.Width, textView.Height);
+
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        previewLayer.Refresh();
+
+        Assert.Equal(2, GetRenderedPreviewCount(previewLayer));
+
+        var firstBounds = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 0);
+        var secondBounds = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 1);
+
+        Assert.True(firstBounds.X < secondBounds.X, $"First X={firstBounds.X}, Second X={secondBounds.X}");
+    }
+
+    [Fact]
+    public void TryHitTestPreview_HitsCorrectPreviewInColumnLayout()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+
+        var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 6, 3);
+        var relativeA = Path.GetRelativePath(_tempDirectory, imagePathA).Replace('\\', '/');
+        var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 6, 3);
+        var relativeB = Path.GetRelativePath(_tempDirectory, imagePathB).Replace('\\', '/');
+        var document = new TextDocument($"![]({relativeA})|100||![]({relativeB})|100");
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(_tempDirectory);
+        previewProvider.SetAvailableWidth(240);
+
+        var textView = new TextView
+        {
+            Document = document,
+            Width = 240,
+            Height = 200
+        };
+        textView.LineTransformers.Add(new MarkdownImageVisualLineTransformer(previewProvider));
+        textView.LineTransformers.Add(colorizer);
+
+        var window = new Window
+        {
+            Width = textView.Width,
+            Height = textView.Height,
+            Content = textView
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        ApplyTextViewLayout(textView, textView.Width, textView.Height);
+
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        previewLayer.Refresh();
+
+        var firstBounds = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 0);
+        var secondBounds = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 1);
+
+        var hitFirst = previewLayer.TryHitTestPreview(firstBounds.Center);
+        Assert.NotNull(hitFirst);
+        Assert.Equal(imagePathA, hitFirst.Value.ResolvedPath);
+
+        var hitSecond = previewLayer.TryHitTestPreview(secondBounds.Center);
+        Assert.NotNull(hitSecond);
+        Assert.Equal(imagePathB, hitSecond.Value.ResolvedPath);
+    }
+
+    [Fact]
+    public void Refresh_RepositionsColumnPreviewsOnHorizontalScroll()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+
+        var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 6, 3);
+        var relativeA = Path.GetRelativePath(_tempDirectory, imagePathA).Replace('\\', '/');
+        var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 6, 3);
+        var relativeB = Path.GetRelativePath(_tempDirectory, imagePathB).Replace('\\', '/');
+        var document = new TextDocument($"![]({relativeA})|100||![]({relativeB})|100");
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var previewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        previewProvider.SetBaseDirectoryPath(_tempDirectory);
+        previewProvider.SetAvailableWidth(240);
+
+        var textView = new TextView
+        {
+            Document = document,
+            Width = 240,
+            Height = 200
+        };
+        textView.LineTransformers.Add(new MarkdownImageVisualLineTransformer(previewProvider));
+        textView.LineTransformers.Add(colorizer);
+
+        var window = new Window
+        {
+            Width = textView.Width,
+            Height = textView.Height,
+            Content = textView
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        ApplyTextViewLayout(textView, textView.Width, textView.Height);
+
+        using var previewLayer = new MarkdownImagePreviewLayer(textView, previewProvider, subscribeToTextViewEvents: false);
+        previewLayer.Refresh();
+
+        var initialFirst = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 0);
+        var initialSecond = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 1);
+
+        ((IScrollable)textView).Offset = new Vector(48, 0);
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Render);
+        previewLayer.Refresh();
+
+        var scrolledFirst = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 0);
+        var scrolledSecond = GetRenderedPreviewBoundsAtIndex(previewLayer, 1, 1);
+
+        Assert.True(scrolledFirst.X < initialFirst.X, $"First initial X={initialFirst.X}, scrolled X={scrolledFirst.X}");
+        Assert.True(scrolledSecond.X < initialSecond.X, $"Second initial X={initialSecond.X}, scrolled X={scrolledSecond.X}");
+        Assert.Equal(initialFirst.Y, scrolledFirst.Y);
+        Assert.Equal(initialSecond.Y, scrolledSecond.Y);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDirectory))
@@ -314,22 +473,29 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
 
     private static Rect GetRenderedPreviewBounds(MarkdownImagePreviewLayer previewLayer, int lineNumber)
     {
-        var field = typeof(MarkdownImagePreviewLayer).GetField("_renderedPreviews", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.NotNull(field);
+        var list = GetRenderedPreviewList(previewLayer, lineNumber);
+        Assert.NotEmpty((System.Collections.IEnumerable)list);
 
-        var previews = field.GetValue(previewLayer);
-        Assert.NotNull(previews);
+        var firstItem = list.GetType().GetProperty("Item")?.GetValue(list, [0]);
+        Assert.NotNull(firstItem);
 
-        var indexer = previews.GetType().GetProperty("Item");
-        Assert.NotNull(indexer);
-
-        var renderedPreview = indexer.GetValue(previews, [lineNumber]);
-        Assert.NotNull(renderedPreview);
-
-        var boundsProperty = renderedPreview.GetType().GetProperty("Bounds");
+        var boundsProperty = firstItem.GetType().GetProperty("Bounds");
         Assert.NotNull(boundsProperty);
 
-        return Assert.IsType<Rect>(boundsProperty.GetValue(renderedPreview));
+        return Assert.IsType<Rect>(boundsProperty.GetValue(firstItem));
+    }
+
+    private static Rect GetRenderedPreviewBoundsAtIndex(MarkdownImagePreviewLayer previewLayer, int lineNumber, int index)
+    {
+        var list = GetRenderedPreviewList(previewLayer, lineNumber);
+
+        var item = list.GetType().GetProperty("Item")?.GetValue(list, [index]);
+        Assert.NotNull(item);
+
+        var boundsProperty = item.GetType().GetProperty("Bounds");
+        Assert.NotNull(boundsProperty);
+
+        return Assert.IsType<Rect>(boundsProperty.GetValue(item));
     }
 
     private static int GetRenderedPreviewCount(MarkdownImagePreviewLayer previewLayer)
@@ -340,10 +506,39 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         var previews = field.GetValue(previewLayer);
         Assert.NotNull(previews);
 
-        var countProperty = previews.GetType().GetProperty("Count");
-        Assert.NotNull(countProperty);
+        var count = 0;
+        var valuesProperty = previews.GetType().GetProperty("Values");
+        Assert.NotNull(valuesProperty);
 
-        return Assert.IsType<int>(countProperty.GetValue(previews));
+        var values = valuesProperty.GetValue(previews);
+        Assert.NotNull(values);
+
+        foreach (var list in (System.Collections.IEnumerable)values!)
+        {
+            Assert.NotNull(list);
+            var listCountProperty = list.GetType().GetProperty("Count");
+            Assert.NotNull(listCountProperty);
+            count += Assert.IsType<int>(listCountProperty.GetValue(list));
+        }
+
+        return count;
+    }
+
+    private static object GetRenderedPreviewList(MarkdownImagePreviewLayer previewLayer, int lineNumber)
+    {
+        var field = typeof(MarkdownImagePreviewLayer).GetField("_renderedPreviews", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.NotNull(field);
+
+        var previews = field.GetValue(previewLayer);
+        Assert.NotNull(previews);
+
+        var indexer = previews.GetType().GetProperty("Item");
+        Assert.NotNull(indexer);
+
+        var list = indexer.GetValue(previews, [lineNumber]);
+        Assert.NotNull(list);
+
+        return list;
     }
 
     private static string CreateImageAsset(string baseDirectory, string fileName, int width, int height)

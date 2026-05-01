@@ -197,9 +197,16 @@ public sealed class FolderSettingsService : ISettingsService
             return new SettingsRecord();
         }
 
-        await using var stream = File.OpenRead(_settingsFilePath);
-        var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
-        return settings ?? new SettingsRecord();
+        try
+        {
+            await using var stream = File.OpenRead(_settingsFilePath);
+            var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
+            return settings ?? new SettingsRecord();
+        }
+        catch
+        {
+            return new SettingsRecord();
+        }
     }
 
     private SettingsRecord LoadRecordSync()
@@ -209,9 +216,16 @@ public sealed class FolderSettingsService : ISettingsService
             return new SettingsRecord();
         }
 
-        var json = File.ReadAllText(_settingsFilePath);
-        var settings = JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions);
-        return settings ?? new SettingsRecord();
+        try
+        {
+            var json = File.ReadAllText(_settingsFilePath);
+            var settings = JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions);
+            return settings ?? new SettingsRecord();
+        }
+        catch
+        {
+            return new SettingsRecord();
+        }
     }
 
     private async Task SaveAsync(SettingsRecord record, CancellationToken cancellationToken)

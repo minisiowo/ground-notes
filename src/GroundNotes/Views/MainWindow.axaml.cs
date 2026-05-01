@@ -125,24 +125,31 @@ public partial class MainWindow : Window
 
         Opened += async (_, _) =>
         {
-            if (DataContext is MainViewModel vm)
-            {
-                vm.PropertyChanged += OnViewModelPropertyChanged;
-                vm.FocusEditorRequested += OnFocusEditorRequested;
-                vm.SecondaryPanes.CollectionChanged += OnSecondaryPanesCollectionChanged;
-                foreach (var pane in vm.SecondaryPanes)
-                {
-                    pane.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
-                }
-                _editorHost.SetBaseDirectoryPath(vm.NotesFolder);
-                ApplyEditorDisplayMode(vm.ShowYamlFrontMatterInEditor);
-                SyncEditorText(vm.EditorBody);
-                UpdateActiveEditorBindings();
-            }
-
             try
             {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.PropertyChanged += OnViewModelPropertyChanged;
+                    vm.FocusEditorRequested += OnFocusEditorRequested;
+                    vm.SecondaryPanes.CollectionChanged += OnSecondaryPanesCollectionChanged;
+                    foreach (var pane in vm.SecondaryPanes)
+                    {
+                        pane.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
+                    }
+                    _editorHost.SetBaseDirectoryPath(vm.NotesFolder);
+                    ApplyEditorDisplayMode(vm.ShowYamlFrontMatterInEditor);
+                    SyncEditorText(vm.EditorBody);
+                    UpdateActiveEditorBindings();
+                }
+
                 await RestoreWindowLayoutAsync();
+            }
+            catch (Exception ex)
+            {
+                if (DataContext is MainViewModel vm)
+                {
+                    vm.StatusMessage = $"Layout restore failed: {ex.Message}";
+                }
             }
             finally
             {
@@ -2326,7 +2333,15 @@ public partial class MainWindow : Window
         }
 
         ApplyEditorEdit(editor, MarkdownImageEditingCommands.RenameImageUrl(GetEditorText(editor), hit.UrlStart, hit.UrlLength, newMarkdownPath));
-        vm.StatusMessage = $"Renamed image to {Path.GetFileName(newAssetPath)}";
+
+        var updatedCount = await vm.RenameImageReferenceInAllNotesAsync(
+            hit.ResolvedPath,
+            newMarkdownPath,
+            _noteAssetService);
+
+        vm.StatusMessage = updatedCount > 0
+            ? $"Renamed image to {Path.GetFileName(newAssetPath)} (updated in {updatedCount} other note(s))"
+            : $"Renamed image to {Path.GetFileName(newAssetPath)}";
     }
 
     private async Task DeleteImageAssetAsync(TextEditor editor, MarkdownImagePreviewHitTestResult hit)

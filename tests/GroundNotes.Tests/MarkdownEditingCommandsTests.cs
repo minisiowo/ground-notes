@@ -1,4 +1,6 @@
 using GroundNotes.Editors;
+using GroundNotes.Services;
+using GroundNotes.ViewModels;
 using Xunit;
 
 namespace GroundNotes.Tests;
@@ -486,5 +488,88 @@ public sealed class MarkdownEditingCommandsTests
     private static string ApplyEdit(string text, MarkdownEditResult edit)
     {
         return text.Remove(edit.Start, edit.Length).Insert(edit.Start, edit.Replacement);
+    }
+
+    private static string ResolveImageUrlForTest(string notesFolder, string url)
+    {
+        var service = new NoteAssetService();
+        return service.ResolveImagePath(notesFolder, url) ?? url;
+    }
+
+    [Fact]
+    public void TryReplaceImageReferences_UpdatesSingleImageUrl()
+    {
+        var notesFolder = Path.GetTempPath();
+        var oldResolved = ResolveImageUrlForTest(notesFolder, "assets/photo.png");
+        const string text = "![](assets/photo.png)|40";
+        var result = MainViewModel.TryReplaceImageReferences(
+            text, notesFolder, oldResolved, "assets/renamed.png", new NoteAssetService());
+
+        Assert.NotNull(result);
+        Assert.Equal("![](assets/renamed.png)|40", result);
+    }
+
+    [Fact]
+    public void TryReplaceImageReferences_UpdatesMultipleOccurrences()
+    {
+        var notesFolder = Path.GetTempPath();
+        var oldResolved = ResolveImageUrlForTest(notesFolder, "assets/photo.png");
+        const string text = "![](assets/photo.png)|40\n\n![](assets/photo.png)|100";
+        var result = MainViewModel.TryReplaceImageReferences(
+            text, notesFolder, oldResolved, "assets/renamed.png", new NoteAssetService());
+
+        Assert.NotNull(result);
+        Assert.Equal("![](assets/renamed.png)|40\n\n![](assets/renamed.png)|100", result);
+    }
+
+    [Fact]
+    public void TryReplaceImageReferences_PreservesOtherContent()
+    {
+        var notesFolder = Path.GetTempPath();
+        var oldResolved = ResolveImageUrlForTest(notesFolder, "assets/photo.png");
+        const string text = "before\n![](assets/photo.png)|40\nafter";
+        var result = MainViewModel.TryReplaceImageReferences(
+            text, notesFolder, oldResolved, "assets/renamed.png", new NoteAssetService());
+
+        Assert.NotNull(result);
+        Assert.Equal("before\n![](assets/renamed.png)|40\nafter", result);
+    }
+
+    [Fact]
+    public void TryReplaceImageReferences_ReturnsNullWhenNoMatch()
+    {
+        var notesFolder = Path.GetTempPath();
+        var oldResolved = ResolveImageUrlForTest(notesFolder, "assets/photo.png");
+        const string text = "![](assets/other.png)|40";
+        var result = MainViewModel.TryReplaceImageReferences(
+            text, notesFolder, oldResolved, "assets/renamed.png", new NoteAssetService());
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TryReplaceImageReferences_UpdatesColumnLayoutImages()
+    {
+        var notesFolder = Path.GetTempPath();
+        var oldResolved = ResolveImageUrlForTest(notesFolder, "assets/photo.png");
+        const string text = "![](assets/photo.png)|40||![](assets/other.png)|40";
+        var result = MainViewModel.TryReplaceImageReferences(
+            text, notesFolder, oldResolved, "assets/renamed.png", new NoteAssetService());
+
+        Assert.NotNull(result);
+        Assert.Equal("![](assets/renamed.png)|40||![](assets/other.png)|40", result);
+    }
+
+    [Fact]
+    public void TryReplaceImageReferences_PreservesLineEndings()
+    {
+        var notesFolder = Path.GetTempPath();
+        var oldResolved = ResolveImageUrlForTest(notesFolder, "assets/photo.png");
+        const string text = "before\r\n![](assets/photo.png)|40\r\nafter";
+        var result = MainViewModel.TryReplaceImageReferences(
+            text, notesFolder, oldResolved, "assets/renamed.png", new NoteAssetService());
+
+        Assert.NotNull(result);
+        Assert.Equal("before\r\n![](assets/renamed.png)|40\r\nafter", result);
     }
 }

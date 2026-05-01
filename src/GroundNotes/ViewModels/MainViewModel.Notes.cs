@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using Avalonia.Threading;
 using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GroundNotes.Editors;
 using GroundNotes.Models;
 using GroundNotes.Services;
 using GroundNotes.Styles;
@@ -1454,6 +1456,155 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 _isApplyingSelection = false;
             }
+        }
+    }
+
+    internal async Task<int> RenameImageReferenceInAllNotesAsync(
+        string oldResolvedPath,
+        string newMarkdownPath,
+        NoteAssetService noteAssetService,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(NotesFolder) || !Directory.Exists(NotesFolder))
+        {
+            return 0;
+        }
+
+        var summaries = await _notesRepository.LoadSummariesAsync(NotesFolder, cancellationToken);
+        if (summaries.Count == 0)
+        {
+            return 0;
+        }
+
+        var updatedCount = 0;
+        SuppressWatcher();
+
+        foreach (var summary in summaries)
+        {
+            var filePath = summary.FilePath;
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (CurrentNote is not null
+                && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var pane = FindPaneByFilePath(filePath);
+            if (pane is not null)
+            {
+                var updatedText = TryReplaceImageReferences(
+                    pane.EditorBody,
+                    NotesFolder,
+                    oldResolvedPath,
+                    newMarkdownPath,
+                    noteAssetService);
+
+                if (updatedText is not null)
+                {
+                    pane.EditorBody = updatedText;
+                    updatedCount++;
+                }
+
+                continue;
+            }
+
+            var note = await _notesRepository.LoadNoteAsync(filePath, cancellationToken);
+            if (note is null)
+            {
+                continue;
+            }
+
+            var updatedBody = TryReplaceImageReferences(
+                note.Body,
+                NotesFolder,
+                oldResolvedPath,
+                newMarkdownPath,
+                noteAssetService);
+
+            if (updatedBody is not null)
+            {
+                note = note with { Body = updatedBody };
+                using (BeginMutationScope())
+                {
+                    await _noteMutationService.SaveAsync(NotesFolder, note, cancellationToken, preserveTimestamp: true);
+                }
+
+                updatedCount++;
+            }
+        }
+
+        return updatedCount;
+    }
+
+    internal static string? TryReplaceImageReferences(
+        string text,
+        string notesFolderPath,
+        string oldResolvedPath,
+        string newMarkdownPath,
+        NoteAssetService noteAssetService)
+    {
+        var changed = false;
+        var result = new StringBuilder();
+
+        foreach (var (lineText, lineEnding) in EnumerateLines(text))
+        {
+            var analysis = MarkdownLineParser.Analyze(lineText, MarkdownFenceState.None);
+            if (analysis.Images.Count == 0)
+            {
+                result.Append(lineText).Append(lineEnding);
+                continue;
+            }
+
+            var lineResult = new StringBuilder(lineText);
+            var offsetAdjustment = 0;
+
+            foreach (var image in analysis.Images.OrderByDescending(static img => img.Url.Start))
+            {
+                var urlText = lineText[image.Url.Start..image.Url.End];
+                var resolved = noteAssetService.ResolveImagePath(notesFolderPath, urlText);
+                if (string.Equals(resolved, oldResolvedPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    lineResult.Remove(image.Url.Start + offsetAdjustment, image.Url.Length);
+                    lineResult.Insert(image.Url.Start + offsetAdjustment, newMarkdownPath);
+                    offsetAdjustment += newMarkdownPath.Length - image.Url.Length;
+                    changed = true;
+                }
+            }
+
+            result.Append(lineResult).Append(lineEnding);
+        }
+
+        return changed ? result.ToString() : null;
+    }
+
+    private static IEnumerable<(string LineText, string LineEnding)> EnumerateLines(string text)
+    {
+        var start = 0;
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                var lineEnd = i;
+                var ending = "\n";
+                if (i > 0 && text[i - 1] == '\r')
+                {
+                    lineEnd = i - 1;
+                    ending = "\r\n";
+                }
+
+                yield return (text[start..lineEnd], ending);
+                start = i + 1;
+            }
+        }
+
+        if (start < text.Length)
+        {
+            yield return (text[start..], string.Empty);
+        }
+        else if (start == text.Length)
+        {
+            yield return (string.Empty, string.Empty);
         }
     }
 }

@@ -55,6 +55,11 @@ internal static partial class MarkdownLineParser
             }
         }
 
+        if (analysis.Images.Count >= 2)
+        {
+            TryBuildColumnLayout(lineText, analysis);
+        }
+
         if (lineText.Contains("http", StringComparison.OrdinalIgnoreCase))
         {
             foreach (var urlSpan in FindBareUrls(lineText, protectedSpans, analysis.LinkSpans))
@@ -590,6 +595,62 @@ internal static partial class MarkdownLineParser
         return false;
     }
 
+    private static void TryBuildColumnLayout(string lineText, MarkdownLineAnalysis analysis)
+    {
+        if (analysis.Images.Count < 2)
+        {
+            return;
+        }
+
+        var images = analysis.Images.OrderBy(static img => img.FullSpan.Start).ToList();
+
+        for (var i = 0; i < images.Count; i++)
+        {
+            var image = images[i];
+            int segmentStart;
+            int segmentEnd;
+
+            if (i == 0)
+            {
+                segmentStart = 0;
+                segmentEnd = image.FullSpan.Start;
+            }
+            else
+            {
+                segmentStart = images[i - 1].FullSpan.End;
+                segmentEnd = image.FullSpan.Start;
+            }
+
+            var segment = lineText.AsSpan(segmentStart, segmentEnd - segmentStart).Trim();
+            if (i == 0)
+            {
+                if (!segment.IsEmpty)
+                {
+                    return;
+                }
+            }
+            else
+            {
+                if (!segment.SequenceEqual("||"))
+                {
+                    return;
+                }
+            }
+        }
+
+        var afterLast = lineText.AsSpan(images[^1].FullSpan.End).Trim();
+        if (!afterLast.IsEmpty)
+        {
+            return;
+        }
+
+        analysis.IsColumnLayout = true;
+        foreach (var image in images)
+        {
+            analysis.ColumnImages.Add(image);
+        }
+    }
+
     private static bool IsStandaloneImage(string lineText, MarkdownRange fullSpan)
     {
         for (var i = 0; i < fullSpan.Start; i++)
@@ -650,6 +711,10 @@ internal sealed class MarkdownLineAnalysis(MarkdownFenceState fenceStateBeforeLi
     public MarkdownListMatch? ListMarker { get; set; }
 
     public List<MarkdownImageMatch> Images { get; } = [];
+
+    public bool IsColumnLayout { get; set; }
+
+    public List<MarkdownImageMatch> ColumnImages { get; } = [];
 
     public List<MarkdownLinkMatch> Links { get; } = [];
 

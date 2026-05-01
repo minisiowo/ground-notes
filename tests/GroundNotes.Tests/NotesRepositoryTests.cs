@@ -110,6 +110,32 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveNoteAsync_UpdatesTimestampByDefault()
+    {
+        var draft = _repository.CreateDraftNote(_tempRoot, DateTimeOffset.Now);
+        draft.Body = "body";
+        var originalUpdatedAt = draft.UpdatedAt;
+
+        await Task.Delay(50);
+        var saved = await _repository.SaveNoteAsync(_tempRoot, draft);
+
+        Assert.True(saved.UpdatedAt > originalUpdatedAt);
+    }
+
+    [Fact]
+    public async Task SaveNoteAsync_PreservesTimestampWhenFlagIsTrue()
+    {
+        var draft = _repository.CreateDraftNote(_tempRoot, DateTimeOffset.Now);
+        draft.Body = "body";
+        var originalUpdatedAt = draft.UpdatedAt;
+
+        await Task.Delay(50);
+        var saved = await _repository.SaveNoteAsync(_tempRoot, draft, preserveTimestamp: true);
+
+        Assert.Equal(originalUpdatedAt, saved.UpdatedAt);
+    }
+
+    [Fact]
     public async Task LoadSummariesAsync_LoadsPlainTextFilesWithoutFrontMatter()
     {
         Directory.CreateDirectory(_tempRoot);

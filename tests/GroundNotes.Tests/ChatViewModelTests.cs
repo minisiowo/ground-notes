@@ -296,9 +296,9 @@ public sealed class ChatViewModelTests
 
         public event EventHandler<NoteMutationEventArgs>? NoteMutated;
 
-        public async Task<NoteDocument> SaveAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default)
+        public async Task<NoteDocument> SaveAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default, bool preserveTimestamp = false)
         {
-            var saved = await _notesRepository.SaveNoteAsync(folderPath, document, cancellationToken);
+            var saved = await _notesRepository.SaveNoteAsync(folderPath, document, cancellationToken, preserveTimestamp);
             NoteMutated?.Invoke(this, new NoteMutationEventArgs(NoteMutationKind.Saved, document.FilePath, saved));
             return saved;
         }
@@ -389,10 +389,10 @@ public sealed class ChatViewModelTests
             };
         }
 
-        public Task<NoteDocument> SaveNoteAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default)
+        public Task<NoteDocument> SaveNoteAsync(string folderPath, NoteDocument document, CancellationToken cancellationToken = default, bool preserveTimestamp = false)
         {
             SaveCallCount++;
-            LastSavedDocument = document with { Tags = [.. document.Tags], UpdatedAt = DateTime.Now };
+            LastSavedDocument = document with { Tags = [.. document.Tags], UpdatedAt = preserveTimestamp ? document.UpdatedAt : DateTime.Now };
             _notes[LastSavedDocument.FilePath] = LastSavedDocument;
             return Task.FromResult(LastSavedDocument);
         }
