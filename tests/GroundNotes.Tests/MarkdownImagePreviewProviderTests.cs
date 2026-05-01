@@ -120,6 +120,31 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
     }
 
     [Fact]
+    public void InvalidateImage_RemovesPreviewAndBitmapCachesForPath()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
+        var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})");
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(100);
+        MarkdownDiagnostics.Reset();
+
+        _ = provider.GetPreview(document, document.GetLineByNumber(1));
+        _ = provider.GetPreview(document, document.GetLineByNumber(1));
+        provider.InvalidateImage(imagePath);
+        _ = provider.GetPreview(document, document.GetLineByNumber(1));
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.Equal(1, diagnostics.ImagePreviewRenderCacheHits);
+        Assert.Equal(2, diagnostics.ImagePreviewRenderCacheMisses);
+        Assert.Equal(0, diagnostics.BitmapCacheHits);
+        Assert.Equal(2, diagnostics.BitmapCacheMisses);
+    }
+
+    [Fact]
     public void GetPreview_EvictsLeastRecentlyUsedBitmapWhenCacheLimitIsExceeded()
     {
         EnsureApplication();

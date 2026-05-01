@@ -477,6 +477,31 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
+  <Style Selector="TextBox.annotationTextEditor,
+                   TextBox.annotationTextEditor:pointerover,
+                   TextBox.annotationTextEditor:focus,
+                   TextBox.annotationTextEditor:focus-within">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CaretBrush" Value="White" />
+    <Setter Property="FontFamily" Value="{DynamicResource SidebarFont}" />
+    <Setter Property="FontWeight" Value="{DynamicResource SidebarFontWeight}" />
+    <Setter Property="FontStyle" Value="{DynamicResource SidebarFontStyle}" />
+  </Style>
+
+  <Style Selector="TextBox.annotationTextEditor /template/ Border#PART_BorderElement,
+                   TextBox.annotationTextEditor:pointerover /template/ Border#PART_BorderElement,
+                   TextBox.annotationTextEditor:focus /template/ Border#PART_BorderElement,
+                   TextBox.annotationTextEditor:focus-within /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
   <Style Selector="TextBox /template/ TextBlock#PART_Watermark">
     <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource SidebarFont}" />

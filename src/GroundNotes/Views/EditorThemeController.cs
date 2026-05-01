@@ -109,6 +109,21 @@ internal sealed class EditorThemeController : IDisposable
         }
     }
 
+    public void RefreshImagePreviews(string? resolvedImagePath = null)
+    {
+        if (!string.IsNullOrWhiteSpace(resolvedImagePath))
+        {
+            _imagePreviewProvider.InvalidateImage(resolvedImagePath);
+        }
+
+        _imagePreviewLayer.InvalidateRefreshState();
+        _editor.TextArea.TextView.Redraw();
+        if (_markdownFormattingEnabled)
+        {
+            _imagePreviewLayer.RequestRefresh();
+        }
+    }
+
     public void SetBaseDirectoryPath(string? baseDirectoryPath)
     {
         _imagePreviewProvider.SetBaseDirectoryPath(baseDirectoryPath);

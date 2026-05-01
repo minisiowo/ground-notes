@@ -55,6 +55,28 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         _previewRenderCache.Clear();
     }
 
+    public void InvalidateImage(string resolvedPath)
+    {
+        if (string.IsNullOrWhiteSpace(resolvedPath))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(resolvedPath);
+        if (_bitmapCache.TryGetValue(fullPath, out var cachedBitmap))
+        {
+            RemoveBitmapCacheEntry(fullPath, cachedBitmap);
+        }
+
+        foreach (var pair in _previewRenderCache.ToArray())
+        {
+            if (string.Equals(pair.Value.Preview?.ResolvedPath, fullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                _previewRenderCache.Remove(pair.Key);
+            }
+        }
+    }
+
     public MarkdownImagePreview? GetPreview(TextDocument document, DocumentLine line)
     {
         MarkdownDiagnostics.RecordImagePreviewRequest();

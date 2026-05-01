@@ -4,8 +4,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AvaloniaEdit;
@@ -61,6 +63,7 @@ public partial class MainWindow : Window
     private int _multiPaneResizeDirection = 1;
     private bool _isResizingSharedPaneWidth;
     private bool _isSidebarLayoutRefreshQueued;
+    private Bitmap? _clipboardImageBitmap;
 
     public MainWindow()
     {
@@ -175,6 +178,8 @@ public partial class MainWindow : Window
             EditorTextEditor.GotFocus -= OnPrimaryEditorGotFocus;
             _resizeHandleHoverTimer.Stop();
             _resizeHandleHoverTimer.Tick -= OnResizeHandleHoverTimerTick;
+            _clipboardImageBitmap?.Dispose();
+            _clipboardImageBitmap = null;
             _editorHost.Dispose();
             DisposeSecondaryEditorHosts();
             SaveWindowLayout();
@@ -2258,8 +2263,15 @@ public partial class MainWindow : Window
         {
             Header = "Open image"
         };
-        openItem.Click += (_, _) => OpenImageViewer(hit.ResolvedPath);
+        openItem.Click += (_, _) => OpenImageViewer(editor, hit);
         _imageContextFlyout.Items.Add(openItem);
+
+        var copyItem = new MenuItem
+        {
+            Header = "Copy"
+        };
+        copyItem.Click += async (_, _) => await CopyImageToClipboardAsync(hit.ResolvedPath);
+        _imageContextFlyout.Items.Add(copyItem);
 
         _imageContextFlyout.Items.Add(new Separator());
 
@@ -2361,6 +2373,163 @@ public partial class MainWindow : Window
 
         ApplyEditorEdit(editor, MarkdownImageEditingCommands.DeleteImageReference(GetEditorText(editor), hit.ReferenceStart, hit.ReferenceLength));
         vm.StatusMessage = $"Deleted image {fileName}";
+    }
+
+    private async Task CopyImageToClipboardAsync(string imagePath)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            vm.StatusMessage = "System clipboard is not available.";
+            return;
+        }
+
+        if (!File.Exists(imagePath))
+        {
+            vm.StatusMessage = $"Image file was not found: {Path.GetFileName(imagePath)}";
+            return;
+        }
+
+        Bitmap? bitmap = null;
+        try
+        {
+            bitmap = new Bitmap(imagePath);
+            await topLevel.Clipboard.SetBitmapAsync(bitmap);
+            _clipboardImageBitmap?.Dispose();
+            _clipboardImageBitmap = bitmap;
+            bitmap = null;
+        }
+        catch (Exception ex) when (ex is
+            IOException or
+            UnauthorizedAccessException or
+            ArgumentException or
+            InvalidOperationException or
+            NotSupportedException)
+        {
+            bitmap?.Dispose();
+            vm.StatusMessage = $"Could not copy image: {ex.Message}";
+            return;
+        }
+
+        vm.StatusMessage = $"Copied image {Path.GetFileName(imagePath)}";
+    }
+
+    private async Task<bool> CopyAnnotatedImageToClipboardAsync(RenderTargetBitmap annotatedBitmap)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return false;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            vm.StatusMessage = "System clipboard is not available.";
+            return false;
+        }
+
+        try
+        {
+            await topLevel.Clipboard.SetBitmapAsync(annotatedBitmap);
+            _clipboardImageBitmap?.Dispose();
+            _clipboardImageBitmap = annotatedBitmap;
+        }
+        catch (Exception ex) when (ex is
+            IOException or
+            UnauthorizedAccessException or
+            ArgumentException or
+            InvalidOperationException or
+            NotSupportedException)
+        {
+            vm.StatusMessage = $"Could not copy annotated image: {ex.Message}";
+            return false;
+        }
+
+        vm.StatusMessage = "Copied annotated image";
+        return true;
+    }
+
+    private async Task<ImageViewerSaveResult> SaveAnnotatedImageAsync(
+        TextEditor editor,
+        MarkdownImagePreviewHitTestResult hit,
+        string currentImagePath,
+        RenderTargetBitmap annotatedBitmap,
+        bool overwrite)
+    {
+        if (DataContext is not MainViewModel vm)
+        {
+            return new ImageViewerSaveResult(false, null);
+        }
+
+        try
+        {
+            if (overwrite)
+            {
+                await SaveBitmapToFileAsync(annotatedBitmap, currentImagePath);
+                RefreshEditorImagePreviews(editor, currentImagePath);
+                vm.StatusMessage = $"Saved annotations to {Path.GetFileName(currentImagePath)}";
+                return new ImageViewerSaveResult(true, currentImagePath);
+            }
+
+            if (string.IsNullOrWhiteSpace(vm.NotesFolder))
+            {
+                vm.StatusMessage = "Choose a notes folder before saving an annotated image copy.";
+                return new ImageViewerSaveResult(false, null);
+            }
+
+            var currentText = GetEditorText(editor);
+            var currentUrlLength = TryGetImageUrlLengthAtOffset(currentText, hit.UrlStart);
+            if (currentUrlLength is null)
+            {
+                vm.StatusMessage = "Could not update the image reference in this note.";
+                return new ImageViewerSaveResult(false, null);
+            }
+
+            var assetFileName = await _noteAssetService.SaveBitmapAsync(vm.NotesFolder, annotatedBitmap);
+            var newMarkdownPath = _noteAssetService.BuildAssetMarkdownPath(assetFileName);
+            ApplyEditorEdit(
+                editor,
+                MarkdownImageEditingCommands.RenameImageUrl(currentText, hit.UrlStart, currentUrlLength.Value, newMarkdownPath));
+            var newImagePath = Path.Combine(vm.NotesFolder, "assets", assetFileName);
+            vm.StatusMessage = $"Saved annotated copy {assetFileName}";
+            return new ImageViewerSaveResult(true, newImagePath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            vm.StatusMessage = $"Could not save annotated image: {ex.Message}";
+            return new ImageViewerSaveResult(false, null);
+        }
+    }
+
+    private static async Task SaveBitmapToFileAsync(Bitmap bitmap, string filePath)
+    {
+        await using var stream = File.Create(filePath);
+        bitmap.Save(stream, quality: null);
+        await stream.FlushAsync();
+    }
+
+    private void RefreshEditorImagePreviews(TextEditor editor, string imagePath)
+    {
+        var host = GetEditorHost(editor);
+        host.RefreshImagePreviews(imagePath);
+    }
+
+    private static int? TryGetImageUrlLengthAtOffset(string text, int urlStart)
+    {
+        if (urlStart < 0 || urlStart >= text.Length)
+        {
+            return null;
+        }
+
+        var urlEnd = text.IndexOf(')', urlStart);
+        return urlEnd <= urlStart
+            ? null
+            : urlEnd - urlStart;
     }
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
@@ -3170,12 +3339,17 @@ public partial class MainWindow : Window
             return false;
         }
 
-        return OpenImageViewer(hit.Value.ResolvedPath);
+        return OpenImageViewer(editor, hit.Value);
     }
 
-    private bool OpenImageViewer(string imagePath)
+    private bool OpenImageViewer(TextEditor editor, MarkdownImagePreviewHitTestResult hit)
     {
-        return ImageViewerWindow.TryOpen(this, imagePath);
+        return ImageViewerWindow.TryOpen(
+            this,
+            hit.ResolvedPath,
+            (currentImagePath, annotatedBitmap, overwrite) =>
+                SaveAnnotatedImageAsync(editor, hit, currentImagePath, annotatedBitmap, overwrite),
+            CopyAnnotatedImageToClipboardAsync);
     }
 
     private void OnEditorLayoutSettingsChanged(object? sender, EditorLayoutSettings settings)
