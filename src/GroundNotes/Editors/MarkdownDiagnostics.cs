@@ -23,6 +23,9 @@ internal static class MarkdownDiagnostics
     private static int _previewLayerLineStateReuses;
     private static int _previewLayerDraws;
     private static int _previewLayerDrawnPreviews;
+    private static int _deferredBitmapLoadRequests;
+    private static int _deferredBitmapLoads;
+    private static int _deferredBitmapLoadSkips;
 
     public static MarkdownDiagnosticsSnapshot Snapshot()
         => new(
@@ -46,7 +49,10 @@ internal static class MarkdownDiagnostics
             _previewLayerRefreshPosts,
             _previewLayerLineStateReuses,
             _previewLayerDraws,
-            _previewLayerDrawnPreviews);
+            _previewLayerDrawnPreviews,
+            _deferredBitmapLoadRequests,
+            _deferredBitmapLoads,
+            _deferredBitmapLoadSkips);
 
     public static void Reset()
     {
@@ -71,6 +77,9 @@ internal static class MarkdownDiagnostics
         _previewLayerLineStateReuses = 0;
         _previewLayerDraws = 0;
         _previewLayerDrawnPreviews = 0;
+        _deferredBitmapLoadRequests = 0;
+        _deferredBitmapLoads = 0;
+        _deferredBitmapLoadSkips = 0;
     }
 
     public static void RecordLineAnalyzed() => Interlocked.Increment(ref _linesAnalyzed);
@@ -114,6 +123,12 @@ internal static class MarkdownDiagnostics
     public static void RecordPreviewLayerDraw() => Interlocked.Increment(ref _previewLayerDraws);
 
     public static void RecordPreviewLayerDrawnPreview() => Interlocked.Increment(ref _previewLayerDrawnPreviews);
+
+    public static void RecordDeferredBitmapLoadRequest() => Interlocked.Increment(ref _deferredBitmapLoadRequests);
+
+    public static void RecordDeferredBitmapLoad() => Interlocked.Increment(ref _deferredBitmapLoads);
+
+    public static void RecordDeferredBitmapLoadSkip() => Interlocked.Increment(ref _deferredBitmapLoadSkips);
 }
 
 internal readonly record struct MarkdownDiagnosticsSnapshot(
@@ -137,4 +152,7 @@ internal readonly record struct MarkdownDiagnosticsSnapshot(
     int PreviewLayerRefreshPosts,
     int PreviewLayerLineStateReuses,
     int PreviewLayerDraws,
-    int PreviewLayerDrawnPreviews);
+    int PreviewLayerDrawnPreviews,
+    int DeferredBitmapLoadRequests,
+    int DeferredBitmapLoads,
+    int DeferredBitmapLoadSkips);

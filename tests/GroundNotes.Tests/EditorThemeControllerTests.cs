@@ -369,6 +369,59 @@ public sealed class EditorThemeControllerTests
     }
 
     [Fact]
+    public void RefreshAfterDocumentReplace_DefersColdImageBitmapDecodeUntilAfterInitialRefresh()
+    {
+        EnsureApplication();
+
+        using var tempDirectory = new TempDirectory();
+        var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
+        var document = new TextDocument($"![]({Path.GetRelativePath(tempDirectory.DirectoryPath, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = new TextEditor
+        {
+            Document = document,
+            WordWrap = true,
+            Width = 240,
+            Height = 200
+        };
+        var window = new Window
+        {
+            Width = editor.Width,
+            Height = editor.Height,
+            Content = editor
+        };
+
+        window.ApplyTemplate();
+        window.Measure(new Size(window.Width, window.Height));
+        window.Arrange(new Rect(0, 0, window.Width, window.Height));
+        editor.ApplyTemplate();
+        editor.Measure(new Size(editor.Width, editor.Height));
+        editor.Arrange(new Rect(0, 0, editor.Width, editor.Height));
+
+        var textView = editor.TextArea.TextView;
+        ApplyTextViewLayout(textView, editor.Width, editor.Height);
+
+        using var controller = new EditorThemeController(editor, colorizer);
+        controller.SetBaseDirectoryPath(tempDirectory.DirectoryPath);
+        FlushUiDispatcher();
+        MarkdownDiagnostics.Reset();
+
+        controller.RefreshAfterDocumentReplace();
+        textView.EnsureVisualLines();
+        FlushUiDispatcher();
+
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+        Assert.True(diagnostics.DeferredBitmapLoadRequests > 0, "Expected deferred bitmap load requests after document replace.");
+        Assert.Equal(0, diagnostics.BitmapCacheMisses);
+
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+        FlushUiDispatcher();
+
+        var finalDiagnostics = MarkdownDiagnostics.Snapshot();
+        Assert.True(finalDiagnostics.DeferredBitmapLoads > 0, "Expected deferred bitmap loads to complete.");
+    }
+
+    [Fact]
     public void ResetViewportToDocumentStart_AfterReplacementWithMarkdownImageLine_ClearsCaretSelectionAndScrollOffset()
     {
         EnsureApplication();

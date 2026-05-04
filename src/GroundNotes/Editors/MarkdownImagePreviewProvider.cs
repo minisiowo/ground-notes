@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using AvaloniaEdit.Document;
 
 using GroundNotes.Services;
@@ -19,10 +20,15 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
     private readonly LinkedList<string> _bitmapCacheLru = [];
     private readonly Dictionary<int, PreviewLineCacheEntry> _previewLineCache = [];
     private readonly Dictionary<int, PreviewRenderCacheEntry> _previewRenderCache = [];
+    private readonly Dictionary<string, FileStamp> _deferredBitmapLoads = new(StringComparer.OrdinalIgnoreCase);
     private readonly int _maxBitmapCacheEntries;
     private TextDocument? _document;
     private string? _baseDirectoryPath;
     private double _availableWidth = MaxRenderWidth;
+    private bool _deferColdBitmapLoads;
+    private bool _deferredDrainQueued;
+    private int _deferredLoadGeneration;
+    private bool _isDisposed;
 
     public MarkdownImagePreviewProvider(MarkdownColorizingTransformer colorizer, NoteAssetService noteAssetService)
         : this(colorizer, noteAssetService, DefaultMaxBitmapCacheEntries)
@@ -36,6 +42,21 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         _maxBitmapCacheEntries = Math.Max(1, maxBitmapCacheEntries);
     }
 
+    public event EventHandler? DeferredBitmapLoadsCompleted;
+
+    public void BeginDeferredColdBitmapLoads()
+    {
+        _deferColdBitmapLoads = true;
+        _deferredLoadGeneration++;
+        _deferredBitmapLoads.Clear();
+        _deferredDrainQueued = false;
+    }
+
+    public void EndDeferredColdBitmapLoads()
+    {
+        _deferColdBitmapLoads = false;
+    }
+
     public void SetBaseDirectoryPath(string? baseDirectoryPath)
     {
         _baseDirectoryPath = string.IsNullOrWhiteSpace(baseDirectoryPath)
@@ -43,6 +64,8 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
             : Path.GetFullPath(baseDirectoryPath);
         _previewLineCache.Clear();
         _previewRenderCache.Clear();
+        _deferredBitmapLoads.Clear();
+        _deferredLoadGeneration++;
     }
 
     public void SetAvailableWidth(double availableWidth)
@@ -152,21 +175,6 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         return previews;
     }
 
-    public void Dispose()
-    {
-        Detach();
-
-        foreach (var bitmap in _bitmapCache.Values)
-        {
-            bitmap.Bitmap.Dispose();
-        }
-
-        _bitmapCache.Clear();
-        _bitmapCacheLru.Clear();
-        _previewLineCache.Clear();
-        _previewRenderCache.Clear();
-    }
-
     private Size ComputeScaledSize(Bitmap bitmap, int? scalePercent, double maxWidth)
     {
         var percent = Math.Clamp(scalePercent ?? 100, 1, 400);
@@ -248,9 +256,22 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
             RemoveBitmapCacheEntry(resolvedPath, cachedBitmap);
         }
 
+        if (_deferColdBitmapLoads)
+        {
+            _deferredBitmapLoads[resolvedPath] = fileStamp;
+            MarkdownDiagnostics.RecordDeferredBitmapLoadRequest();
+            RequestDeferredBitmapLoadDrain();
+            return null;
+        }
+
+        MarkdownDiagnostics.RecordBitmapCacheMiss();
+        return TryLoadBitmapIntoCache(resolvedPath, fileStamp);
+    }
+
+    private Bitmap? TryLoadBitmapIntoCache(string resolvedPath, FileStamp fileStamp)
+    {
         try
         {
-            MarkdownDiagnostics.RecordBitmapCacheMiss();
             var bitmap = new Bitmap(resolvedPath);
             var lruNode = _bitmapCacheLru.AddLast(resolvedPath);
             _bitmapCache[resolvedPath] = new BitmapCacheEntry(bitmap, fileStamp, lruNode);
@@ -260,6 +281,67 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         catch
         {
             return null;
+        }
+    }
+
+    private void RequestDeferredBitmapLoadDrain()
+    {
+        if (_deferredDrainQueued)
+        {
+            return;
+        }
+
+        _deferredDrainQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _deferredDrainQueued = false;
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            ProcessDeferredBitmapLoads();
+        }, DispatcherPriority.Background);
+    }
+
+    private void ProcessDeferredBitmapLoads()
+    {
+        var generation = _deferredLoadGeneration;
+        var loads = _deferredBitmapLoads.ToArray();
+        _deferredBitmapLoads.Clear();
+
+        bool anyLoaded = false;
+        foreach (var (resolvedPath, fileStamp) in loads)
+        {
+            if (generation != _deferredLoadGeneration)
+            {
+                MarkdownDiagnostics.RecordDeferredBitmapLoadSkip();
+                continue;
+            }
+
+            if (_bitmapCache.ContainsKey(resolvedPath))
+            {
+                MarkdownDiagnostics.RecordDeferredBitmapLoadSkip();
+                continue;
+            }
+
+            var currentStamp = TryGetFileStamp(resolvedPath);
+            if (currentStamp is null || !currentStamp.Value.Equals(fileStamp))
+            {
+                MarkdownDiagnostics.RecordDeferredBitmapLoadSkip();
+                continue;
+            }
+
+            if (TryLoadBitmapIntoCache(resolvedPath, fileStamp) is not null)
+            {
+                anyLoaded = true;
+                MarkdownDiagnostics.RecordDeferredBitmapLoad();
+            }
+        }
+
+        if (anyLoaded)
+        {
+            DeferredBitmapLoadsCompleted?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -288,6 +370,25 @@ internal sealed class MarkdownImagePreviewProvider : IDisposable
         _document = null;
         _previewLineCache.Clear();
         _previewRenderCache.Clear();
+        _deferredBitmapLoads.Clear();
+        _deferredLoadGeneration++;
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+        Detach();
+
+        foreach (var bitmap in _bitmapCache.Values)
+        {
+            bitmap.Bitmap.Dispose();
+        }
+
+        _bitmapCache.Clear();
+        _bitmapCacheLru.Clear();
+        _previewLineCache.Clear();
+        _previewRenderCache.Clear();
+        _deferredBitmapLoads.Clear();
     }
 
     private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e)

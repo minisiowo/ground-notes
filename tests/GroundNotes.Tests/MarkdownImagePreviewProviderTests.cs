@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using GroundNotes.Editors;
 using GroundNotes.Services;
@@ -358,6 +359,89 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(2, narrowPreview.Count);
         Assert.True(narrowPreview[0].Width < widePreview[0].Width);
         Assert.True(narrowPreview[1].Width < widePreview[1].Width);
+    }
+
+    [Fact]
+    public void GetPreview_QueuesColdBitmapLoadWhenDeferred()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
+        var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(100);
+        MarkdownDiagnostics.Reset();
+
+        provider.BeginDeferredColdBitmapLoads();
+        var deferredPreview = provider.GetPreview(document, document.GetLineByNumber(1));
+        provider.EndDeferredColdBitmapLoads();
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+
+        Assert.Empty(deferredPreview);
+        var midDiagnostics = MarkdownDiagnostics.Snapshot();
+        Assert.Equal(1, midDiagnostics.DeferredBitmapLoadRequests);
+        Assert.Equal(0, midDiagnostics.BitmapCacheMisses);
+
+        var finalPreview = provider.GetPreview(document, document.GetLineByNumber(1));
+        var finalDiagnostics = MarkdownDiagnostics.Snapshot();
+
+        Assert.Single(finalPreview);
+        Assert.Equal(1, finalDiagnostics.DeferredBitmapLoads);
+        Assert.True(finalDiagnostics.BitmapCacheHits > 0 || finalDiagnostics.BitmapCacheMisses == 0,
+            $"Expected bitmap to be cached after deferred load. Hits={finalDiagnostics.BitmapCacheHits}, Misses={finalDiagnostics.BitmapCacheMisses}");
+    }
+
+    [Fact]
+    public void DeferredBitmapLoad_IsDiscardedAfterBaseDirectoryChanges()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
+        var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|100");
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(100);
+        MarkdownDiagnostics.Reset();
+
+        provider.BeginDeferredColdBitmapLoads();
+        provider.GetPreview(document, document.GetLineByNumber(1));
+        provider.SetBaseDirectoryPath(Path.Combine(_tempDirectory, "other"));
+        provider.EndDeferredColdBitmapLoads();
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+        Assert.Equal(0, diagnostics.DeferredBitmapLoads);
+        Assert.Equal(1, diagnostics.DeferredBitmapLoadRequests);
+    }
+
+    [Fact]
+    public void DeferredBitmapLoad_CoalescesDuplicateVisibleLines()
+    {
+        EnsureApplication();
+        Directory.CreateDirectory(_tempDirectory);
+        var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
+        var rel = Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/');
+        var document = new TextDocument(string.Join(
+            Environment.NewLine,
+            $"![]({rel})|100",
+            $"![]({rel})|100"));
+        using var colorizer = new MarkdownColorizingTransformer();
+        using var provider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
+        provider.SetBaseDirectoryPath(_tempDirectory);
+        provider.SetAvailableWidth(100);
+        MarkdownDiagnostics.Reset();
+
+        provider.BeginDeferredColdBitmapLoads();
+        provider.GetPreview(document, document.GetLineByNumber(1));
+        provider.GetPreview(document, document.GetLineByNumber(2));
+        provider.EndDeferredColdBitmapLoads();
+        Dispatcher.UIThread.RunJobs(DispatcherPriority.Background);
+
+        var diagnostics = MarkdownDiagnostics.Snapshot();
+        Assert.Equal(1, diagnostics.DeferredBitmapLoads);
     }
 
     private static void EnsureApplication()

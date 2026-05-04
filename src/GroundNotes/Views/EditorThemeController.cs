@@ -42,6 +42,7 @@ internal sealed class EditorThemeController : IDisposable
         _visualLineIndentationProvider = new MarkdownVisualLineIndentationProvider(colorizer);
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
+        _imagePreviewProvider.DeferredBitmapLoadsCompleted += OnDeferredBitmapLoadsCompleted;
 
         ConfigureEditorOptions(_editor.Options);
         _editor.Options.WordWrapIndentation = 0;
@@ -120,11 +121,26 @@ internal sealed class EditorThemeController : IDisposable
     {
         SetPointerOverInteractiveMarkdownTarget(false);
         _codeBlockCopyLayer.ClearState();
+        _imagePreviewProvider.BeginDeferredColdBitmapLoads();
         _imagePreviewLayer.ClearRenderedState();
         if (_markdownFormattingEnabled)
         {
             _imagePreviewLayer.RequestRefresh();
         }
+
+        Dispatcher.UIThread.Post(_imagePreviewProvider.EndDeferredColdBitmapLoads, DispatcherPriority.Background);
+    }
+
+    private void OnDeferredBitmapLoadsCompleted(object? sender, EventArgs e)
+    {
+        if (!_markdownFormattingEnabled)
+        {
+            return;
+        }
+
+        _imagePreviewLayer.InvalidateRefreshState();
+        _editor.TextArea.TextView.Redraw();
+        _imagePreviewLayer.RequestRefresh();
     }
 
     public void RefreshImagePreviews(string? resolvedImagePath = null)
@@ -211,6 +227,7 @@ internal sealed class EditorThemeController : IDisposable
         _editor.TextArea.TextView.PointerMoved -= OnTextViewPointerMoved;
         _editor.TextArea.TextView.PointerExited -= OnTextViewPointerExited;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
+        _imagePreviewProvider.DeferredBitmapLoadsCompleted -= OnDeferredBitmapLoadsCompleted;
         _editor.TextArea.TextView.VisualLineIndentationProvider = null;
         _editor.TextArea.TextView.Layers.Remove(_codeBlockCopyLayer);
         _editor.TextArea.TextView.Layers.Remove(_imagePreviewLayer);
