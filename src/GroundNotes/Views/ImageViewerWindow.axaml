@@ -6,179 +6,157 @@
         SystemDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
-        Background="#CC000000">
+        Background="{DynamicResource AppBackgroundBrush}">
   <Grid x:Name="RootGrid"
         RowDefinitions="Auto,*"
         Margin="12"
-        Background="#CC000000">
-    <DockPanel Grid.Row="0"
-               LastChildFill="False">
-      <StackPanel Orientation="Horizontal"
-                  DockPanel.Dock="Left"
-                  Spacing="8">
-        <ToggleButton x:Name="PenToggleButton"
-                      Classes="secondaryButton"
-                      MinWidth="58"
-                      Height="30"
-                      Padding="8,0"
-                      HorizontalContentAlignment="Center"
-                      VerticalContentAlignment="Center"
-                      Content="Pen"
-                      ToolTip.Tip="Draw annotations"
-                      IsCheckedChanged="OnPenToggleChanged" />
-        <ToggleButton x:Name="TextToggleButton"
-                      Classes="secondaryButton"
-                      MinWidth="58"
-                      Height="30"
-                      Padding="8,0"
-                      HorizontalContentAlignment="Center"
-                      VerticalContentAlignment="Center"
-                      Content="Text"
-                      ToolTip.Tip="Add text"
-                      IsCheckedChanged="OnTextToggleChanged" />
-        <Grid x:Name="AnnotationSizeControl"
-              Width="90"
-              Height="30"
-              Margin="0,0,2,0"
-              Background="Transparent"
-              ToolTip.Tip="Annotation size"
-              PointerPressed="OnAnnotationSizePointerPressed"
-              PointerMoved="OnAnnotationSizePointerMoved"
-              PointerReleased="OnAnnotationSizePointerReleased">
-          <Border Height="1"
-                  Margin="0"
-                  VerticalAlignment="Center"
-                  Background="#7A7A7A" />
-          <Canvas>
-            <Ellipse x:Name="AnnotationSizeThumb"
-                     Width="18"
-                     Height="18"
-                     Fill="#DF795F"
-                     Canvas.Left="8"
-                     Canvas.Top="6" />
-          </Canvas>
-        </Grid>
-        <Button x:Name="RedColorButton"
-                Classes="compactIconButton"
-                Width="30"
-                Height="30"
-                Padding="0"
-                Background="#E5484D"
-                Tag="#E5484D"
-                ToolTip.Tip="Red"
-                Click="OnAnnotationColorClick" />
-        <Button x:Name="YellowColorButton"
-                Classes="compactIconButton"
-                Width="30"
-                Height="30"
-                Padding="0"
-                Background="#F5D547"
-                Tag="#F5D547"
-                ToolTip.Tip="Yellow"
-                Click="OnAnnotationColorClick" />
-        <Button x:Name="GreenColorButton"
-                Classes="compactIconButton"
-                Width="30"
-                Height="30"
-                Padding="0"
-                Background="#30A46C"
-                Tag="#30A46C"
-                ToolTip.Tip="Green"
-                Click="OnAnnotationColorClick" />
-        <Button x:Name="BlueColorButton"
-                Classes="compactIconButton"
-                Width="30"
-                Height="30"
-                Padding="0"
-                Background="#3B82F6"
-                Tag="#3B82F6"
-                ToolTip.Tip="Blue"
-                Click="OnAnnotationColorClick" />
-        <Button x:Name="WhiteColorButton"
-                Classes="compactIconButton"
-                Width="30"
-                Height="30"
-                Padding="0"
-                Background="#F8FAFC"
-                Tag="#F8FAFC"
-                ToolTip.Tip="White"
-                Click="OnAnnotationColorClick" />
-        <Button x:Name="BlackColorButton"
-                Classes="compactIconButton"
-                Width="30"
-                Height="30"
-                Padding="0"
-                Background="#111827"
-                Tag="#111827"
-                ToolTip.Tip="Black"
-                Click="OnAnnotationColorClick" />
-        <Button x:Name="UndoAnnotationButton"
-                Classes="secondaryButton"
-                MinWidth="58"
-                Height="30"
-                Padding="8,0"
-                Content="Undo"
-                ToolTip.Tip="Undo last stroke"
-                Click="OnUndoAnnotationClick" />
-        <Button x:Name="SaveCopyButton"
-                Classes="secondaryButton"
-                MinWidth="82"
-                Height="30"
-                Padding="8,0"
-                Content="Save copy"
-                ToolTip.Tip="Save annotations as a new image"
-                Click="OnSaveCopyClick" />
-        <Button x:Name="CopyAnnotatedButton"
-                Classes="secondaryButton"
-                MinWidth="58"
-                Height="30"
-                Padding="8,0"
-                Content="Copy"
-                ToolTip.Tip="Copy annotated image"
-                Click="OnCopyAnnotatedClick" />
-        <Button x:Name="OverwriteButton"
-                Classes="secondaryButton"
-                MinWidth="78"
-                Height="30"
-                Padding="8,0"
-                Content="Overwrite"
-                ToolTip.Tip="Overwrite current image"
-                Click="OnOverwriteClick" />
-      </StackPanel>
-      <StackPanel Orientation="Horizontal"
-                  DockPanel.Dock="Right"
-                  Spacing="8">
-        <Button Classes="compactIconButton"
-                Width="34"
-                Height="30"
-                Padding="0"
-                Content="-"
-                ToolTip.Tip="Zoom out"
-                Click="OnZoomOutClick" />
-        <Button x:Name="ZoomResetButton"
-                Classes="secondaryButton"
-                MinWidth="70"
-                Height="30"
-                Padding="8,0"
-                Content="Fit"
-                ToolTip.Tip="Fit image"
-                Click="OnResetZoomClick" />
-        <Button Classes="compactIconButton"
-                Width="34"
-                Height="30"
-                Padding="0"
-                Content="+"
-                ToolTip.Tip="Zoom in"
-                Click="OnZoomInClick" />
-        <Button Classes="compactIconButton"
-                Width="34"
-                Height="30"
-                Padding="0"
-                Content="X"
-                ToolTip.Tip="Close"
-                Click="OnCloseClick" />
-      </StackPanel>
-    </DockPanel>
+        Background="{DynamicResource AppBackgroundBrush}">
+    <Border x:Name="AnnotationToolbar"
+            Grid.Row="0"
+            Classes="imageViewerToolbarSurface">
+      <DockPanel LastChildFill="False">
+        <StackPanel Orientation="Horizontal"
+                    DockPanel.Dock="Left"
+                    Spacing="6">
+          <Border Classes="imageViewerToolbarGroup">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+              <ToggleButton x:Name="PenToggleButton"
+                            Classes="imageViewerToolButton"
+                            Content="Pen"
+                            IsCheckedChanged="OnPenToggleChanged" />
+              <ToggleButton x:Name="TextToggleButton"
+                            Classes="imageViewerToolButton"
+                            Content="Text"
+                            IsCheckedChanged="OnTextToggleChanged" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="imageViewerToolbarGroup">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+              <Grid x:Name="AnnotationSizeControl"
+                    Classes="imageViewerSizeControl"
+                    Background="Transparent"
+                    PointerPressed="OnAnnotationSizePointerPressed"
+                    PointerMoved="OnAnnotationSizePointerMoved"
+                    PointerReleased="OnAnnotationSizePointerReleased">
+                <Border Height="1"
+                        Margin="0"
+                        VerticalAlignment="Center"
+                        Background="{DynamicResource BorderBrushBase}" />
+                <Canvas>
+                  <Ellipse x:Name="AnnotationSizeThumb"
+                           Width="18"
+                           Height="18"
+                           Fill="{DynamicResource SurfaceRaisedBrush}"
+                           Stroke="{DynamicResource FocusBorderBrush}"
+                           StrokeThickness="1"
+                           Canvas.Left="8"
+                           Canvas.Top="6" />
+                </Canvas>
+              </Grid>
+
+              <Button x:Name="RedColorButton"
+                      Classes="imageViewerColorSwatch"
+                      Tag="#E5484D"
+                      Click="OnAnnotationColorClick">
+                <Border Classes="imageViewerColorSwatchFill"
+                        Background="#E5484D" />
+              </Button>
+              <Button x:Name="YellowColorButton"
+                      Classes="imageViewerColorSwatch"
+                      Tag="#F5D547"
+                      Click="OnAnnotationColorClick">
+                <Border Classes="imageViewerColorSwatchFill"
+                        Background="#F5D547" />
+              </Button>
+              <Button x:Name="GreenColorButton"
+                      Classes="imageViewerColorSwatch"
+                      Tag="#30A46C"
+                      Click="OnAnnotationColorClick">
+                <Border Classes="imageViewerColorSwatchFill"
+                        Background="#30A46C" />
+              </Button>
+              <Button x:Name="BlueColorButton"
+                      Classes="imageViewerColorSwatch"
+                      Tag="#3B82F6"
+                      Click="OnAnnotationColorClick">
+                <Border Classes="imageViewerColorSwatchFill"
+                        Background="#3B82F6" />
+              </Button>
+              <Button x:Name="WhiteColorButton"
+                      Classes="imageViewerColorSwatch"
+                      Tag="#F8FAFC"
+                      Click="OnAnnotationColorClick">
+                <Border Classes="imageViewerColorSwatchFill"
+                        Background="#F8FAFC" />
+              </Button>
+              <Button x:Name="BlackColorButton"
+                      Classes="imageViewerColorSwatch"
+                      Tag="#111827"
+                      Click="OnAnnotationColorClick">
+                <Border Classes="imageViewerColorSwatchFill"
+                        Background="#111827" />
+              </Button>
+            </StackPanel>
+          </Border>
+
+          <Border Classes="imageViewerToolbarGroup">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+              <Button x:Name="UndoAnnotationButton"
+                      Classes="imageViewerActionButton"
+                      Content="Undo"
+                      Click="OnUndoAnnotationClick" />
+              <Button x:Name="SaveCopyButton"
+                      Classes="imageViewerActionButton"
+                      Content="Save copy"
+                      Click="OnSaveCopyClick" />
+              <Button x:Name="CopyAnnotatedButton"
+                      Classes="imageViewerActionButton"
+                      Content="Copy"
+                      Click="OnCopyAnnotatedClick" />
+              <Button x:Name="OverwriteButton"
+                      Classes="imageViewerActionButton"
+                      Content="Overwrite"
+                      Click="OnOverwriteClick" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal"
+                    DockPanel.Dock="Right"
+                    Spacing="6">
+          <TextBlock x:Name="ToolbarHintText"
+                     Classes="imageViewerToolbarHint"
+                     VerticalAlignment="Center" />
+          <Border Classes="imageViewerToolbarGroup">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="6">
+              <Button x:Name="ZoomOutButton"
+                      Classes="imageViewerActionButton compactIconButton"
+                      Content="-"
+                      Click="OnZoomOutClick" />
+              <Button x:Name="ZoomResetButton"
+                      Classes="imageViewerActionButton"
+                      MinWidth="70"
+                      Content="Fit"
+                      Click="OnResetZoomClick" />
+              <Button x:Name="ZoomInButton"
+                      Classes="imageViewerActionButton compactIconButton"
+                      Content="+"
+                      Click="OnZoomInClick" />
+              <Button x:Name="CloseViewerButton"
+                      Classes="imageViewerActionButton compactIconButton"
+                      Content="X"
+                      Click="OnCloseClick" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
     <Grid x:Name="ViewerViewport"
           Grid.Row="1"
           Focusable="True"
@@ -197,12 +175,10 @@
       <Canvas x:Name="AnnotationEditCanvas"
               IsHitTestVisible="True">
         <Border x:Name="AnnotationTextEditor"
+                Classes="imageViewerAnnotationTextEditor"
                 Width="240"
                 MinHeight="34"
-                IsVisible="False"
-                Background="Transparent"
-                BorderBrush="Transparent"
-                BorderThickness="0">
+                IsVisible="False">
           <TextBox x:Name="AnnotationTextBox"
                    MinHeight="32"
                    Padding="0"

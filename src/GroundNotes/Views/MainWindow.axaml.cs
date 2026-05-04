@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private readonly EditorHostController _editorHost;
     private readonly Dictionary<Guid, EditorHostController> _secondaryEditorHosts = [];
     private readonly Dictionary<Guid, TextEditor> _secondaryEditorControls = [];
+    private readonly Dictionary<Guid, string?> _secondaryEditorSyncedFilePaths = [];
     private readonly Dictionary<Guid, Border> _secondaryEditorBorders = [];
     private readonly Dictionary<Guid, Control> _secondaryPaneRoots = [];
     private readonly Dictionary<Guid, Control> _secondaryTitleAnchors = [];
@@ -37,6 +38,7 @@ public partial class MainWindow : Window
     private readonly WindowChromeController _windowChrome;
     private readonly TaskCompletionSource _openedTaskSource = new();
     private IEditorLayoutState? _editorLayoutState;
+    private string? _primaryEditorSyncedFilePath;
     private bool _hasAppliedInitialEditorLayout;
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
@@ -77,7 +79,7 @@ public partial class MainWindow : Window
                 IsInteractiveControl = IsPointerOverInteractiveControl,
                 ShouldSuppressTitleBarDoubleTap = e => e.Source is Control control && control.FindAncestorOfType<Button>() is not null
             });
-        _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer);
+        _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer, CopyCodeBlockAsync);
         _editorHost.SetDocumentDisplayMode(EditorDocumentDisplayMode.Markdown);
         _slashCommandPopup = new SlashCommandPopupController(
             EditorTextEditor,
@@ -2596,16 +2598,29 @@ public partial class MainWindow : Window
 
     private void SyncEditorText(string text)
     {
+        var syncedFilePath = (DataContext as MainViewModel)?.CurrentNote?.FilePath;
+        var shouldResetViewport = HasSyncedFilePathChanged(_primaryEditorSyncedFilePath, syncedFilePath);
         var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out var appendedOnly);
+        var isEditorOriginatedUpdate = _editorHost.IsUpdatingViewModelFromEditor;
+        _primaryEditorSyncedFilePath = syncedFilePath;
         _isUpdatingEditorFromViewModel = _editorHost.IsUpdatingEditorFromViewModel;
         if (!changed)
         {
+            if (shouldResetViewport && !isEditorOriginatedUpdate)
+            {
+                _editorHost.ResetViewportToDocumentStart();
+            }
+
             return;
         }
 
         if (!appendedOnly)
         {
             _editorHost.RefreshLayoutAfterDocumentReplace();
+            if (shouldResetViewport)
+            {
+                _editorHost.ResetViewportToDocumentStart();
+            }
         }
 
         _slashCommandPopup.ScheduleRefresh();
@@ -2618,16 +2633,35 @@ public partial class MainWindow : Window
             return;
         }
 
+        var syncedFilePath = pane.CurrentNote?.FilePath;
+        var previousFilePath = _secondaryEditorSyncedFilePaths.GetValueOrDefault(pane.Id);
+        var shouldResetViewport = HasSyncedFilePathChanged(previousFilePath, syncedFilePath);
         var changed = host.SyncFromViewModel(pane.EditorBody, appendSuffixWhenPossible: false, out var appendedOnly);
+        var isEditorOriginatedUpdate = host.IsUpdatingViewModelFromEditor;
+        _secondaryEditorSyncedFilePaths[pane.Id] = syncedFilePath;
         if (!changed)
         {
+            if (shouldResetViewport && !isEditorOriginatedUpdate)
+            {
+                host.ResetViewportToDocumentStart();
+            }
+
             return;
         }
 
         if (!appendedOnly)
         {
             host.RefreshLayoutAfterDocumentReplace();
+            if (shouldResetViewport)
+            {
+                host.ResetViewportToDocumentStart();
+            }
         }
+    }
+
+    private static bool HasSyncedFilePathChanged(string? previousFilePath, string? syncedFilePath)
+    {
+        return !string.Equals(previousFilePath, syncedFilePath, StringComparison.OrdinalIgnoreCase);
     }
 
     private void OnSecondaryEditorAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
@@ -2637,7 +2671,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var host = new EditorHostController(editor, new MarkdownColorizingTransformer());
+        var host = new EditorHostController(editor, new MarkdownColorizingTransformer(), CopyCodeBlockAsync);
         _secondaryEditorHosts[pane.Id] = host;
         _secondaryEditorControls[pane.Id] = editor;
         if (DataContext is MainViewModel vm)
@@ -2685,6 +2719,7 @@ public partial class MainWindow : Window
         }
 
         editor.ContextRequested -= OnEditorContextRequested;
+        _secondaryEditorSyncedFilePaths.Remove(pane.Id);
         DetachWorkspaceBringIntoViewSuppression(editor);
         DetachWorkspaceBringIntoViewSuppression(editor.TextArea);
         editor.TextArea.Caret.PositionChanged -= OnEditorCaretPositionChanged;
@@ -2933,6 +2968,36 @@ public partial class MainWindow : Window
         }
 
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
+    }
+
+    private async Task CopyCodeBlockAsync(string code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            return;
+        }
+
+        if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            vm.StatusMessage = "System clipboard is not available.";
+            return;
+        }
+
+        try
+        {
+            await ClipboardTextService.SetTextAsync(topLevel.Clipboard, code);
+            vm.StatusMessage = "Copied code block";
+        }
+        catch (Exception ex)
+        {
+            vm.StatusMessage = $"Could not copy code block: {ex.Message}";
+        }
     }
 
     private async Task CutEditorSelectionAsync(TextEditor editor)

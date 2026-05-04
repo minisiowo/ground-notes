@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using AvaloniaEdit;
@@ -13,10 +14,12 @@ namespace GroundNotes.Views;
 internal sealed class EditorThemeController : IDisposable
 {
     private const double ResizeTolerance = 0.1;
+    private static readonly Cursor HandCursor = new(StandardCursorType.Hand);
 
     private readonly TextEditor _editor;
     private readonly MarkdownColorizingTransformer _colorizer;
     private readonly CodeBlockBackgroundRenderer _codeBlockRenderer;
+    private readonly MarkdownCodeBlockCopyLayer _codeBlockCopyLayer;
     private readonly MarkdownImagePreviewProvider _imagePreviewProvider;
     private readonly MarkdownImageVisualLineTransformer _imageVisualLineTransformer;
     private readonly MarkdownImagePreviewLayer _imagePreviewLayer;
@@ -25,12 +28,14 @@ internal sealed class EditorThemeController : IDisposable
     private Size _lastTextViewBounds;
     private bool _isResizeRefreshQueued;
     private bool _markdownFormattingEnabled = true;
+    private bool _isPointerOverInteractiveMarkdownTarget;
 
-    public EditorThemeController(TextEditor editor, MarkdownColorizingTransformer colorizer)
+    public EditorThemeController(TextEditor editor, MarkdownColorizingTransformer colorizer, Func<string, Task>? copyCodeBlockAsync = null)
     {
         _editor = editor;
         _colorizer = colorizer;
         _codeBlockRenderer = new CodeBlockBackgroundRenderer(colorizer);
+        _codeBlockCopyLayer = new MarkdownCodeBlockCopyLayer(_editor.TextArea.TextView, colorizer, copyCodeBlockAsync);
         _imagePreviewProvider = new MarkdownImagePreviewProvider(colorizer, new NoteAssetService());
         _imageVisualLineTransformer = new MarkdownImageVisualLineTransformer(_imagePreviewProvider);
         _imagePreviewLayer = new MarkdownImagePreviewLayer(_editor.TextArea.TextView, _imagePreviewProvider);
@@ -43,12 +48,15 @@ internal sealed class EditorThemeController : IDisposable
         _editor.Options.InheritWordWrapIndentation = true;
         _editor.TextArea.TextView.VisualLineIndentationProvider = _visualLineIndentationProvider;
         _editor.TextArea.TextView.InsertLayer(_imagePreviewLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
+        _editor.TextArea.TextView.InsertLayer(_codeBlockCopyLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
         _editor.TextArea.TextView.LineTransformers.Add(_imageVisualLineTransformer);
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.ResourcesChanged += OnEditorResourcesChanged;
         _editor.SizeChanged += OnEditorSizeChanged;
         _editor.TextArea.TextView.PropertyChanged += OnTextViewPropertyChanged;
+        _editor.TextArea.TextView.PointerMoved += OnTextViewPointerMoved;
+        _editor.TextArea.TextView.PointerExited += OnTextViewPointerExited;
 
         _lastAppearanceSignature = CaptureAppearanceSignature();
         _lastTextViewBounds = _editor.TextArea.TextView.Bounds.Size;
@@ -73,6 +81,7 @@ internal sealed class EditorThemeController : IDisposable
         _lastAppearanceSignature = CaptureAppearanceSignature();
         _colorizer.InvalidateResourceCache();
         _codeBlockRenderer.InvalidateBrush();
+        _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
         _editor.TextArea.TextView.InvalidateVisual();
     }
@@ -100,8 +109,17 @@ internal sealed class EditorThemeController : IDisposable
             : null;
     }
 
+    public MarkdownCodeBlockCopyHitTestResult? TryHitTestCodeBlockCopyButton(Point point)
+    {
+        return _markdownFormattingEnabled
+            ? _codeBlockCopyLayer.TryHitTestButton(point)
+            : null;
+    }
+
     public void RefreshAfterDocumentReplace()
     {
+        SetPointerOverInteractiveMarkdownTarget(false);
+        _codeBlockCopyLayer.ClearState();
         _imagePreviewLayer.ClearRenderedState();
         if (_markdownFormattingEnabled)
         {
@@ -154,6 +172,7 @@ internal sealed class EditorThemeController : IDisposable
             DetachMarkdownPresentation();
         }
 
+        SetPointerOverInteractiveMarkdownTarget(false);
         RefreshPresentation();
     }
 
@@ -163,6 +182,7 @@ internal sealed class EditorThemeController : IDisposable
         ApplyEditorOptions(currentSignature);
         _colorizer.InvalidateResourceCache();
         _codeBlockRenderer.InvalidateBrush();
+        _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
 
         var textView = _editor.TextArea.TextView;
@@ -188,13 +208,17 @@ internal sealed class EditorThemeController : IDisposable
         _editor.ResourcesChanged -= OnEditorResourcesChanged;
         _editor.SizeChanged -= OnEditorSizeChanged;
         _editor.TextArea.TextView.PropertyChanged -= OnTextViewPropertyChanged;
+        _editor.TextArea.TextView.PointerMoved -= OnTextViewPointerMoved;
+        _editor.TextArea.TextView.PointerExited -= OnTextViewPointerExited;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
         _editor.TextArea.TextView.VisualLineIndentationProvider = null;
+        _editor.TextArea.TextView.Layers.Remove(_codeBlockCopyLayer);
         _editor.TextArea.TextView.Layers.Remove(_imagePreviewLayer);
         _editor.TextArea.TextView.LineTransformers.Remove(_imageVisualLineTransformer);
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
         _imagePreviewLayer.Dispose();
+        _codeBlockCopyLayer.Dispose();
         _imagePreviewProvider.Dispose();
     }
 
@@ -202,10 +226,16 @@ internal sealed class EditorThemeController : IDisposable
     {
         var textView = _editor.TextArea.TextView;
 
+        _codeBlockCopyLayer.SetEnabled(true);
         textView.VisualLineIndentationProvider = _visualLineIndentationProvider;
         if (!textView.Layers.Contains(_imagePreviewLayer))
         {
             textView.InsertLayer(_imagePreviewLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
+        }
+
+        if (!textView.Layers.Contains(_codeBlockCopyLayer))
+        {
+            textView.InsertLayer(_codeBlockCopyLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
         }
 
         if (!textView.LineTransformers.Contains(_imageVisualLineTransformer))
@@ -225,13 +255,17 @@ internal sealed class EditorThemeController : IDisposable
 
         _imagePreviewLayer.InvalidateRefreshState();
         _imagePreviewLayer.RequestRefresh();
+        _codeBlockCopyLayer.RequestRefresh();
     }
 
     private void DetachMarkdownPresentation()
     {
         var textView = _editor.TextArea.TextView;
         textView.VisualLineIndentationProvider = null;
+        _codeBlockCopyLayer.SetEnabled(false);
+        _codeBlockCopyLayer.ClearState();
         _imagePreviewLayer.ClearRenderedState();
+        textView.Layers.Remove(_codeBlockCopyLayer);
         textView.Layers.Remove(_imagePreviewLayer);
         textView.LineTransformers.Remove(_imageVisualLineTransformer);
         textView.LineTransformers.Remove(_colorizer);
@@ -243,6 +277,7 @@ internal sealed class EditorThemeController : IDisposable
     {
         _colorizer.InvalidateResourceCache();
         _codeBlockRenderer.InvalidateBrush();
+        _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
 
         var textView = _editor.TextArea.TextView;
@@ -315,6 +350,50 @@ internal sealed class EditorThemeController : IDisposable
         RefreshAfterResize();
     }
 
+    private void OnTextViewPointerMoved(object? sender, PointerEventArgs e)
+    {
+        var textView = _editor.TextArea.TextView;
+        var point = e.GetPosition(textView);
+        SetPointerOverInteractiveMarkdownTarget(HasInteractiveMarkdownTarget(point));
+    }
+
+    private void OnTextViewPointerExited(object? sender, PointerEventArgs e)
+    {
+        SetPointerOverInteractiveMarkdownTarget(false);
+    }
+
+    private bool HasInteractiveMarkdownTarget(Point point)
+    {
+        return _markdownFormattingEnabled
+            && (_imagePreviewLayer.TryHitTestPreview(point) is not null
+                || _codeBlockCopyLayer.TryHitTestButton(point) is not null);
+    }
+
+    private void SetPointerOverInteractiveMarkdownTarget(bool isPointerOverInteractiveMarkdownTarget)
+    {
+        if (_isPointerOverInteractiveMarkdownTarget == isPointerOverInteractiveMarkdownTarget)
+        {
+            if (isPointerOverInteractiveMarkdownTarget)
+            {
+                _editor.TextArea.TextView.Cursor = HandCursor;
+            }
+
+            return;
+        }
+
+        _isPointerOverInteractiveMarkdownTarget = isPointerOverInteractiveMarkdownTarget;
+        _editor.TextArea.TextView.Cursor = isPointerOverInteractiveMarkdownTarget
+            ? HandCursor
+            : ResolveTextViewDefaultCursor();
+    }
+
+    private Cursor? ResolveTextViewDefaultCursor()
+    {
+        return _editor.TextArea.TextView.Parent is AvaloniaObject parent
+            ? parent.GetValue(InputElement.CursorProperty)
+            : null;
+    }
+
     private static EditorAppearanceSignature CaptureAppearanceSignature()
     {
         var resources = Application.Current?.Resources;
@@ -343,6 +422,7 @@ internal sealed class EditorThemeController : IDisposable
     {
         var textView = _editor.TextArea.TextView;
         _imagePreviewLayer.InvalidateRefreshState();
+        _codeBlockCopyLayer.RequestRefresh();
         UpdatePreviewAvailableWidth(textView.Bounds.Width);
         textView.InvalidateMeasure();
         textView.InvalidateArrange();

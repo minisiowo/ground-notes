@@ -21,10 +21,11 @@ public partial class ImageViewerWindow : Window
     private readonly Func<string, RenderTargetBitmap, bool, Task<ImageViewerSaveResult>>? _saveAsync;
     private readonly Func<RenderTargetBitmap, Task<bool>>? _copyAsync;
     private readonly List<ImageAnnotation> _annotations = [];
-    private readonly List<Point> _activeStrokePoints = [];
+    private readonly List<ImageAnnotationStrokePoint> _activeStrokePoints = [];
     private Bitmap? _bitmap;
     private string _imagePath = string.Empty;
     private ImageAnnotationLayer? _annotationLayer;
+    private ImageAnnotationStrokeSmoother? _activeStrokeSmoother;
     private double _zoom = 1;
     private Vector _pan;
     private bool _isDragging;
@@ -34,6 +35,7 @@ public partial class ImageViewerWindow : Window
     private bool _isPointerDownInAnnotationToolbar;
     private Color _annotationColor = DefaultAnnotationColor;
     private double _annotationSize = DefaultAnnotationSize;
+    private Button? _selectedColorButton;
     private ImageAnnotationTool _activeTool = ImageAnnotationTool.None;
     private Point? _pendingTextLocation;
     private Color _pendingTextColor = DefaultAnnotationColor;
@@ -55,6 +57,9 @@ public partial class ImageViewerWindow : Window
         AnnotationTextEditor.AddHandler(PointerMovedEvent, OnAnnotationTextEditorPointerMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
         AnnotationTextEditor.AddHandler(PointerReleasedEvent, OnAnnotationTextEditorPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         AnnotationSizeControl.SizeChanged += (_, _) => UpdateAnnotationSizeThumb();
+        AttachToolbarHints();
+        UpdateSelectedAnnotationColorButton(RedColorButton);
+        UpdateAnnotationSizeThumb();
         Opened += OnOpened;
         Closed += OnClosed;
     }
@@ -260,7 +265,9 @@ public partial class ImageViewerWindow : Window
         {
             _isDrawingAnnotation = true;
             _activeStrokePoints.Clear();
-            _activeStrokePoints.Add(MapViewportToImage(_dragStartPoint));
+            _activeStrokeSmoother = new ImageAnnotationStrokeSmoother(_annotationSize);
+            _activeStrokeSmoother.Begin(MapViewportToImage(_dragStartPoint), e.Timestamp);
+            SyncActiveStrokePoints();
             e.Pointer.Capture(ViewerViewport);
             e.Handled = true;
             return;
@@ -276,10 +283,9 @@ public partial class ImageViewerWindow : Window
     {
         if (_isDrawingAnnotation)
         {
-            var annotationPoint = e.GetPosition(ViewerViewport);
-            if (GetImageBounds().Contains(annotationPoint))
+            foreach (var pointerPoint in e.GetIntermediatePoints(ViewerViewport))
             {
-                AddActiveAnnotationPoint(MapViewportToImage(annotationPoint));
+                AddActiveAnnotationPoint(pointerPoint.Position, e.Timestamp);
             }
 
             e.Handled = true;
@@ -301,6 +307,7 @@ public partial class ImageViewerWindow : Window
     {
         if (_isDrawingAnnotation)
         {
+            AddActiveAnnotationPoint(e.GetPosition(ViewerViewport), e.Timestamp, forceEndpoint: true);
             _isDrawingAnnotation = false;
             e.Pointer.Capture(null);
             CommitActiveAnnotationStroke();
@@ -360,9 +367,143 @@ public partial class ImageViewerWindow : Window
 
     private void OnWindowPointerPressedForAnnotationToolbar(object? sender, PointerPressedEventArgs e)
     {
-        _isPointerDownInAnnotationToolbar = e.Source is Control control
-            && control.FindAncestorOfType<DockPanel>() is DockPanel dockPanel
-            && ReferenceEquals(dockPanel.Parent, RootGrid);
+        _isPointerDownInAnnotationToolbar = e.Source is Control control && IsWithinAnnotationToolbar(control);
+    }
+
+    private bool IsWithinAnnotationToolbar(Control control)
+    {
+        return ReferenceEquals(control, AnnotationToolbar)
+            || control.GetVisualAncestors().Any(ancestor => ReferenceEquals(ancestor, AnnotationToolbar));
+    }
+
+    private void AttachToolbarHints()
+    {
+        foreach (var control in new Control[]
+                 {
+                     PenToggleButton,
+                     TextToggleButton,
+                     AnnotationSizeControl,
+                     RedColorButton,
+                     YellowColorButton,
+                     GreenColorButton,
+                     BlueColorButton,
+                     WhiteColorButton,
+                     BlackColorButton,
+                     UndoAnnotationButton,
+                     SaveCopyButton,
+                     CopyAnnotatedButton,
+                     OverwriteButton,
+                     ZoomOutButton,
+                     ZoomResetButton,
+                     ZoomInButton,
+                     CloseViewerButton
+                 })
+        {
+            control.PointerEntered += OnToolbarHintPointerEntered;
+            control.PointerExited += OnToolbarHintPointerExited;
+        }
+    }
+
+    private void OnToolbarHintPointerEntered(object? sender, PointerEventArgs e)
+    {
+        ToolbarHintText.Text = sender is Control control
+            ? ResolveToolbarHint(control)
+            : string.Empty;
+    }
+
+    private void OnToolbarHintPointerExited(object? sender, PointerEventArgs e)
+    {
+        ToolbarHintText.Text = string.Empty;
+    }
+
+    private string ResolveToolbarHint(Control control)
+    {
+        if (ReferenceEquals(control, PenToggleButton))
+        {
+            return "Draw";
+        }
+
+        if (ReferenceEquals(control, TextToggleButton))
+        {
+            return "Text";
+        }
+
+        if (ReferenceEquals(control, AnnotationSizeControl))
+        {
+            return "Size";
+        }
+
+        if (ReferenceEquals(control, RedColorButton))
+        {
+            return "Red";
+        }
+
+        if (ReferenceEquals(control, YellowColorButton))
+        {
+            return "Yellow";
+        }
+
+        if (ReferenceEquals(control, GreenColorButton))
+        {
+            return "Green";
+        }
+
+        if (ReferenceEquals(control, BlueColorButton))
+        {
+            return "Blue";
+        }
+
+        if (ReferenceEquals(control, WhiteColorButton))
+        {
+            return "White";
+        }
+
+        if (ReferenceEquals(control, BlackColorButton))
+        {
+            return "Black";
+        }
+
+        if (ReferenceEquals(control, UndoAnnotationButton))
+        {
+            return "Undo";
+        }
+
+        if (ReferenceEquals(control, SaveCopyButton))
+        {
+            return "Save copy";
+        }
+
+        if (ReferenceEquals(control, CopyAnnotatedButton))
+        {
+            return "Copy image";
+        }
+
+        if (ReferenceEquals(control, OverwriteButton))
+        {
+            return "Overwrite";
+        }
+
+        if (ReferenceEquals(control, ZoomOutButton))
+        {
+            return "Zoom out";
+        }
+
+        if (ReferenceEquals(control, ZoomResetButton))
+        {
+            return "Fit image";
+        }
+
+        if (ReferenceEquals(control, ZoomInButton))
+        {
+            return "Zoom in";
+        }
+
+        if (ReferenceEquals(control, CloseViewerButton))
+        {
+            return "Close";
+        }
+
+        return string.Empty;
     }
 
     private void OnAnnotationColorClick(object? sender, RoutedEventArgs e)
@@ -373,6 +514,8 @@ public partial class ImageViewerWindow : Window
         }
 
         _annotationColor = ResolveAnnotationButtonColor(button);
+        UpdateSelectedAnnotationColorButton(button);
+        UpdateAnnotationSizeThumb();
         UpdateActiveTextColorFromAnnotationColor();
         if (_activeTool == ImageAnnotationTool.None)
         {
@@ -457,6 +600,7 @@ public partial class ImageViewerWindow : Window
             ReplaceDisplayedBitmap(LoadBitmap(_imagePath));
             _annotations.Clear();
             _activeStrokePoints.Clear();
+            _activeStrokeSmoother = null;
             _annotationLayer?.InvalidateVisual();
         }
         finally
@@ -468,7 +612,7 @@ public partial class ImageViewerWindow : Window
     private async Task CopyAnnotatedImageAsync()
     {
         CancelTextAnnotationEdit(commit: true);
-        if (_bitmap is null || _copyAsync is null || _annotations.Count == 0)
+        if (_bitmap is null || _copyAsync is null)
         {
             return;
         }
@@ -558,19 +702,35 @@ public partial class ImageViewerWindow : Window
         return new Point(x, y);
     }
 
-    private void AddActiveAnnotationPoint(Point point)
+    private void AddActiveAnnotationPoint(Point viewportPoint, ulong timestamp, bool forceEndpoint = false)
     {
-        if (_activeStrokePoints.Count > 0)
+        if (_activeStrokeSmoother is null || !GetImageBounds().Contains(viewportPoint))
         {
-            var previousPoint = _activeStrokePoints[^1];
-            if (Math.Abs(previousPoint.X - point.X) < 0.5 && Math.Abs(previousPoint.Y - point.Y) < 0.5)
-            {
-                return;
-            }
+            return;
         }
 
-        _activeStrokePoints.Add(point);
+        var point = MapViewportToImage(viewportPoint);
+        var changed = forceEndpoint
+            ? _activeStrokeSmoother.Finish(point, timestamp)
+            : _activeStrokeSmoother.Add(point, timestamp);
+        if (!changed)
+        {
+            return;
+        }
+
+        SyncActiveStrokePoints();
         _annotationLayer?.InvalidateVisual();
+    }
+
+    private void SyncActiveStrokePoints()
+    {
+        _activeStrokePoints.Clear();
+        if (_activeStrokeSmoother is null)
+        {
+            return;
+        }
+
+        _activeStrokePoints.AddRange(_activeStrokeSmoother.Points);
     }
 
     private void CommitActiveAnnotationStroke()
@@ -582,6 +742,7 @@ public partial class ImageViewerWindow : Window
 
         _annotations.Add(new ImageAnnotationStroke(_annotationColor, _annotationSize, _activeStrokePoints.ToArray()));
         _activeStrokePoints.Clear();
+        _activeStrokeSmoother = null;
         _annotationLayer?.InvalidateVisual();
         UpdateAnnotationButtons();
     }
@@ -660,7 +821,9 @@ public partial class ImageViewerWindow : Window
         _pendingTextLocation = imageLocation;
         _pendingTextColor = color;
         _pendingTextFontSize = fontSize;
+        _annotationColor = color;
         _annotationSize = AnnotationSizeFromTextFontSize(fontSize);
+        UpdateSelectedAnnotationColorButton(color);
         UpdateAnnotationSizeThumb();
         AnnotationTextBox.Text = text;
         ApplyAnnotationTextBoxColor(color);
@@ -924,6 +1087,43 @@ public partial class ImageViewerWindow : Window
         var usableWidth = Math.Max(1, AnnotationSizeControl.Bounds.Width - AnnotationThumbSize);
         var ratio = Math.Clamp((_annotationSize - MinAnnotationSize) / (MaxAnnotationSize - MinAnnotationSize), 0, 1);
         Canvas.SetLeft(AnnotationSizeThumb, ratio * usableWidth);
+        AnnotationSizeThumb.Fill = new SolidColorBrush(_annotationColor);
+    }
+
+    private void UpdateSelectedAnnotationColorButton(Color color)
+    {
+        foreach (var button in new[]
+                 {
+                     RedColorButton,
+                     YellowColorButton,
+                     GreenColorButton,
+                     BlueColorButton,
+                     WhiteColorButton,
+                     BlackColorButton
+                 })
+        {
+            if (ResolveAnnotationButtonColor(button) == color)
+            {
+                UpdateSelectedAnnotationColorButton(button);
+                return;
+            }
+        }
+
+        UpdateSelectedAnnotationColorButton(null);
+    }
+
+    private void UpdateSelectedAnnotationColorButton(Button? button)
+    {
+        if (_selectedColorButton is not null)
+        {
+            _selectedColorButton.Classes.Remove("selected");
+        }
+
+        _selectedColorButton = button;
+        if (_selectedColorButton is not null && !_selectedColorButton.Classes.Contains("selected"))
+        {
+            _selectedColorButton.Classes.Add("selected");
+        }
     }
 
     private void UpdateAnnotationButtons()
@@ -931,7 +1131,7 @@ public partial class ImageViewerWindow : Window
         var hasAnnotations = _annotations.Count > 0;
         UndoAnnotationButton.IsEnabled = hasAnnotations;
         SaveCopyButton.IsEnabled = hasAnnotations && _saveAsync is not null;
-        CopyAnnotatedButton.IsEnabled = hasAnnotations && _copyAsync is not null;
+        CopyAnnotatedButton.IsEnabled = _bitmap is not null && _copyAsync is not null;
         OverwriteButton.IsEnabled = hasAnnotations && _saveAsync is not null;
     }
 }

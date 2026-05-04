@@ -392,14 +392,21 @@ namespace AvaloniaEdit.Editing
             }
 
             var textLine = visualLine.GetTextLine(_position.VisualColumn, _position.IsAtEndOfLine);
-            var xPos = visualLine.GetTextLineVisualXPosition(textLine, _position.VisualColumn);
-            var lineTop = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.LineTop);
-            var lineBottom = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.LineBottom);
+            var validatedVisualColumn = _position.VisualColumn;
+            var xPos = visualLine.GetTextLineVisualXPosition(textLine, validatedVisualColumn);
+            var minXPos = GetSelectableStartXPosition(visualLine, textLine);
+            if (xPos < minXPos)
+            {
+                xPos = minXPos;
+            }
+
+            var textTop = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.TextTop);
+            var textBottom = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.TextBottom);
 
             return new Rect(xPos,
-                            lineTop,
+                            textTop,
                             CaretWidth,
-                            lineBottom - lineTop);
+                            Math.Max(CaretWidth, textBottom - textTop));
         }
 
 		Rect CalcCaretOverstrikeRectangle(VisualLine visualLine)
@@ -409,6 +416,8 @@ namespace AvaloniaEdit.Editing
 			}
 
 			int currentPos = _position.VisualColumn;
+			var currentTextLine = visualLine.GetTextLine(currentPos);
+			currentPos = Math.Max(currentPos, GetSelectableStartVisualColumn(visualLine, currentTextLine));
 			// The text being overwritten in overstrike mode is everything up to the next normal caret stop
 			int nextPos = visualLine.GetNextCaretPosition(currentPos, LogicalDirection.Forward, CaretPositioningMode.Normal, true);
 			var textLine = visualLine.GetTextLine(currentPos);
@@ -426,15 +435,51 @@ namespace AvaloniaEdit.Editing
 				// use the visual X position of currentPos and nextPos (one or more of which will be in virtual space)
 				double xPos = visualLine.GetTextLineVisualXPosition(textLine, currentPos);
 				double xPos2 = visualLine.GetTextLineVisualXPosition(textLine, nextPos);
-				double lineTop = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.LineTop);
-				double lineBottom = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.LineBottom);
-				r = new Rect(xPos, lineTop, xPos2 - xPos, lineBottom - lineTop);
+				double textTop = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.TextTop);
+				double textBottom = visualLine.GetTextLineVisualYPosition(textLine, VisualYPosition.TextBottom);
+				r = new Rect(xPos, textTop, xPos2 - xPos, Math.Max(CaretWidth, textBottom - textTop));
 			}
 			// If the caret is too small (e.g. in front of zero-width character), ensure it's still visible
 			if (r.Width < CaretWidth)
 				r = r.WithWidth(CaretWidth);
 			return r;
 		}
+
+        private static double GetSelectableStartXPosition(VisualLine visualLine, Avalonia.Media.TextFormatting.TextLine textLine)
+        {
+            var selectableStartVisualColumn = GetSelectableStartVisualColumn(visualLine, textLine);
+            return visualLine.GetTextLineVisualXPosition(textLine, selectableStartVisualColumn);
+        }
+
+        private static int GetSelectableStartVisualColumn(VisualLine visualLine, Avalonia.Media.TextFormatting.TextLine textLine)
+        {
+            var visualStartCol = visualLine.GetTextLineVisualStartColumn(textLine);
+            var visualEndCol = visualStartCol + textLine.Length;
+            int selectableStart = visualStartCol;
+
+            foreach (var element in visualLine.Elements)
+            {
+                int elementStart = element.VisualColumn;
+                int elementEnd = elementStart + element.VisualLength;
+                if (elementEnd <= visualStartCol)
+                    continue;
+
+                if (elementStart > visualEndCol)
+                    break;
+
+                if (element.DocumentLength <= 0)
+                {
+                    if (elementStart <= selectableStart)
+                        selectableStart = Math.Max(selectableStart, elementEnd);
+
+                    continue;
+                }
+
+                return Math.Max(elementStart, selectableStart);
+            }
+
+            return selectableStart;
+        }
 
         /// <summary>
         /// Returns the caret rectangle. The coordinate system is in device-independent pixels from the top of the document.

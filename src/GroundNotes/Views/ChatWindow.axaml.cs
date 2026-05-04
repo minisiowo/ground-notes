@@ -51,7 +51,7 @@ public partial class ChatWindow : Window
                 CheckWindowStateOnHover = false,
                 CheckWindowStateOnResizePressed = false
             });
-        _editorHost = new EditorHostController(ChatTextEditor, _markdownColorizer);
+        _editorHost = new EditorHostController(ChatTextEditor, _markdownColorizer, CopyCodeBlockAsync);
         _mentionPopup = new ChatMentionPopupController(() =>
         {
             if (DataContext is not ChatViewModel vm)
@@ -128,6 +128,28 @@ public partial class ChatWindow : Window
 
         _editorLayoutState = editorLayoutState;
         _editorLayoutState.SettingsChanged += OnEditorLayoutSettingsChanged;
+    }
+
+    private async Task CopyCodeBlockAsync(string code)
+    {
+        if (string.IsNullOrEmpty(code))
+        {
+            return;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.Clipboard is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await ClipboardTextService.SetTextAsync(topLevel.Clipboard, code);
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private void OnDataContextChanged(object? sender, EventArgs e)

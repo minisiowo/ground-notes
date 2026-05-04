@@ -77,21 +77,49 @@ internal sealed class ImageAnnotationLayer : Control
         }
 
         var thickness = Math.Max(1, stroke.Thickness * imageBounds.Width / imageSize.Width);
-        var pen = new Pen(
-            new SolidColorBrush(stroke.Color),
+        var points = MapToViewport(stroke.Points, imageSize, imageBounds);
+        if (stroke.Points.Count == 1)
+        {
+            var radius = thickness * stroke.Points[0].WidthScale / 2;
+            context.DrawEllipse(new SolidColorBrush(stroke.Color), null, points[0], radius, radius);
+            return;
+        }
+
+        if (stroke.HasVariableWidth)
+        {
+            DrawVariableWidthStroke(context, stroke, points, thickness);
+            return;
+        }
+
+        var pen = CreateStrokePen(stroke.Color, thickness);
+        var geometry = BuildSmoothGeometry(points);
+        context.DrawGeometry(null, pen, geometry);
+    }
+
+    private static void DrawVariableWidthStroke(
+        DrawingContext context,
+        ImageAnnotationStroke stroke,
+        IReadOnlyList<Point> points,
+        double thickness)
+    {
+        var brush = new SolidColorBrush(stroke.Color);
+        var geometry = BuildVariableWidthGeometry(points, stroke.Points, thickness);
+        context.DrawGeometry(brush, null, geometry);
+
+        var startRadius = thickness * stroke.Points[0].WidthScale / 2;
+        var endRadius = thickness * stroke.Points[^1].WidthScale / 2;
+        context.DrawEllipse(brush, null, points[0], startRadius, startRadius);
+        context.DrawEllipse(brush, null, points[^1], endRadius, endRadius);
+    }
+
+    private static Pen CreateStrokePen(Color color, double thickness)
+    {
+        return new Pen(
+            new SolidColorBrush(color),
             thickness,
             dashStyle: null,
             lineCap: PenLineCap.Round,
             lineJoin: PenLineJoin.Round);
-        var points = MapToViewport(stroke.Points, imageSize, imageBounds);
-        if (stroke.Points.Count == 1)
-        {
-            context.DrawEllipse(new SolidColorBrush(stroke.Color), null, points[0], pen.Thickness / 2, pen.Thickness / 2);
-            return;
-        }
-
-        var geometry = BuildSmoothGeometry(points);
-        context.DrawGeometry(null, pen, geometry);
     }
 
     private static void DrawText(
@@ -118,12 +146,12 @@ internal sealed class ImageAnnotationLayer : Control
             imageBounds.Y + imagePoint.Y / imageSize.Height * imageBounds.Height);
     }
 
-    private static Point[] MapToViewport(IReadOnlyList<Point> imagePoints, Size imageSize, Rect imageBounds)
+    private static Point[] MapToViewport(IReadOnlyList<ImageAnnotationStrokePoint> imagePoints, Size imageSize, Rect imageBounds)
     {
         var points = new Point[imagePoints.Count];
         for (var i = 0; i < imagePoints.Count; i++)
         {
-            points[i] = MapToViewport(imagePoints[i], imageSize, imageBounds);
+            points[i] = MapToViewport(imagePoints[i].Location, imageSize, imageBounds);
         }
 
         return points;
@@ -156,6 +184,61 @@ internal sealed class ImageAnnotationLayer : Control
         return geometry;
     }
 
+    internal static StreamGeometry BuildVariableWidthGeometry(
+        IReadOnlyList<Point> points,
+        IReadOnlyList<ImageAnnotationStrokePoint> strokePoints,
+        double thickness)
+    {
+        var leftEdge = new Point[points.Count];
+        var rightEdge = new Point[points.Count];
+        for (var i = 0; i < points.Count; i++)
+        {
+            var previous = i == 0 ? points[i] : points[i - 1];
+            var next = i == points.Count - 1 ? points[i] : points[i + 1];
+            var tangent = next - previous;
+            var length = Math.Sqrt(tangent.X * tangent.X + tangent.Y * tangent.Y);
+            var normal = length <= 0.001
+                ? new Vector(0, -1)
+                : new Vector(-tangent.Y / length, tangent.X / length);
+            var radius = Math.Max(0.5, thickness * strokePoints[i].WidthScale / 2);
+            leftEdge[i] = points[i] + normal * radius;
+            rightEdge[i] = points[i] - normal * radius;
+        }
+
+        var geometry = new StreamGeometry();
+        using var context = geometry.Open();
+        context.SetFillRule(FillRule.NonZero);
+        context.BeginFigure(leftEdge[0], isFilled: true);
+        DrawSmoothEdge(context, leftEdge, reverse: false);
+        context.LineTo(rightEdge[^1]);
+        DrawSmoothEdge(context, rightEdge, reverse: true);
+        context.EndFigure(isClosed: true);
+        return geometry;
+    }
+
+    private static void DrawSmoothEdge(StreamGeometryContext context, IReadOnlyList<Point> edge, bool reverse)
+    {
+        if (edge.Count == 2)
+        {
+            context.LineTo(reverse ? edge[0] : edge[1]);
+            return;
+        }
+
+        var start = reverse ? edge.Count - 2 : 1;
+        var end = reverse ? 0 : edge.Count - 1;
+        var step = reverse ? -1 : 1;
+        for (var i = start; reverse ? i > end : i < end; i += step)
+        {
+            var nextIndex = i + step;
+            var midpoint = new Point(
+                (edge[i].X + edge[nextIndex].X) / 2,
+                (edge[i].Y + edge[nextIndex].Y) / 2);
+            context.QuadraticBezierTo(edge[i], midpoint);
+        }
+
+        context.LineTo(edge[end]);
+    }
+
     internal static TextLayout CreateTextLayout(string text, Color color, double fontSize)
     {
         return new TextLayout(
@@ -185,18 +268,28 @@ internal abstract class ImageAnnotation
 internal sealed class ImageAnnotationStroke : ImageAnnotation
 {
     public ImageAnnotationStroke(Color color, double thickness, IReadOnlyList<Point> points)
+        : this(color, thickness, points.Select(point => new ImageAnnotationStrokePoint(point, 1)).ToArray())
+    {
+    }
+
+    public ImageAnnotationStroke(Color color, double thickness, IReadOnlyList<ImageAnnotationStrokePoint> points)
     {
         Color = color;
         Thickness = thickness;
         Points = points;
+        HasVariableWidth = points.Any(point => Math.Abs(point.WidthScale - 1) > 0.001);
     }
 
     public Color Color { get; }
 
     public double Thickness { get; }
 
-    public IReadOnlyList<Point> Points { get; }
+    public IReadOnlyList<ImageAnnotationStrokePoint> Points { get; }
+
+    public bool HasVariableWidth { get; }
 }
+
+internal readonly record struct ImageAnnotationStrokePoint(Point Location, double WidthScale);
 
 internal sealed class ImageAnnotationText : ImageAnnotation
 {

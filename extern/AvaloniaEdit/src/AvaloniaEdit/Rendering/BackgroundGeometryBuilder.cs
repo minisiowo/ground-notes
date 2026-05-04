@@ -160,7 +160,7 @@ namespace AvaloniaEdit.Rendering
 
 				int segmentStartVc;
 				if (segmentStart < vlStartOffset)
-					segmentStartVc = 0;
+					segmentStartVc = vl.GetVisualColumn(0);
 				else
 					segmentStartVc = vl.ValidateVisualColumn(start, extendToFullWidthAtLineEnd);
 
@@ -209,7 +209,13 @@ namespace AvaloniaEdit.Rendering
 				if (lastTextLine != line && segmentStartVc > visualEndCol)
 					continue;
 				int segmentStartVcInLine = Math.Max(segmentStartVc, visualStartCol);
+				int selectableStartVcInLine = GetSelectableStartVisualColumn(visualLine, visualStartCol, visualEndCol);
+				if (segmentStartVcInLine < selectableStartVcInLine)
+					segmentStartVcInLine = selectableStartVcInLine;
 				int segmentEndVcInLine = Math.Min(segmentEndVc, visualEndCol);
+				if (segmentEndVcInLine < segmentStartVcInLine)
+					segmentEndVcInLine = segmentStartVcInLine;
+				double selectableLeft = visualLine.GetTextLineVisualXPosition(line, selectableStartVcInLine) - scrollOffset.X;
 				y -= scrollOffset.Y;
 				Rect lastRect = default;
 				if (segmentStartVcInLine == segmentEndVcInLine) {
@@ -225,17 +231,37 @@ namespace AvaloniaEdit.Rendering
 					if (segmentStartVcInLine == visualStartCol && i > 0 && segmentStartVc < segmentStartVcInLine && visualLine.TextLines[i - 1].TrailingWhitespaceLength == 0)
 						continue;
 
-					lastRect = new Rect(pos, y, textView.EmptyLineSelectionWidth, lineHeight);
+					lastRect = ClampLeft(new Rect(pos, y, textView.EmptyLineSelectionWidth, lineHeight), selectableLeft);
 				} else {
 					if (segmentStartVcInLine <= visualEndCol) {
-						foreach (var b in line.GetTextBounds(segmentStartVcInLine, segmentEndVcInLine - segmentStartVcInLine)) {
-							double left = b.Rectangle.Left - scrollOffset.X;
-							double right = b.Rectangle.Right - scrollOffset.X;
-							if (lastRect != default)
-								yield return lastRect;
-							// left>right is possible in RTL languages
-							lastRect = new Rect(Math.Min(left, right), y, Math.Abs(right - left), lineHeight);
+						if (HasLeadingZeroDocumentVisualContent(visualLine)) {
+							double left = visualLine.GetTextLineVisualXPosition(line, segmentStartVcInLine) - scrollOffset.X;
+							double right = visualLine.GetTextLineVisualXPosition(line, segmentEndVcInLine) - scrollOffset.X;
+							lastRect = ClampLeft(new Rect(Math.Min(left, right), y, Math.Abs(right - left), lineHeight), selectableLeft);
+						} else {
+							bool isFirstBound = true;
+							foreach (var b in line.GetTextBounds(segmentStartVcInLine, segmentEndVcInLine - segmentStartVcInLine)) {
+								double left = b.Rectangle.Left - scrollOffset.X;
+								double right = b.Rectangle.Right - scrollOffset.X;
+								if (lastRect != default)
+									yield return lastRect;
+								// left>right is possible in RTL languages
+								var rect = new Rect(Math.Min(left, right), y, Math.Abs(right - left), lineHeight);
+								if (isFirstBound && segmentStartVcInLine == selectableStartVcInLine)
+								{
+									rect = rect.WithX(selectableLeft);
+									isFirstBound = false;
+								}
+								lastRect = ClampLeft(rect, selectableLeft);
+							}
 						}
+					}
+				}
+				if (segmentEndVc == visualEndCol && lastRect != default) {
+					double lineEnd = visualLine.GetTextLineVisualXPosition(line, visualEndCol) - scrollOffset.X;
+					if (lineEnd > lastRect.Right) {
+						var extendToCaret = ClampLeft(new Rect(lastRect.Right, y, lineEnd - lastRect.Right, lineHeight), selectableLeft);
+						lastRect = lastRect.Union(extendToCaret);
 					}
 				}
 				// If the segment ends in virtual space, extend the last rectangle with the rectangle the portion of the selection
@@ -258,14 +284,15 @@ namespace AvaloniaEdit.Rendering
 						// If word-wrap is enabled and the segment continues into the next line,
 						// or if the extendToFullWidthAtLineEnd option is used (segmentEndVC == int.MaxValue),
 						// we select the full width of the viewport.
-						right = Math.Max(((ILogicalScrollable)textView).Extent.Width, ((ILogicalScrollable)textView).Viewport.Width);
+						right = Math.Max(((ILogicalScrollable)textView).Extent.Width, ((ILogicalScrollable)textView).Viewport.Width)
+							- textView.GetTrailingVisualInsetWidth(visualLine.FirstDocumentLine);
 					} else {
 						right = visualLine.GetTextLineVisualXPosition(lastTextLine, segmentEndVc);
 					}
 
 					left -= scrollOffset.X;
 					right -= scrollOffset.X;
-					Rect extendSelection = new Rect(Math.Min(left, right), y, Math.Abs(right - left), lineHeight);
+					Rect extendSelection = ClampLeft(new Rect(Math.Min(left, right), y, Math.Abs(right - left), lineHeight), selectableLeft);
 					if (lastRect != default) {
 						if (extendSelection.Intersects(lastRect)) {
 							lastRect = lastRect.Union(extendSelection);
@@ -280,6 +307,64 @@ namespace AvaloniaEdit.Rendering
 				} else
 					yield return lastRect;
 			}
+		}
+
+		private static Rect ClampLeft(Rect rect, double minLeft)
+		{
+			if (rect == default || rect.Left >= minLeft)
+				return rect;
+
+			var right = Math.Max(rect.Right, minLeft);
+			return new Rect(minLeft, rect.Top, right - minLeft, rect.Height);
+		}
+
+		private static int GetSelectableStartVisualColumn(VisualLine visualLine, int visualStartCol, int visualEndCol)
+		{
+			int selectableStart = visualStartCol;
+
+			foreach (var element in visualLine.Elements) {
+				int elementStart = element.VisualColumn;
+				int elementEnd = elementStart + element.VisualLength;
+				if (elementEnd <= visualStartCol)
+					continue;
+
+				if (elementStart > visualEndCol)
+					break;
+
+				if (element.DocumentLength <= 0) {
+					if (elementStart <= selectableStart)
+						selectableStart = Math.Max(selectableStart, elementEnd);
+
+					continue;
+				}
+
+				return Math.Max(elementStart, selectableStart);
+			}
+
+			return selectableStart;
+		}
+
+		private static bool HasLeadingZeroDocumentVisualContent(VisualLine visualLine)
+		{
+			int selectableStart = 0;
+
+			foreach (var element in visualLine.Elements) {
+				int elementStart = element.VisualColumn;
+				int elementEnd = elementStart + element.VisualLength;
+
+				if (element.DocumentLength <= 0 && elementStart <= selectableStart) {
+					selectableStart = Math.Max(selectableStart, elementEnd);
+					continue;
+				}
+
+				if (element.DocumentLength > 0)
+					return selectableStart > 0;
+
+				if (elementStart > selectableStart)
+					return true;
+			}
+
+			return selectableStart > 0;
 		}
 
 		private readonly PathFigures _figures = new PathFigures();

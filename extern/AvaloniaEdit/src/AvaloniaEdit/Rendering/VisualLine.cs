@@ -329,14 +329,29 @@ namespace AvaloniaEdit.Rendering
         public int GetVisualColumn(int relativeTextOffset)
         {
             ThrowUtil.CheckNotNegative(relativeTextOffset, "relativeTextOffset");
+            VisualLineElement candidate = null;
             foreach (var element in _elements)
             {
-                if (element.RelativeTextOffset <= relativeTextOffset
-                    && element.RelativeTextOffset + element.DocumentLength >= relativeTextOffset)
+                if (element.RelativeTextOffset > relativeTextOffset)
+                    break;
+
+                if (element.RelativeTextOffset + element.DocumentLength < relativeTextOffset)
+                    continue;
+
+                // At a boundary where a zero-document element and a real element share the same offset,
+                // prefer the real element so the returned visual column is inside selectable text.
+                if (element.DocumentLength == 0 && element.RelativeTextOffset == relativeTextOffset)
                 {
-                    return element.GetVisualColumn(relativeTextOffset);
+                    candidate = element;
+                    continue;
                 }
+
+                return element.GetVisualColumn(relativeTextOffset);
             }
+
+            if (candidate != null)
+                return candidate.GetVisualColumn(relativeTextOffset);
+
             return VisualLength;
         }
 
@@ -577,21 +592,31 @@ namespace AvaloniaEdit.Rendering
         public int ValidateVisualColumn(int offset, int visualColumn, bool allowVirtualSpace)
         {
             var firstDocumentLineOffset = FirstDocumentLine.Offset;
+            var relativeOffset = offset - firstDocumentLineOffset;
             if (visualColumn < 0)
             {
-                return GetVisualColumn(offset - firstDocumentLineOffset);
+                return GetVisualColumn(relativeOffset);
             }
             var offsetFromVisualColumn = GetRelativeOffset(visualColumn);
             offsetFromVisualColumn += firstDocumentLineOffset;
             if (offsetFromVisualColumn != offset)
             {
-                return GetVisualColumn(offset - firstDocumentLineOffset);
+                return GetVisualColumn(relativeOffset);
             }
+            visualColumn = NormalizeVisualColumnForOffset(relativeOffset, visualColumn);
             if (visualColumn > VisualLength && !allowVirtualSpace)
             {
                 return VisualLength;
             }
             return visualColumn;
+        }
+
+        private int NormalizeVisualColumnForOffset(int relativeOffset, int visualColumn)
+        {
+            var canonicalVisualColumn = GetVisualColumn(relativeOffset);
+            return visualColumn < canonicalVisualColumn
+                ? canonicalVisualColumn
+                : visualColumn;
         }
 
         /// <summary>
@@ -674,6 +699,7 @@ namespace AvaloniaEdit.Rendering
         {
             var visualColumn = GetVisualColumn(visualPosition, allowVirtualSpace, out var isAtEndOfLine);
             var documentOffset = GetRelativeOffset(visualColumn) + FirstDocumentLine.Offset;
+            visualColumn = ValidateVisualColumn(documentOffset, visualColumn, allowVirtualSpace);
             var pos = new TextViewPosition(Document.GetLocation(documentOffset), visualColumn)
             {
                 IsAtEndOfLine = isAtEndOfLine
@@ -692,6 +718,7 @@ namespace AvaloniaEdit.Rendering
         {
             var visualColumn = GetVisualColumnFloor(visualPosition, allowVirtualSpace, out var isAtEndOfLine);
             var documentOffset = GetRelativeOffset(visualColumn) + FirstDocumentLine.Offset;
+            visualColumn = ValidateVisualColumn(documentOffset, visualColumn, allowVirtualSpace);
             var pos = new TextViewPosition(Document.GetLocation(documentOffset), visualColumn)
             {
                 IsAtEndOfLine = isAtEndOfLine

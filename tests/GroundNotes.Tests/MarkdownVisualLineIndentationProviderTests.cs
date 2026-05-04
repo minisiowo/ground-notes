@@ -31,6 +31,28 @@ public sealed class MarkdownVisualLineIndentationProviderTests
     }
 
     [Fact]
+    public void GetTrailingVisualInsetColumns_ReturnsInsetForFencedLinesOnly()
+    {
+        EnsureApplication();
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        var provider = new MarkdownVisualLineIndentationProvider(colorizer);
+        var editor = new TextEditor
+        {
+            Document = new TextDocument(CreateSample())
+        };
+        editor.ApplyTemplate();
+        var textView = editor.TextArea.TextView;
+        var document = editor.Document;
+
+        Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(1)));
+        Assert.Equal(2, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(2)));
+        Assert.Equal(2, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(3)));
+        Assert.Equal(2, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(4)));
+        Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(5)));
+    }
+
+    [Fact]
     public void GetWrappedLineContinuationStartColumn_ReturnsHangingIndentForLists()
     {
         EnsureApplication();
@@ -49,6 +71,10 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Equal(2, provider.GetWrappedLineContinuationStartColumn(textView, document.GetLineByNumber(2)));
         Assert.Equal(3, provider.GetWrappedLineContinuationStartColumn(textView, document.GetLineByNumber(3)));
         Assert.Equal(6, provider.GetWrappedLineContinuationStartColumn(textView, document.GetLineByNumber(4)));
+
+        Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(2)));
+        Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(3)));
+        Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(4)));
     }
 
     [Fact]

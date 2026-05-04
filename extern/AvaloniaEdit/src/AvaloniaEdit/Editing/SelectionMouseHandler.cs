@@ -731,6 +731,9 @@ namespace AvaloniaEdit.Editing
             {
                 TextArea.Caret.Position = new TextViewPosition(TextArea.Document.GetLocation(offset), visualColumn) { IsAtEndOfLine = isAtEndOfLine };
                 TextArea.Caret.DesiredXPos = double.NaN;
+                // Force validation now so subsequent reads of Caret.Position (e.g. by SimpleSelection)
+                // cannot return a raw unvalidated visual column.
+                _ = TextArea.Caret.VisualColumn;
             }
         }
 

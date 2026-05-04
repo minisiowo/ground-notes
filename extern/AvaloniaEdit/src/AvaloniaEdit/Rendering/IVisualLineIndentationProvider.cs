@@ -18,6 +18,15 @@ public interface IVisualLineIndentationProvider
     int GetVisualIndentationColumns(TextView textView, DocumentLine documentLine);
 
     /// <summary>
+    /// Returns the number of trailing visual columns to reserve from the formatted width for the specified line.
+    /// Return 0 to apply no extra trailing inset.
+    /// </summary>
+    /// <remarks>
+    /// The returned inset is render/layout-only and does not modify the document text.
+    /// </remarks>
+    int GetTrailingVisualInsetColumns(TextView textView, DocumentLine documentLine);
+
+    /// <summary>
     /// Returns the visual column on the first rendered row that wrapped continuation rows should align to.
     /// Return <c>null</c> to use the default inherited indentation behavior.
     /// </summary>

@@ -5,6 +5,8 @@ namespace GroundNotes.Editors;
 
 internal sealed class MarkdownVisualLineIndentationProvider : IVisualLineIndentationProvider
 {
+    private const int FencedCodeInsetColumns = 2;
+
     private readonly MarkdownColorizingTransformer _colorizer;
     private readonly ILeadingIndentationRule[] _leadingIndentationRules;
     private readonly IContinuationIndentationRule[] _continuationIndentationRules;
@@ -14,7 +16,7 @@ internal sealed class MarkdownVisualLineIndentationProvider : IVisualLineIndenta
         ArgumentNullException.ThrowIfNull(colorizer);
 
         _colorizer = colorizer;
-        _leadingIndentationRules = [new FencedCodeIndentationRule(colorizer, 2), new InheritedListContinuationIndentationRule(colorizer)];
+        _leadingIndentationRules = [new FencedCodeIndentationRule(colorizer, FencedCodeInsetColumns), new InheritedListContinuationIndentationRule(colorizer)];
         _continuationIndentationRules = [new ListContinuationIndentationRule(colorizer)];
     }
 
@@ -38,6 +40,21 @@ internal sealed class MarkdownVisualLineIndentationProvider : IVisualLineIndenta
         }
 
         return 0;
+    }
+
+    public int GetTrailingVisualInsetColumns(TextView textView, DocumentLine documentLine)
+    {
+        ArgumentNullException.ThrowIfNull(textView);
+        ArgumentNullException.ThrowIfNull(documentLine);
+
+        if (textView.Document is null)
+        {
+            return 0;
+        }
+
+        return _colorizer.QueryIsFencedCodeLine(textView.Document, documentLine.LineNumber)
+            ? FencedCodeInsetColumns
+            : 0;
     }
 
     public int? GetWrappedLineContinuationStartColumn(TextView textView, DocumentLine documentLine)

@@ -1085,13 +1085,19 @@ namespace AvaloniaEdit.Rendering
             TextLineBreak lastLineBreak = null;
             var textOffset = 0;
             var textLines = new List<TextLine>();
+            var formattedWidth = availableSize.Width;
+            var trailingInset = GetTrailingVisualInsetWidth(documentLine);
+            if (trailingInset > 0)
+            {
+                formattedWidth = Math.Max(GetMinimumFormattedWidth(documentLine, trailingInset), availableSize.Width - trailingInset);
+            }
 
             while (textOffset <= visualLine.VisualLengthWithEndOfLineMarker)
             {
                 var textLine = _formatter.FormatLine(
                     textSource,
                     textOffset,
-                    availableSize.Width,
+                    formattedWidth,
                     paragraphProperties,
                     lastLineBreak
                 );
@@ -1113,7 +1119,7 @@ namespace AvaloniaEdit.Rendering
                         ? GetContinuationIndentation(textLine, visualLine, continuationIndentOverrideColumn)
                         : 0;
                     indentation += options.WordWrapIndentation;
-                    indentation = ClampContinuationIndentation(indentation, availableSize.Width);
+                    indentation = ClampContinuationIndentation(indentation, formattedWidth);
                     if (indentation > 0)
                     {
                         paragraphProperties.indent = indentation;
@@ -1141,6 +1147,23 @@ namespace AvaloniaEdit.Rendering
             var indentationElement = new VisualIndentationElement(visualIndentationColumns);
             indentationElement.SetTextRunProperties(new VisualLineElementTextRunProperties(CreateGlobalTextRunProperties()));
             visualLine.ReplaceElement(0, 0, indentationElement);
+        }
+
+        internal double GetTrailingVisualInsetWidth(DocumentLine documentLine)
+        {
+            var trailingInsetColumns = VisualLineIndentationProvider?.GetTrailingVisualInsetColumns(this, documentLine) ?? 0;
+            return trailingInsetColumns > 0
+                ? trailingInsetColumns * WideSpaceWidth
+                : 0;
+        }
+
+        private double GetMinimumFormattedWidth(DocumentLine documentLine, double trailingInset)
+        {
+            var leadingIndentationColumns = VisualLineIndentationProvider?.GetVisualIndentationColumns(this, documentLine) ?? 0;
+            var leadingIndentationWidth = leadingIndentationColumns > 0
+                ? leadingIndentationColumns * WideSpaceWidth
+                : 0;
+            return leadingIndentationWidth + trailingInset + WideSpaceWidth;
         }
 
         private static double GetContinuationIndentation(TextLine textLine, VisualLine visualLine, int? continuationStartColumnOverride)

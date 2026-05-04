@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Controls.Primitives;
 using AvaloniaEdit;
 using GroundNotes.Editors;
 using GroundNotes.Models;
@@ -7,14 +8,16 @@ namespace GroundNotes.Views;
 
 internal sealed class EditorHostController : IDisposable
 {
+    private readonly TextEditor _editor;
     private readonly EditorThemeController _themeController;
     private readonly EditorTextSyncController _textSyncController;
     private readonly EditorLayoutController _layoutController;
     private readonly EditorMarkdownListController _listController;
 
-    public EditorHostController(TextEditor editor, MarkdownColorizingTransformer colorizer)
+    public EditorHostController(TextEditor editor, MarkdownColorizingTransformer colorizer, Func<string, Task>? copyCodeBlockAsync = null)
     {
-        _themeController = new EditorThemeController(editor, colorizer);
+        _editor = editor;
+        _themeController = new EditorThemeController(editor, colorizer, copyCodeBlockAsync);
         _textSyncController = new EditorTextSyncController(editor);
         _layoutController = new EditorLayoutController(editor);
         _listController = new EditorMarkdownListController(editor, colorizer);
@@ -38,6 +41,8 @@ internal sealed class EditorHostController : IDisposable
 
     public MarkdownImagePreviewHitTestResult? TryHitTestImagePreview(Point point) => _themeController.TryHitTestImagePreview(point);
 
+    public MarkdownCodeBlockCopyHitTestResult? TryHitTestCodeBlockCopyButton(Point point) => _themeController.TryHitTestCodeBlockCopyButton(point);
+
     public void SetBaseDirectoryPath(string? baseDirectoryPath) => _themeController.SetBaseDirectoryPath(baseDirectoryPath);
 
     public void RefreshImagePreviews(string? resolvedImagePath = null) => _themeController.RefreshImagePreviews(resolvedImagePath);
@@ -57,6 +62,22 @@ internal sealed class EditorHostController : IDisposable
     {
         _themeController.RefreshAfterDocumentReplace();
         _layoutController.RefreshLayout();
+    }
+
+    internal void ResetViewportToDocumentStart()
+    {
+        if (_editor.Document is null)
+        {
+            return;
+        }
+
+        _editor.CaretOffset = 0;
+        _editor.Select(0, 0);
+
+        if (_editor.TextArea.TextView is IScrollable scrollable)
+        {
+            scrollable.Offset = new Vector(0, 0);
+        }
     }
 
     public bool SyncFromViewModel(string? text, bool appendSuffixWhenPossible, out bool appendedOnly)
