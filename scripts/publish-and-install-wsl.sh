@@ -12,8 +12,18 @@ publish_dir="$repo_root/src/GroundNotes/bin/$configuration/net10.0/$runtime/publ
 install_dir="/mnt/c/Apps/GroundNotes"
 shortcut_script_path="$repo_root/scripts/create-start-menu-shortcut.ps1"
 shortcut_script_windows_path="$(wslpath -w "$shortcut_script_path" | tr -d '\r')"
+powershell_path="/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/powershell.exe"
 
-start_menu_windows_path="$(powershell.exe -NoProfile -Command '[Environment]::GetFolderPath("Programs")' | tr -d '\r')"
+if powershell.exe -NoProfile -Command 'exit 0' >/dev/null 2>&1; then
+    powershell_command=(powershell.exe)
+elif [[ -x "/init" && -f "$powershell_path" ]]; then
+    powershell_command=(/init "$powershell_path")
+else
+    echo "Could not find a working Windows PowerShell executable." >&2
+    exit 1
+fi
+
+start_menu_windows_path="$("${powershell_command[@]}" -NoProfile -Command '[Environment]::GetFolderPath("Programs")' | tr -d '\r')"
 if [[ -z "$start_menu_windows_path" ]]; then
     echo "Could not determine the Windows Start Menu path." >&2
     exit 1
@@ -47,6 +57,6 @@ if [[ ! -f "$install_dir/GroundNotes.exe" ]]; then
 fi
 
 echo "Creating Start Menu shortcut: $shortcut_windows_path"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$shortcut_script_windows_path" -ShortcutPath "$shortcut_windows_path" -TargetPath "$exe_windows_path" -WorkingDirectory "$working_dir_windows_path"
+"${powershell_command[@]}" -NoProfile -ExecutionPolicy Bypass -File "$shortcut_script_windows_path" -ShortcutPath "$shortcut_windows_path" -TargetPath "$exe_windows_path" -WorkingDirectory "$working_dir_windows_path"
 
 echo "Done. GroundNotes was installed to $install_dir"
