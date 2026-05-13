@@ -13,7 +13,6 @@ internal sealed class EditorHostController : IDisposable
     private readonly EditorTextSyncController _textSyncController;
     private readonly EditorLayoutController _layoutController;
     private readonly EditorMarkdownListController _listController;
-    private readonly EditorSmoothScrollController _smoothScrollController;
 
     public EditorHostController(TextEditor editor, MarkdownColorizingTransformer colorizer, Func<string, Task>? copyCodeBlockAsync = null)
     {
@@ -22,7 +21,6 @@ internal sealed class EditorHostController : IDisposable
         _textSyncController = new EditorTextSyncController(editor);
         _layoutController = new EditorLayoutController(editor);
         _listController = new EditorMarkdownListController(editor, colorizer);
-        _smoothScrollController = new EditorSmoothScrollController(editor);
     }
 
     public bool IsUpdatingEditorFromViewModel => _textSyncController.IsUpdatingEditorFromViewModel;
@@ -66,14 +64,8 @@ internal sealed class EditorHostController : IDisposable
         _layoutController.RefreshLayout();
     }
 
-    internal void CancelPendingSmoothScroll() => _smoothScrollController.CancelPendingScroll();
-
-    internal void SetScrollOffset(Vector offset) => _smoothScrollController.SetScrollOffset(offset);
-
     internal void ResetViewportToDocumentStart()
     {
-        CancelPendingSmoothScroll();
-
         if (_editor.Document is null)
         {
             return;
@@ -82,7 +74,10 @@ internal sealed class EditorHostController : IDisposable
         _editor.CaretOffset = 0;
         _editor.Select(0, 0);
 
-        SetScrollOffset(new Vector(0, 0));
+        if (_editor.TextArea.TextView is IScrollable scrollable)
+        {
+            scrollable.Offset = new Vector(0, 0);
+        }
     }
 
     public bool SyncFromViewModel(string? text, bool appendSuffixWhenPossible, out bool appendedOnly)
@@ -93,7 +88,6 @@ internal sealed class EditorHostController : IDisposable
 
     public void Dispose()
     {
-        _smoothScrollController.Dispose();
         _listController.Dispose();
         _themeController.Dispose();
     }

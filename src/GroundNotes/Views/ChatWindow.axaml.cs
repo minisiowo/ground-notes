@@ -323,7 +323,7 @@ public partial class ChatWindow : Window
         var textView = ChatTextEditor.TextArea.TextView;
         var viewportHeight = GetEditorViewportHeight(textView);
         var maxVerticalOffset = Math.Max(0, textView.DocumentHeight - viewportHeight);
-        _editorHost.SetScrollOffset(new Vector(0, maxVerticalOffset));
+        ChatTextEditor.ScrollToVerticalOffset(maxVerticalOffset);
 
         var clampedOffset = Math.Clamp(endOffset, 0, document.TextLength);
         ChatTextEditor.CaretOffset = clampedOffset;
