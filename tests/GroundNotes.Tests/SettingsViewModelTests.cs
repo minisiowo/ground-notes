@@ -29,6 +29,22 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void Constructor_DoesNotSelectPromptUntilUserChoosesOne()
+    {
+        var model = CreateModel() with
+        {
+            AiPrompts = [new AiPromptDefinition("example", "Example", "Prompt {selected}")]
+        };
+
+        var vm = new SettingsViewModel(model);
+
+        Assert.Null(vm.SelectedPrompt);
+        Assert.False(vm.HasSelectedPrompt);
+        Assert.False(vm.CanEditSelectedPrompt);
+        Assert.False(vm.CanDeleteSelectedPrompt);
+    }
+
+    [Fact]
     public void Constructor_PreservesCustomDefaultModelInAvailableOptions()
     {
         var model = CreateModel() with { DefaultModel = "custom-model" };

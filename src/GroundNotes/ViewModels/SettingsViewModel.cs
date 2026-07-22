@@ -244,7 +244,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 prompt,
                 string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel,
                 AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort))));
-        SelectedPrompt = PromptItems.FirstOrDefault();
+        SelectedPrompt = null;
     }
 
     private void RefreshPromptLabels()
