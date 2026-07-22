@@ -163,6 +163,91 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         StatusMessage = BuildPromptLoadStatus(promptLoad);
     }
 
+    private SettingsPromptActions BuildSettingsPromptActions()
+    {
+        return new SettingsPromptActions(
+            SaveAiPromptFromSettingsAsync,
+            DeleteAiPromptFromSettingsAsync,
+            ReloadAiPromptsFromSettingsAsync);
+    }
+
+    private async Task<AiPromptMutationResult> SaveAiPromptFromSettingsAsync(AiPromptDefinition prompt)
+    {
+        if (!HasSelectedFolder)
+        {
+            StatusMessage = "Choose a notes folder first.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+
+        try
+        {
+            await _aiPromptEditorService.SaveCustomPromptAsync(NotesFolder, prompt);
+            var promptLoad = await LoadAiPromptsAsync();
+            StatusMessage = $"Saved AI prompt \"{prompt.Name}\".";
+            return new AiPromptMutationResult(promptLoad.Prompts, true);
+        }
+        catch (IOException)
+        {
+            StatusMessage = "Could not save AI prompt.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            StatusMessage = "Could not save AI prompt.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            StatusMessage = ex.Message;
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+        catch (ArgumentException ex)
+        {
+            StatusMessage = ex.Message;
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+    }
+
+    private async Task<AiPromptMutationResult> DeleteAiPromptFromSettingsAsync(AiPromptDefinition prompt)
+    {
+        if (!HasSelectedFolder)
+        {
+            StatusMessage = "Choose a notes folder first.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+
+        if (prompt.IsBuiltIn)
+        {
+            StatusMessage = "Built-in AI prompts cannot be deleted.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+
+        try
+        {
+            await _aiPromptEditorService.DeleteCustomPromptAsync(NotesFolder, prompt.Id);
+            var promptLoad = await LoadAiPromptsAsync();
+            StatusMessage = $"Deleted AI prompt \"{prompt.Name}\".";
+            return new AiPromptMutationResult(promptLoad.Prompts, true);
+        }
+        catch (IOException)
+        {
+            StatusMessage = "Could not delete AI prompt.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            StatusMessage = "Could not delete AI prompt.";
+            return new AiPromptMutationResult(AiPrompts, false);
+        }
+    }
+
+    private async Task<IReadOnlyList<AiPromptDefinition>> ReloadAiPromptsFromSettingsAsync()
+    {
+        var promptLoad = await LoadAiPromptsAsync();
+        StatusMessage = BuildPromptLoadStatus(promptLoad);
+        return promptLoad.Prompts;
+    }
+
     public async Task<string?> RunAiPromptAsync(AiPromptDefinition prompt, string selectedText, CancellationToken cancellationToken = default)
     {
         if (!IsAiEnabled)
@@ -219,12 +304,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SelectedAiModel = normalized.DefaultModel;
         OpenAiProjectId = normalized.ProjectId;
         OpenAiOrganizationId = normalized.OrganizationId;
+        SelectedAiReasoningEffort = normalized.DefaultReasoningEffort;
         IsAiEnabled = normalized.IsEnabled;
     }
 
     private AiSettings BuildAiSettings()
     {
-        return AiSettings.Normalize(OpenAiApiKey, SelectedAiModel, IsAiEnabled, OpenAiProjectId, OpenAiOrganizationId);
+        return AiSettings.Normalize(
+            OpenAiApiKey,
+            SelectedAiModel,
+            IsAiEnabled,
+            OpenAiProjectId,
+            OpenAiOrganizationId,
+            SelectedAiReasoningEffort);
     }
 
     private static string BuildPromptLoadStatus(AiPromptCatalogLoadResult promptLoad, string defaultMessage = "No AI prompts were found.")

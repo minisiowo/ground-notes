@@ -20,10 +20,7 @@ internal sealed class DialogWindowController
             window,
             new WindowChromeController.Options
             {
-                IdleCursor = Cursor.Default,
-                CheckCanResizeOnHover = false,
-                CheckWindowStateOnHover = false,
-                CheckWindowStateOnResizePressed = false
+                IdleCursor = Cursor.Default
             });
     }
 
@@ -38,6 +35,12 @@ internal sealed class DialogWindowController
     }
 
     public void OnTitleBarPointerPressed(PointerPressedEventArgs e) => _windowChrome.OnTitleBarPointerPressed(e);
+
+    public void OnWindowPointerMoved(PointerEventArgs e) => _windowChrome.OnWindowPointerMoved(e);
+
+    public void OnWindowPointerExited() => _windowChrome.OnWindowPointerExited();
+
+    public void OnWindowPointerPressed(PointerPressedEventArgs e) => _windowChrome.OnWindowPointerPressed(e);
 
     public void OnCloseRequested() => _closeAction();
 

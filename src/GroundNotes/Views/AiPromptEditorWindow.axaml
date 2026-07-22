@@ -1,0 +1,143 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:GroundNotes.Views"
+        x:Class="GroundNotes.Views.AiPromptEditorWindow"
+        Title="AI Prompt"
+        Width="620"
+        Height="640"
+        MinWidth="620"
+        MinHeight="600"
+        CanResize="False"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*,Auto">
+    <views:TitleBarControl Grid.Row="0"
+                           Title="AI Prompt"
+                           TitleBarPointerPressed="OnTitleBarPointerPressed"
+                           CloseRequested="OnCloseRequested" />
+
+    <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+      <StackPanel Margin="24,16" Spacing="12">
+        <TextBlock Classes="settingsHeader" Text="Prompt Details" />
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Name" />
+              <TextBlock Classes="settingsDescription" Text="Shown in the editor right-click AI menu." />
+            </StackPanel>
+            <TextBox Grid.Column="1" x:Name="NameTextBox" Text="{Binding Name}" Watermark="Summarize" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="ID" />
+              <TextBlock Classes="settingsDescription" Text="Stable identifier and JSON filename." />
+            </StackPanel>
+            <TextBox Grid.Column="1" Text="{Binding Id}" Watermark="summarize" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Description" />
+              <TextBlock Classes="settingsDescription" Text="Optional helper text for this prompt." />
+            </StackPanel>
+            <TextBox Grid.Column="1" Text="{Binding Description}" Watermark="Summarize selected text" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <StackPanel Spacing="8">
+            <StackPanel Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Prompt template" />
+              <TextBlock Classes="settingsDescription" Text="Use {selected} where the selected editor text should be inserted." />
+            </StackPanel>
+            <TextBox Text="{Binding PromptTemplate}"
+                     MinHeight="150"
+                     AcceptsReturn="True"
+                     TextWrapping="Wrap"
+                     Watermark="Summarize this text clearly:\n\n{selected}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Model" />
+              <TextBlock Classes="settingsDescription" Text="Choose a model or use the current default." />
+            </StackPanel>
+            <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableModelOptions}" SelectedItem="{Binding SelectedModelOption}" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Reasoning effort" />
+              <TextBlock Classes="settingsDescription" Text="Use none by default to keep costs lower." />
+            </StackPanel>
+            <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableReasoningEffortOptions}" SelectedItem="{Binding SelectedReasoningEffortOption}" />
+          </Grid>
+        </Border>
+
+        <TextBlock Classes="settingsHeader" Text="Advanced" Margin="0,8,0,0" />
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, Auto">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Replace selection" />
+              <TextBlock Classes="settingsDescription" Text="Replace selected text with the AI response." />
+            </StackPanel>
+            <ToggleSwitch Grid.Column="1" IsChecked="{Binding ReplaceSelection}" OnContent="" OffContent="" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Order" />
+              <TextBlock Classes="settingsDescription" Text="Lower values appear earlier in the menu." />
+            </StackPanel>
+            <TextBox Grid.Column="1" Text="{Binding Order}" Watermark="100" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Temperature" />
+              <TextBlock Classes="settingsDescription" Text="Optional numeric sampling value." />
+            </StackPanel>
+            <TextBox Grid.Column="1" Text="{Binding Temperature}" Watermark="Optional" />
+          </Grid>
+        </Border>
+
+        <Border Classes="settingsCard">
+          <Grid ColumnDefinitions="*, 330">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsLabel" Text="Max tokens" />
+              <TextBlock Classes="settingsDescription" Text="Optional response token limit." />
+            </StackPanel>
+            <TextBox Grid.Column="1" Text="{Binding MaxTokens}" Watermark="Optional" />
+          </Grid>
+        </Border>
+
+        <TextBlock Classes="settingsDescription" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding ValidationMessage}" TextWrapping="Wrap" />
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="2" Padding="24,12" BorderBrush="{DynamicResource BorderBrushBase}" BorderThickness="0,1,0,0">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+        <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" />
+        <Button Content="Save" IsEnabled="{Binding CanSave}" Click="OnSaveClick" />
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

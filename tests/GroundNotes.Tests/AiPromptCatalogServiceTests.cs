@@ -32,6 +32,33 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadPromptsAsync_CreatesEditableStarterPromptsForNotesFolder()
+    {
+        WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
+
+        var result = await _service.LoadPromptsAsync(_notesDir);
+
+        var prompt = Assert.Single(result.Prompts);
+        Assert.False(prompt.IsBuiltIn);
+        Assert.Equal("translate", prompt.Id);
+        var promptsDirectory = _service.GetNotesFolderPromptsDirectory(_notesDir);
+        Assert.True(File.Exists(Path.Combine(promptsDirectory, "translate.json")));
+        Assert.True(File.Exists(Path.Combine(promptsDirectory, ".starter-prompts-created")));
+    }
+
+    [Fact]
+    public async Task LoadPromptsAsync_DoesNotRestoreDeletedStarterPrompt()
+    {
+        WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
+        await _service.LoadPromptsAsync(_notesDir);
+        File.Delete(Path.Combine(_service.GetNotesFolderPromptsDirectory(_notesDir), "translate.json"));
+
+        var result = await _service.LoadPromptsAsync(_notesDir);
+
+        Assert.Empty(result.Prompts);
+    }
+
+    [Fact]
     public async Task LoadPromptsAsync_LoadsCustomPromptsFromNotesFolder()
     {
         WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "rewrite.json", "rewrite", "Rewrite", 200);
@@ -45,17 +72,73 @@ public sealed class AiPromptCatalogServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadPromptsAsync_CustomPromptOverridesBuiltInById()
+    public async Task LoadPromptsAsync_MigratesLegacyCustomPromptsToGroundNotesDirectory()
+    {
+        var legacyDirectory = Path.Combine(_notesDir, ".quicknotestxt", "ai-prompts");
+        WritePrompt(legacyDirectory, "legacy.json", "legacy", "Legacy Prompt", 25);
+
+        var result = await _service.LoadPromptsAsync(_notesDir);
+
+        var prompt = Assert.Single(result.Prompts);
+        Assert.Equal("legacy", prompt.Id);
+        Assert.False(prompt.IsBuiltIn);
+        Assert.True(File.Exists(Path.Combine(_service.GetNotesFolderPromptsDirectory(_notesDir), "legacy.json")));
+        Assert.True(File.Exists(Path.Combine(_service.GetNotesFolderPromptsDirectory(_notesDir), ".quicknotestxt-migrated")));
+    }
+
+    [Fact]
+    public async Task LoadPromptsAsync_MigrationPrefersExistingGroundNotesPromptWithSameId()
+    {
+        var legacyDirectory = Path.Combine(_notesDir, ".quicknotestxt", "ai-prompts");
+        WritePrompt(legacyDirectory, "legacy-name.json", "shared", "Legacy Prompt", 25);
+        WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "current-name.json", "shared", "Current Prompt", 10);
+
+        var result = await _service.LoadPromptsAsync(_notesDir);
+
+        var prompt = Assert.Single(result.Prompts);
+        Assert.Equal("Current Prompt", prompt.Name);
+        Assert.False(File.Exists(Path.Combine(_service.GetNotesFolderPromptsDirectory(_notesDir), "legacy-name.json")));
+    }
+
+    [Fact]
+    public async Task LoadPromptsAsync_MigrationKeepsBothPromptsWhenFileNamesCollideButIdsDiffer()
+    {
+        var legacyDirectory = Path.Combine(_notesDir, ".quicknotestxt", "ai-prompts");
+        WritePrompt(legacyDirectory, "prompt.json", "legacy-id", "Legacy Prompt", 25);
+        WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "prompt.json", "current-id", "Current Prompt", 10);
+
+        var result = await _service.LoadPromptsAsync(_notesDir);
+
+        Assert.Equal(2, result.Prompts.Count);
+        Assert.Contains(result.Prompts, prompt => prompt.Id == "legacy-id");
+        Assert.Contains(result.Prompts, prompt => prompt.Id == "current-id");
+    }
+
+    [Fact]
+    public async Task LoadPromptsAsync_DoesNotRestoreDeletedPromptAfterLegacyMigration()
+    {
+        var legacyDirectory = Path.Combine(_notesDir, ".quicknotestxt", "ai-prompts");
+        WritePrompt(legacyDirectory, "legacy.json", "legacy", "Legacy Prompt", 25);
+        await _service.LoadPromptsAsync(_notesDir);
+        File.Delete(Path.Combine(_service.GetNotesFolderPromptsDirectory(_notesDir), "legacy.json"));
+
+        var result = await _service.LoadPromptsAsync(_notesDir);
+
+        Assert.Empty(result.Prompts);
+    }
+
+    [Fact]
+    public async Task LoadPromptsAsync_StarterPromptDoesNotOverwriteCustomPromptWithSameId()
     {
         WritePrompt(_builtInDir, "translate.json", "translate", "Translate With AI", 100);
-        WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "translate.json", "translate", "My Translate", 5, model: "gpt-5.4");
+        WritePrompt(_service.GetNotesFolderPromptsDirectory(_notesDir), "translate.json", "translate", "My Translate", 5, model: "gpt-5.6-sol");
 
         var result = await _service.LoadPromptsAsync(_notesDir);
 
         var prompt = Assert.Single(result.Prompts);
         Assert.Equal("My Translate", prompt.Name);
         Assert.False(prompt.IsBuiltIn);
-        Assert.Equal("gpt-5.4", prompt.Model);
+        Assert.Equal("gpt-5.6-sol", prompt.Model);
     }
 
     [Fact]

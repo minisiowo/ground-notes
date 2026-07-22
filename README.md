@@ -62,9 +62,11 @@ GroundNotes has two separate AI workflows.
 
 Prompt actions run on selected editor text.
 
-- Built-in prompts are bundled in `src/GroundNotes/Assets/AiPrompts/`
-- Custom prompts are loaded from `<notes-folder>/.quicknotestxt/ai-prompts/`
-- Custom prompts can override built-in prompts by using the same `id`
+- Starter prompt templates are bundled in `src/GroundNotes/Assets/AiPrompts/`
+- The templates are copied to `<notes-folder>/.groundnotes/ai-prompts/` the first time a notes folder is opened
+- Copied prompts are regular editable prompts and can be changed or deleted from Settings → AI Actions
+- Existing prompts with the same `id` are never overwritten by starter templates
+- Prompt actions use `gpt-5.6-terra` and `reasoning_effort: none` by default unless overridden
 
 Example prompt definition:
 
@@ -73,10 +75,10 @@ Example prompt definition:
   "id": "translate",
   "name": "Translate With AI",
   "description": "Translate selected EN/PL text",
-  "model": "gpt-5.4-mini",
+  "model": "gpt-5.6-terra",
   "temperature": 0.7,
   "max_tokens": 500,
-  "reasoning_effort": "medium",
+  "reasoning_effort": "none",
   "replaceSelection": true,
   "order": 100,
   "promptTemplate": "Jestes wyspecializowanym tlumaczem... {selected}"

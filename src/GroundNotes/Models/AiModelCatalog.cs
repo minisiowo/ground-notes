@@ -10,10 +10,10 @@ public static class AiModelCatalog
     /// </summary>
     public static IReadOnlyList<string> ChatCompletionModels { get; } =
     [
-        "gpt-5.4",
-        "gpt-5.4-mini",
-        "gpt-5.4-nano"
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna"
     ];
 
-    public static string DefaultChatModel => "gpt-5.4-mini";
+    public static string DefaultChatModel => "gpt-5.6-terra";
 }

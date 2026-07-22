@@ -30,12 +30,12 @@ public sealed class OpenAiTextActionServiceTests
         var service = new OpenAiTextActionService(httpClient);
 
         var result = await service.RunPromptAsync(
-            new AiPromptDefinition("translate", "Translate", "Text: {selected}", null, "gpt-5.4-mini"),
+            new AiPromptDefinition("translate", "Translate", "Text: {selected}", null, "gpt-5.6-terra"),
             "hello",
-            new AiSettings("secret", "gpt-5.4-nano", true));
+            new AiSettings("secret", "gpt-5.6-luna", true));
 
         Assert.Equal("Translated text", result);
-        Assert.Contains("gpt-5.4-mini", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("gpt-5.6-terra", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("Text: hello", handler.RequestBody, StringComparison.Ordinal);
         Assert.Equal("Bearer", handler.AuthorizationScheme);
         Assert.Equal("secret", handler.AuthorizationParameter);
@@ -53,9 +53,9 @@ public sealed class OpenAiTextActionServiceTests
         await service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "czesc",
-            new AiSettings("secret", "gpt-5.4", true));
+            new AiSettings("secret", "gpt-5.6-sol", true));
 
-        Assert.Contains("gpt-5.4", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("gpt-5.6-sol", handler.RequestBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class OpenAiTextActionServiceTests
         var ex = await Assert.ThrowsAsync<AiServiceException>(() => service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "czesc",
-            new AiSettings(string.Empty, "gpt-5.4", true)));
+            new AiSettings(string.Empty, "gpt-5.6-sol", true)));
 
         Assert.Equal(AiServiceErrorKind.MissingApiKey, ex.Kind);
         Assert.Equal("Set your OpenAI API key first.", ex.Message);
@@ -84,7 +84,7 @@ public sealed class OpenAiTextActionServiceTests
         await service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "text",
-            new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456"));
+            new AiSettings("secret", "gpt-5.6-terra", true, "proj_123", "org_456"));
 
         Assert.Equal("proj_123", handler.ProjectId);
         Assert.Equal("org_456", handler.OrganizationId);
@@ -112,12 +112,46 @@ public sealed class OpenAiTextActionServiceTests
         var ex = await Assert.ThrowsAsync<AiServiceException>(() => service.RunPromptAsync(
             new AiPromptDefinition("translate", "Translate", "{selected}"),
             "text",
-            new AiSettings("secret", "gpt-5.4-mini", true)));
+            new AiSettings("secret", "gpt-5.6-terra", true)));
 
         Assert.Equal(AiServiceErrorKind.QuotaExceeded, ex.Kind);
         Assert.Equal("req_123", ex.RequestId);
         Assert.Contains("Check billing, Project ID, or model access", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Request ID: req_123", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunPromptAsync_FallsBackToDefaultReasoningEffort()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}", Encoding.UTF8, "application/json")
+        });
+        var service = new OpenAiTextActionService(new HttpClient(handler));
+
+        await service.RunPromptAsync(
+            new AiPromptDefinition("test", "Test", "{selected}"),
+            "text",
+            new AiSettings("secret", "gpt-5.6-terra", true, DefaultReasoningEffort: "xhigh"));
+
+        Assert.Contains("\"reasoning_effort\":\"xhigh\"", handler.RequestBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunPromptAsync_PromptReasoningEffortOverridesDefaultReasoningEffort()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("{\"choices\":[{\"message\":{\"content\":\"ok\"}}]}", Encoding.UTF8, "application/json")
+        });
+        var service = new OpenAiTextActionService(new HttpClient(handler));
+
+        await service.RunPromptAsync(
+            new AiPromptDefinition("test", "Test", "{selected}", ReasoningEffort: "high"),
+            "text",
+            new AiSettings("secret", "gpt-5.6-terra", true, DefaultReasoningEffort: "none"));
+
+        Assert.Contains("\"reasoning_effort\":\"high\"", handler.RequestBody, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -132,7 +166,7 @@ public sealed class OpenAiTextActionServiceTests
         await service.RunPromptAsync(
             new AiPromptDefinition("test", "Test", "{selected}", null, "o1", true, 0, false, 0.7, 100, "high"),
             "text",
-            new AiSettings("secret", "gpt-5.4-mini", true));
+            new AiSettings("secret", "gpt-5.6-terra", true));
 
         Assert.Contains("\"temperature\":0.7", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("\"max_tokens\":100", handler.RequestBody, StringComparison.Ordinal);

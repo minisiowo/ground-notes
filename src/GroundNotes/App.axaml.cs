@@ -90,6 +90,7 @@ public partial class App : Application
         var fileWatcher = new FileWatcherService();
         var themeLoader = new ThemeLoaderService();
         var aiPromptCatalog = new AiPromptCatalogService();
+        var aiPromptEditorService = new AiPromptEditorService(aiPromptCatalog);
         _openAiHttpClient = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(60)
@@ -101,7 +102,7 @@ public partial class App : Application
         var aiChatService = new OpenAiChatService(aiCompletionsClient);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
         var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService, noteSearchServiceFactory);
-        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, noteSearchServiceFactory);
+        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiPromptEditorService, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, noteSearchServiceFactory);
         mainWindow.DataContext = mainViewModel;
         mainWindow.SetWindowLayoutService(windowLayoutService);
 

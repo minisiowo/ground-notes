@@ -28,6 +28,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IThemeLoaderService _themeLoaderService;
     private readonly IFontCatalogService _fontCatalogService;
     private readonly IAiPromptCatalogService _aiPromptCatalogService;
+    private readonly IAiPromptEditorService _aiPromptEditorService;
     private readonly IAiTextActionService _aiTextActionService;
     private readonly IAiTitleSuggestionService _aiTitleSuggestionService;
     private readonly INoteMutationService _noteMutationService;
@@ -236,6 +237,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _selectedAiModel = AiSettings.Default.DefaultModel;
 
     [ObservableProperty]
+    private string _selectedAiReasoningEffort = AiSettings.Default.DefaultReasoningEffort;
+
+    [ObservableProperty]
     private string _openAiProjectId = string.Empty;
 
     [ObservableProperty]
@@ -275,6 +279,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IThemeLoaderService themeLoaderService,
         IFontCatalogService fontCatalogService,
         IAiPromptCatalogService aiPromptCatalogService,
+        IAiPromptEditorService aiPromptEditorService,
         IAiTextActionService aiTextActionService,
         IAiTitleSuggestionService aiTitleSuggestionService,
         INoteMutationService noteMutationService,
@@ -290,6 +295,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _themeLoaderService = themeLoaderService;
         _fontCatalogService = fontCatalogService;
         _aiPromptCatalogService = aiPromptCatalogService;
+        _aiPromptEditorService = aiPromptEditorService;
         _aiTextActionService = aiTextActionService;
         _aiTitleSuggestionService = aiTitleSuggestionService;
         _noteMutationService = noteMutationService;

@@ -18,6 +18,8 @@ public sealed record SettingsDialogModel(
     bool IsAiEnabled,
     string ApiKey,
     string DefaultModel,
+    string DefaultReasoningEffort,
     string ProjectId,
     string OrganizationId,
-    string PromptsDirectory);
+    string PromptsDirectory,
+    IReadOnlyList<AiPromptDefinition> AiPrompts);

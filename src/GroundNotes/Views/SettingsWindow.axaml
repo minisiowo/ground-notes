@@ -3,16 +3,26 @@
         xmlns:views="using:GroundNotes.Views"
         x:Class="GroundNotes.Views.SettingsWindow"
         Title="Settings"
-        Width="620"
-        Height="640"
-        MinWidth="620"
+        Width="760"
+        Height="720"
+        MinWidth="720"
         MinHeight="600"
-        CanResize="False"
+        CanResize="True"
         SystemDecorations="None"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="NoChrome"
         KeyDown="OnWindowKeyDown"
         WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <Style Selector="ListBox.aiPromptList ListBoxItem:pointerover Border.aiPromptRow">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox.aiPromptList ListBoxItem:selected Border.aiPromptRow">
+      <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    </Style>
+  </Window.Styles>
+
   <Grid RowDefinitions="Auto,*,Auto">
     <!-- Title Bar -->
     <views:TitleBarControl Grid.Row="0"
@@ -165,9 +175,19 @@
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Model ID" />
-                    <TextBlock Classes="settingsDescription" Text="E.g., gpt-5.4-mini" />
+                    <TextBlock Classes="settingsDescription" Text="Default model for AI actions." />
                   </StackPanel>
-                  <TextBox Grid.Column="1" x:Name="DefaultModelTextBox" Watermark="gpt-5.4-mini" Text="{Binding DefaultModel}" />
+                  <ComboBox Grid.Column="1" x:Name="DefaultModelTextBox" ItemsSource="{Binding AvailableModels}" SelectedItem="{Binding DefaultModel}" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Reasoning effort" />
+                    <TextBlock Classes="settingsDescription" Text="Default reasoning mode. Use none to keep costs lower." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding ReasoningEfforts}" SelectedItem="{Binding DefaultReasoningEffort}" />
                 </Grid>
               </Border>
 
@@ -193,9 +213,50 @@
 
               <Border Classes="settingsCard" Margin="0,12,0,0">
                 <StackPanel Spacing="8">
-                  <TextBlock Classes="settingsLabel" Text="Custom Prompts Folder" />
+                  <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="6">
+                    <StackPanel Grid.Column="0" Spacing="2">
+                      <TextBlock Classes="settingsLabel" Text="AI Prompts" />
+                      <TextBlock Classes="settingsDescription" Text="Manage actions shown under the editor right-click AI menu." />
+                    </StackPanel>
+                    <Button Grid.Column="1" Content="Add" Click="OnAddPromptClick" />
+                    <Button Grid.Column="2" Content="Edit" IsEnabled="{Binding CanEditSelectedPrompt}" Click="OnEditPromptClick" />
+                    <Button Grid.Column="3" Content="Duplicate" IsEnabled="{Binding HasSelectedPrompt}" Click="OnDuplicatePromptClick" />
+                    <Button Grid.Column="4" Content="Delete" IsEnabled="{Binding CanDeleteSelectedPrompt}" Click="OnDeletePromptClick" />
+                    <Button Grid.Column="5" Content="Reload" Click="OnReloadPromptsClick" />
+                  </Grid>
+
+                  <Border BorderBrush="{DynamicResource BorderBrushBase}" BorderThickness="1" MinHeight="170">
+                    <ListBox x:Name="PromptListBox"
+                             Classes="aiPromptList"
+                             ItemsSource="{Binding PromptItems}"
+                             SelectedItem="{Binding SelectedPrompt, Mode=TwoWay}"
+                             SelectionChanged="OnPromptSelectionChanged"
+                             DoubleTapped="OnPromptDoubleTapped">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <Border Classes="aiPromptRow"
+                                  Padding="8"
+                                  Background="Transparent"
+                                  BorderBrush="{DynamicResource BorderBrushBase}"
+                                  BorderThickness="1"
+                                  Cursor="Hand">
+                            <Grid ColumnDefinitions="2*,*,*,Auto" ColumnSpacing="8">
+                              <StackPanel Grid.Column="0" Spacing="2">
+                                <TextBlock Classes="settingsLabel" Text="{Binding Name}" />
+                                <TextBlock Classes="metaText" Text="{Binding Id}" />
+                              </StackPanel>
+                              <TextBlock Grid.Column="1" VerticalAlignment="Center" Classes="metaText" Text="{Binding Model}" TextWrapping="Wrap" />
+                              <TextBlock Grid.Column="2" VerticalAlignment="Center" Classes="metaText" Text="{Binding ReasoningEffort}" TextWrapping="Wrap" />
+                              <TextBlock Grid.Column="3" VerticalAlignment="Center" Classes="metaText" Text="{Binding Source}" />
+                            </Grid>
+                          </Border>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                  </Border>
+
                   <TextBlock x:Name="PromptsFolderTextBlock" Classes="metaText" Text="{Binding PromptsDirectory}" TextWrapping="Wrap" />
-                  <TextBlock Classes="settingsDescription" Text="Add .json files here to define your own AI actions. Folder is located inside your current notes directory." />
+                  <TextBlock Classes="settingsDescription" Text="Custom prompts are stored as .json files inside your current notes directory." />
                 </StackPanel>
               </Border>
             </StackPanel>

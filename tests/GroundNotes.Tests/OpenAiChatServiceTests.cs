@@ -34,11 +34,11 @@ public sealed class OpenAiChatServiceTests
                 new AiChatMessage("system", "System context"),
                 new AiChatMessage("user", "Hello")
             },
-            new AiSettings("secret", "gpt-5.4-mini", true, "proj_123", "org_456"),
-            "gpt-5.4");
+            new AiSettings("secret", "gpt-5.6-terra", true, "proj_123", "org_456"),
+            "gpt-5.6-sol");
 
         Assert.Equal("Assistant reply", result);
-        Assert.Contains("gpt-5.4", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("gpt-5.6-sol", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("System context", handler.RequestBody, StringComparison.Ordinal);
         Assert.Contains("Hello", handler.RequestBody, StringComparison.Ordinal);
         Assert.Equal("Bearer", handler.AuthorizationScheme);
@@ -68,8 +68,8 @@ public sealed class OpenAiChatServiceTests
 
         var ex = await Assert.ThrowsAsync<AiServiceException>(() => service.GetResponseAsync(
             [new AiChatMessage("user", "Hello")],
-            new AiSettings("secret", "gpt-5.4-mini", true),
-            "gpt-5.4"));
+            new AiSettings("secret", "gpt-5.6-terra", true),
+            "gpt-5.6-sol"));
 
         Assert.Equal(AiServiceErrorKind.QuotaExceeded, ex.Kind);
         Assert.Equal("req_456", ex.RequestId);
@@ -83,8 +83,8 @@ public sealed class OpenAiChatServiceTests
 
         var ex = await Assert.ThrowsAsync<AiServiceException>(() => service.GetResponseAsync(
             [new AiChatMessage("user", "Hello")],
-            new AiSettings(string.Empty, "gpt-5.4-mini", true),
-            "gpt-5.4"));
+            new AiSettings(string.Empty, "gpt-5.6-terra", true),
+            "gpt-5.6-sol"));
 
         Assert.Equal(AiServiceErrorKind.MissingApiKey, ex.Kind);
         Assert.Equal("Set your OpenAI API key first.", ex.Message);

@@ -103,7 +103,7 @@ public sealed class OpenAiTitleSuggestionServiceTests
                 Title = "draft",
                 Body = "Body text"
             },
-            new AiSettings(string.Empty, "gpt-5.4-mini", true)));
+            new AiSettings(string.Empty, "gpt-5.6-terra", true)));
 
         Assert.Equal(AiServiceErrorKind.MissingApiKey, ex.Kind);
     }

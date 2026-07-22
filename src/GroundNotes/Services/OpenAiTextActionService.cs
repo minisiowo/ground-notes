@@ -29,12 +29,17 @@ public sealed class OpenAiTextActionService : IAiTextActionService
             ? prompt.Model
             : settings.DefaultModel;
 
+        var reasoningEffort = AiReasoningEffortCatalog.Normalize(
+            string.IsNullOrWhiteSpace(prompt.ReasoningEffort)
+                ? settings.DefaultReasoningEffort
+                : prompt.ReasoningEffort);
+
         var renderedPrompt = prompt.PromptTemplate.Replace("{selected}", selectedText, StringComparison.Ordinal);
         return _completionsClient.CompleteAsync(
             [new AiChatMessage("user", renderedPrompt)],
             model,
             settings,
-            new OpenAiCompletionOptions(prompt.Temperature, prompt.MaxTokens, prompt.ReasoningEffort),
+            new OpenAiCompletionOptions(prompt.Temperature, prompt.MaxTokens, reasoningEffort),
             cancellationToken);
     }
 }

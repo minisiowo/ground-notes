@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using GroundNotes.Models;
@@ -22,6 +23,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         LineHeights = EditorDisplaySettings.SupportedLineHeightFactors
             .Select(EditorDisplaySettings.FormatLineHeight)
             .ToList();
+        AvailableModels = BuildAvailableModels(model.DefaultModel);
+        ReasoningEfforts = AiReasoningEffortCatalog.ReasoningEfforts;
         PromptsDirectory = string.IsNullOrWhiteSpace(model.PromptsDirectory)
             ? "Choose a notes folder first."
             : model.PromptsDirectory;
@@ -41,9 +44,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
         ShowScrollBars = model.ShowScrollBars;
         IsAiEnabled = model.IsAiEnabled;
         ApiKey = model.ApiKey;
-        DefaultModel = model.DefaultModel;
+        DefaultModel = string.IsNullOrWhiteSpace(model.DefaultModel) ? AiModelCatalog.DefaultChatModel : model.DefaultModel;
+        DefaultReasoningEffort = AiReasoningEffortCatalog.Normalize(model.DefaultReasoningEffort);
         ProjectId = model.ProjectId;
         OrganizationId = model.OrganizationId;
+        SetAiPrompts(model.AiPrompts);
         _isInitializing = false;
     }
 
@@ -60,6 +65,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> IndentSizes { get; }
 
     public IReadOnlyList<string> LineHeights { get; }
+
+    public IReadOnlyList<string> AvailableModels { get; }
+
+    public IReadOnlyList<string> ReasoningEfforts { get; }
 
     public string PromptsDirectory { get; }
 
@@ -118,10 +127,31 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _defaultModel = AiModelCatalog.DefaultChatModel;
 
     [ObservableProperty]
+    private string _defaultReasoningEffort = AiReasoningEffortCatalog.DefaultReasoningEffort;
+
+    [ObservableProperty]
     private string _projectId = string.Empty;
 
     [ObservableProperty]
     private string _organizationId = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedPrompt))]
+    [NotifyPropertyChangedFor(nameof(CanEditSelectedPrompt))]
+    [NotifyPropertyChangedFor(nameof(CanDeleteSelectedPrompt))]
+    private AiPromptListItemViewModel? _selectedPrompt;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPrompts))]
+    private ObservableCollection<AiPromptListItemViewModel> _promptItems = [];
+
+    public bool HasPrompts => PromptItems.Count > 0;
+
+    public bool HasSelectedPrompt => SelectedPrompt is not null;
+
+    public bool CanEditSelectedPrompt => SelectedPrompt?.CanEdit == true;
+
+    public bool CanDeleteSelectedPrompt => SelectedPrompt?.CanDelete == true;
 
     public SettingsDialogModel BuildModel()
     {
@@ -143,9 +173,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
             IsAiEnabled,
             ApiKey.Trim(),
             string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel.Trim(),
+            AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort),
             ProjectId.Trim(),
             OrganizationId.Trim(),
-            PromptsDirectory);
+            PromptsDirectory,
+            PromptItems.Select(item => item.Definition).ToList());
     }
 
     partial void OnSelectedThemeNameChanged(string value) => RaisePreviewRequested();
@@ -188,11 +220,49 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     partial void OnApiKeyChanged(string value) => RaisePreviewRequested();
 
-    partial void OnDefaultModelChanged(string value) => RaisePreviewRequested();
+    partial void OnDefaultModelChanged(string value)
+    {
+        RefreshPromptLabels();
+        RaisePreviewRequested();
+    }
+
+    partial void OnDefaultReasoningEffortChanged(string value)
+    {
+        DefaultReasoningEffort = AiReasoningEffortCatalog.Normalize(value);
+        RefreshPromptLabels();
+        RaisePreviewRequested();
+    }
 
     partial void OnProjectIdChanged(string value) => RaisePreviewRequested();
 
     partial void OnOrganizationIdChanged(string value) => RaisePreviewRequested();
+
+    public void SetAiPrompts(IReadOnlyList<AiPromptDefinition> prompts)
+    {
+        PromptItems = new ObservableCollection<AiPromptListItemViewModel>(
+            prompts.Select(prompt => new AiPromptListItemViewModel(
+                prompt,
+                string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel,
+                AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort))));
+        SelectedPrompt = PromptItems.FirstOrDefault();
+    }
+
+    private void RefreshPromptLabels()
+    {
+        SetAiPrompts(PromptItems.Select(item => item.Definition).ToList());
+    }
+
+    private static IReadOnlyList<string> BuildAvailableModels(string? currentModel)
+    {
+        var models = AiModelCatalog.ChatCompletionModels.ToList();
+        if (!string.IsNullOrWhiteSpace(currentModel)
+            && !models.Contains(currentModel.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            models.Add(currentModel.Trim());
+        }
+
+        return models;
+    }
 
     private void UpdateSidebarVariantNames(string? preferredVariant)
     {

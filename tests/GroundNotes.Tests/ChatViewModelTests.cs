@@ -225,8 +225,8 @@ public sealed class ChatViewModelTests
             mutationService ?? new FakeNoteMutationService(notesRepository),
             new FakeNoteSearchService(initialNotes ?? []),
             Path.Combine(Path.GetTempPath(), "GroundNotes.Tests"),
-            "gpt-5.4-mini",
-            ["gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano"],
+            "gpt-5.6-terra",
+            ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"],
             originNote,
             initialNotes: initialNotes);
     }
@@ -328,7 +328,7 @@ public sealed class ChatViewModelTests
             false,
             true,
             null,
-            new AiSettings("api-key", "gpt-5.4-mini", true));
+            new AiSettings("api-key", "gpt-5.6-terra", true));
 
         public Task<AppSettings> GetSettingsAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(GetSettingsSync());
@@ -338,7 +338,7 @@ public sealed class ChatViewModelTests
         }
 
         public Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(new AiSettings("api-key", "gpt-5.4-mini", true));
+            => Task.FromResult(new AiSettings("api-key", "gpt-5.6-terra", true));
 
         public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
 

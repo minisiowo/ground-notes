@@ -796,7 +796,7 @@ public sealed class MainViewModelTests : IDisposable
             FolderToPick = _tempRoot
         };
         var settingsService = new FakeSettingsService();
-        await settingsService.UpdateSettingsAsync(s => s with { AiSettings = new AiSettings("secret", "gpt-5.4-mini", false) });
+        await settingsService.UpdateSettingsAsync(s => s with { AiSettings = new AiSettings("secret", "gpt-5.6-terra", false) });
         var aiTitleSuggestionService = new FakeAiTitleSuggestionService
         {
             Suggestions = ["project-outline", "meeting-summary", "deployment-checklist"]
@@ -956,10 +956,12 @@ public sealed class MainViewModelTests : IDisposable
             true,
             true,
             string.Empty,
-            "gpt-5.4-mini",
+            "gpt-5.6-terra",
+            "none",
             string.Empty,
             string.Empty,
-            string.Empty);
+            string.Empty,
+            []);
 
         vm.ApplySettingsLive(model);
 
@@ -1104,6 +1106,7 @@ public sealed class MainViewModelTests : IDisposable
             new FakeThemeLoaderService(),
             new FakeFontCatalogService(),
             new FakeAiPromptCatalogService(),
+            new FakeAiPromptEditorService(),
             new FakeAiTextActionService(),
             aiTitleSuggestionService,
             noteMutationService,
@@ -1224,7 +1227,7 @@ public sealed class MainViewModelTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange)
+        public Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange, SettingsPromptActions promptActions)
         {
             return Task.CompletedTask;
         }
@@ -1257,7 +1260,7 @@ public sealed class MainViewModelTests : IDisposable
                 new NoteSearchService(new NotesRepository(), searchNotesFunc),
                 notesFolder,
                 defaultModel,
-                ["gpt-5.4-mini"],
+                ["gpt-5.6-terra"],
                 originNote,
                 initialNotes);
         }
@@ -1374,12 +1377,30 @@ public sealed class MainViewModelTests : IDisposable
 
         public string GetNotesFolderPromptsDirectory(string notesFolder)
         {
-            return Path.Combine(notesFolder, ".quicknotestxt", "ai-prompts");
+            return Path.Combine(notesFolder, ".groundnotes", "ai-prompts");
         }
 
         public Task<AiPromptCatalogLoadResult> LoadPromptsAsync(string? notesFolder, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new AiPromptCatalogLoadResult([], []));
+        }
+    }
+
+    private sealed class FakeAiPromptEditorService : IAiPromptEditorService
+    {
+        public Task SaveCustomPromptAsync(string notesFolder, AiPromptDefinition prompt, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteCustomPromptAsync(string notesFolder, string promptId, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public string GetCustomPromptFilePath(string notesFolder, string promptId)
+        {
+            return Path.Combine(notesFolder, ".groundnotes", "ai-prompts", promptId + ".json");
         }
     }
 

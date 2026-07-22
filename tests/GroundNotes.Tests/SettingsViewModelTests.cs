@@ -25,7 +25,38 @@ public sealed class SettingsViewModelTests
 
         var model = vm.BuildModel();
 
-        Assert.Equal("gpt-5.4-mini", model.DefaultModel);
+        Assert.Equal("gpt-5.6-terra", model.DefaultModel);
+    }
+
+    [Fact]
+    public void Constructor_PreservesCustomDefaultModelInAvailableOptions()
+    {
+        var model = CreateModel() with { DefaultModel = "custom-model" };
+
+        var vm = new SettingsViewModel(model);
+
+        Assert.Contains("custom-model", vm.AvailableModels);
+        Assert.Equal("custom-model", vm.DefaultModel);
+    }
+
+    [Fact]
+    public void BuildModel_NormalizesDefaultReasoningEffort()
+    {
+        var vm = new SettingsViewModel(CreateModel());
+        vm.DefaultReasoningEffort = " HIGH ";
+
+        var model = vm.BuildModel();
+
+        Assert.Equal("high", model.DefaultReasoningEffort);
+    }
+
+    [Fact]
+    public void Constructor_ExposesReasoningEffortOptions()
+    {
+        var vm = new SettingsViewModel(CreateModel());
+
+        Assert.Equal(["none", "low", "medium", "high", "xhigh", "max"], vm.ReasoningEfforts);
+        Assert.Equal("none", vm.DefaultReasoningEffort);
     }
 
     [Fact]
@@ -76,9 +107,11 @@ public sealed class SettingsViewModelTests
             true,
             true,
             string.Empty,
-            "gpt-5.4-mini",
+            "gpt-5.6-terra",
+            "none",
             string.Empty,
             string.Empty,
-            "/tmp/prompts");
+            "/tmp/prompts",
+            []);
     }
 }

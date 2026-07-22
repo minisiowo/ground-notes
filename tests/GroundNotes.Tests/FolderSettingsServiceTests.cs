@@ -103,6 +103,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         var settings = await _service.GetSettingsAsync();
 
         Assert.Equal(AiSettings.Default.DefaultModel, settings.AiSettings.DefaultModel);
+        Assert.Equal(AiReasoningEffortCatalog.DefaultReasoningEffort, settings.AiSettings.DefaultReasoningEffort);
         Assert.True(settings.AiSettings.IsEnabled);
         Assert.Equal(string.Empty, settings.AiSettings.ApiKey);
     }
@@ -117,7 +118,8 @@ public sealed class FolderSettingsServiceTests : IDisposable
             openAiModel = "  ",
             aiEnabled = false,
             openAiProjectId = "  proj_123  ",
-            openAiOrganizationId = "  org_456  "
+            openAiOrganizationId = "  org_456  ",
+            openAiReasoningEffort = " HIGH "
         });
 
         await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
@@ -129,6 +131,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.False(settings.AiSettings.IsEnabled);
         Assert.Equal("proj_123", settings.AiSettings.ProjectId);
         Assert.Equal("org_456", settings.AiSettings.OrganizationId);
+        Assert.Equal("high", settings.AiSettings.DefaultReasoningEffort);
     }
 
     [Fact]
@@ -183,7 +186,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
     [Fact]
     public async Task GetSettingsSync_MatchesGetSettingsAsync_ForPersistedValues()
     {
-        var ai = new AiSettings("secret", "gpt-5.4", false, "proj_sync", "org_sync");
+        var ai = new AiSettings("secret", "gpt-5.6-sol", false, "proj_sync", "org_sync", "xhigh");
         await _service.SaveSettingsAsync(new AppSettings(
             "notes-sync",
             15,

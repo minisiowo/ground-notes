@@ -22,7 +22,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         var model = BuildSettingsDialogModel();
         IsSettingsPreviewActive = true;
-        await _workspaceDialogService.ShowSettingsAsync(model, ApplySettingsLive);
+        await _workspaceDialogService.ShowSettingsAsync(model, ApplySettingsLive, BuildSettingsPromptActions());
         IsSettingsPreviewActive = false;
     }
 
@@ -46,9 +46,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             IsAiEnabled,
             OpenAiApiKey,
             SelectedAiModel,
+            SelectedAiReasoningEffort,
             OpenAiProjectId,
             OpenAiOrganizationId,
-            CurrentAiPromptsDirectory);
+            CurrentAiPromptsDirectory,
+            AiPrompts);
     }
 
 
@@ -110,7 +112,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             model.DefaultModel,
             model.IsAiEnabled,
             model.ProjectId,
-            model.OrganizationId));
+            model.OrganizationId,
+            model.DefaultReasoningEffort));
 
         _ = PersistSettingsAsync(settings => settings with
         {

@@ -145,7 +145,8 @@ public sealed class FolderSettingsService : ISettingsService
                 record.OpenAiModel ?? string.Empty,
                 record.AiEnabled ?? AiSettings.Default.IsEnabled,
                 record.OpenAiProjectId ?? string.Empty,
-                record.OpenAiOrganizationId ?? string.Empty)));
+                record.OpenAiOrganizationId ?? string.Empty,
+                record.OpenAiReasoningEffort ?? string.Empty)));
     }
 
     private static SettingsRecord MapToRecord(AppSettings settings)
@@ -186,7 +187,8 @@ public sealed class FolderSettingsService : ISettingsService
             OpenAiModel = settings.AiSettings.DefaultModel,
             AiEnabled = settings.AiSettings.IsEnabled,
             OpenAiProjectId = settings.AiSettings.ProjectId,
-            OpenAiOrganizationId = settings.AiSettings.OrganizationId
+            OpenAiOrganizationId = settings.AiSettings.OrganizationId,
+            OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort
         };
     }
 
@@ -266,6 +268,7 @@ public sealed class FolderSettingsService : ISettingsService
         public bool? AiEnabled { get; set; }
         public string? OpenAiProjectId { get; set; }
         public string? OpenAiOrganizationId { get; set; }
+        public string? OpenAiReasoningEffort { get; set; }
     }
 
     private sealed class WindowLayoutRecord
