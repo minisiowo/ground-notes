@@ -105,7 +105,8 @@ public sealed class FolderSettingsService : ISettingsService
         {
             EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize),
             EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor),
-            AiSettings = AiSettings.Normalize(settings.AiSettings)
+            AiSettings = AiSettings.Normalize(settings.AiSettings),
+            KeyboardShortcuts = KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts)
         };
     }
 
@@ -146,7 +147,8 @@ public sealed class FolderSettingsService : ISettingsService
                 record.AiEnabled ?? AiSettings.Default.IsEnabled,
                 record.OpenAiProjectId ?? string.Empty,
                 record.OpenAiOrganizationId ?? string.Empty,
-                record.OpenAiReasoningEffort ?? string.Empty)));
+                record.OpenAiReasoningEffort ?? string.Empty),
+            KeyboardShortcutSettings.Normalize(record.KeyboardShortcuts)));
     }
 
     private static SettingsRecord MapToRecord(AppSettings settings)
@@ -188,7 +190,8 @@ public sealed class FolderSettingsService : ISettingsService
             AiEnabled = settings.AiSettings.IsEnabled,
             OpenAiProjectId = settings.AiSettings.ProjectId,
             OpenAiOrganizationId = settings.AiSettings.OrganizationId,
-            OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort
+            OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort,
+            KeyboardShortcuts = KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts)
         };
     }
 
@@ -269,6 +272,7 @@ public sealed class FolderSettingsService : ISettingsService
         public string? OpenAiProjectId { get; set; }
         public string? OpenAiOrganizationId { get; set; }
         public string? OpenAiReasoningEffort { get; set; }
+        public KeyboardShortcutSettings? KeyboardShortcuts { get; set; }
     }
 
     private sealed class WindowLayoutRecord

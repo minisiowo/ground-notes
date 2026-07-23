@@ -1,17 +1,22 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using Avalonia.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using GroundNotes.Models;
+using GroundNotes.Services;
 
 namespace GroundNotes.ViewModels;
 
 public sealed partial class SettingsViewModel : ViewModelBase
 {
     private readonly IReadOnlyList<BundledFontFamilyOption> _fontFamilies;
+    private KeyboardShortcutSettings _appliedKeyboardShortcuts = KeyboardShortcutSettings.CreateDefault();
     private bool _isInitializing;
 
     public SettingsViewModel(SettingsDialogModel model)
     {
+        _isInitializing = true;
         ThemeNames = model.ThemeNames;
         _fontFamilies = model.FontFamilies;
         FontFamilies = model.FontFamilies.Select(font => font.DisplayName).ToList();
@@ -28,8 +33,28 @@ public sealed partial class SettingsViewModel : ViewModelBase
         PromptsDirectory = string.IsNullOrWhiteSpace(model.PromptsDirectory)
             ? "Choose a notes folder first."
             : model.PromptsDirectory;
+        var keyboardShortcuts = KeyboardShortcutSettings.Normalize(model.KeyboardShortcuts);
+        AvailableShortcutKeys = BuildAvailableShortcutKeys(keyboardShortcuts);
+        ApplicationModifiers = Enum.GetValues<ApplicationShortcutModifier>();
+        SelectedApplicationModifier = keyboardShortcuts.ApplicationModifier;
+        ShortcutActions = new ObservableCollection<KeyboardShortcutActionViewModel>(
+            KeyboardShortcutCatalog.Definitions.Select(definition =>
+            {
+                var bindings = keyboardShortcuts.Bindings.TryGetValue(definition.Id, out var configured)
+                    ? configured
+                    : definition.DefaultBindings;
+                var item = new KeyboardShortcutActionViewModel(
+                    definition,
+                    bindings,
+                    keyboardShortcuts.ApplicationModifier,
+                    AvailableShortcutKeys);
+                item.Changed += OnShortcutActionChanged;
+                return item;
+            }));
+        _appliedKeyboardShortcuts = BuildCurrentKeyboardShortcutSettings();
+        RefreshShortcutValidation();
+        _appliedKeyboardShortcuts = BuildAppliedKeyboardShortcutSettings();
 
-        _isInitializing = true;
         SelectedThemeName = model.SelectedThemeName;
         SelectedSidebarFontFamilyName = model.SelectedSidebarFontFamilyName;
         UpdateSidebarVariantNames(model.SelectedSidebarFontVariantName);
@@ -71,6 +96,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> ReasoningEfforts { get; }
 
     public string PromptsDirectory { get; }
+
+    public IReadOnlyList<string> AvailableShortcutKeys { get; }
+
+    public IReadOnlyList<ApplicationShortcutModifier> ApplicationModifiers { get; }
 
     [ObservableProperty]
     private string _selectedThemeName = string.Empty;
@@ -136,6 +165,21 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _organizationId = string.Empty;
 
     [ObservableProperty]
+    private ApplicationShortcutModifier _selectedApplicationModifier = ApplicationShortcutModifier.Control;
+
+    [ObservableProperty]
+    private ObservableCollection<KeyboardShortcutActionViewModel> _shortcutActions = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasShortcutConflict))]
+    private string _shortcutConflictMessage = string.Empty;
+
+    [ObservableProperty]
+    private string _shortcutWarningMessage = string.Empty;
+
+    public bool HasShortcutConflict => !string.IsNullOrWhiteSpace(ShortcutConflictMessage);
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedPrompt))]
     [NotifyPropertyChangedFor(nameof(CanEditSelectedPrompt))]
     [NotifyPropertyChangedFor(nameof(CanDeleteSelectedPrompt))]
@@ -177,7 +221,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ProjectId.Trim(),
             OrganizationId.Trim(),
             PromptsDirectory,
-            PromptItems.Select(item => item.Definition).ToList());
+            PromptItems.Select(item => item.Definition).ToList(),
+            _appliedKeyboardShortcuts);
     }
 
     partial void OnSelectedThemeNameChanged(string value) => RaisePreviewRequested();
@@ -237,6 +282,31 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     partial void OnOrganizationIdChanged(string value) => RaisePreviewRequested();
 
+    partial void OnSelectedApplicationModifierChanged(ApplicationShortcutModifier value)
+    {
+        foreach (var action in ShortcutActions)
+        {
+            action.SetApplicationModifier(value);
+        }
+
+        HandleShortcutSettingsChanged();
+    }
+
+    [RelayCommand]
+    private void ResetAllShortcuts()
+    {
+        var defaults = KeyboardShortcutSettings.CreateDefault();
+        _isInitializing = true;
+        SelectedApplicationModifier = defaults.ApplicationModifier;
+        foreach (var action in ShortcutActions)
+        {
+            action.ResetShortcutsCommand.Execute(null);
+            action.SetApplicationModifier(defaults.ApplicationModifier);
+        }
+        _isInitializing = false;
+        HandleShortcutSettingsChanged();
+    }
+
     public void SetAiPrompts(IReadOnlyList<AiPromptDefinition> prompts)
     {
         PromptItems = new ObservableCollection<AiPromptListItemViewModel>(
@@ -246,6 +316,222 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort))));
         SelectedPrompt = null;
     }
+
+    private void OnShortcutActionChanged(object? sender, EventArgs e)
+    {
+        HandleShortcutSettingsChanged(sender as KeyboardShortcutBindingViewModel);
+    }
+
+    private void HandleShortcutSettingsChanged(KeyboardShortcutBindingViewModel? changedBinding = null)
+    {
+        RefreshShortcutValidation(changedBinding);
+        _appliedKeyboardShortcuts = BuildAppliedKeyboardShortcutSettings();
+        RaisePreviewRequested();
+    }
+
+    private KeyboardShortcutSettings BuildCurrentKeyboardShortcutSettings()
+    {
+        return new KeyboardShortcutSettings(
+            SelectedApplicationModifier,
+            ShortcutActions.ToDictionary(
+                action => action.Id,
+                action => action.BuildBindings().ToList(),
+                StringComparer.Ordinal));
+    }
+
+    private KeyboardShortcutSettings BuildAppliedKeyboardShortcutSettings()
+    {
+        return new KeyboardShortcutSettings(
+            SelectedApplicationModifier,
+            ShortcutActions.ToDictionary(
+                action => action.Id,
+                action => action.Bindings
+                    .Where(binding => binding.IsApplied)
+                    .Select(binding => binding.BuildBinding())
+                    .ToList(),
+                StringComparer.Ordinal));
+    }
+
+    private void RefreshShortcutValidation(KeyboardShortcutBindingViewModel? changedBinding = null)
+    {
+        var settings = BuildCurrentKeyboardShortcutSettings();
+        var service = new KeyboardShortcutService();
+        service.ApplySettings(settings);
+        var entries = ShortcutActions
+            .SelectMany(action => action.Bindings.Select(binding => new ShortcutValidationEntry(
+                action,
+                binding,
+                binding.BuildBinding(),
+                service.Format(binding.BuildBinding()))))
+            .ToList();
+        var invalidBindings = new HashSet<KeyboardShortcutBindingViewModel>();
+        var previouslyInvalidBindings = entries
+            .Where(entry => !entry.ViewModel.IsApplied)
+            .Select(entry => entry.ViewModel)
+            .ToHashSet();
+
+        foreach (var entry in entries)
+        {
+            entry.ViewModel.SetValidation(null);
+        }
+
+        foreach (var entry in entries.Where(entry =>
+                     !entry.Display.Contains('+', StringComparison.Ordinal)
+                     && RunsInsideTextInput(entry.Action)
+                     && !IsSafeUnmodifiedTextInputKey(entry.Binding.Key)))
+        {
+            RejectBinding(entry, $"{entry.Display} would interfere with typing.", invalidBindings);
+        }
+
+        var fixedShortcuts = BuildFixedShortcutEntries();
+        foreach (var entry in entries.Where(entry => !invalidBindings.Contains(entry.ViewModel)))
+        {
+            var fixedConflict = fixedShortcuts.FirstOrDefault(fixedShortcut =>
+                ScopesOverlap(entry.Action.Scope, fixedShortcut.Scope)
+                && string.Equals(entry.Display, fixedShortcut.Display, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(fixedConflict.Display))
+            {
+                RejectBinding(entry, $"Reserved for '{fixedConflict.Name}'.", invalidBindings);
+            }
+        }
+
+        for (var index = 0; index < entries.Count; index++)
+        {
+            for (var otherIndex = index + 1; otherIndex < entries.Count; otherIndex++)
+            {
+                var first = entries[index];
+                var second = entries[otherIndex];
+                if (invalidBindings.Contains(first.ViewModel)
+                    || invalidBindings.Contains(second.ViewModel)
+                    || !ScopesOverlap(first.Action.Scope, second.Action.Scope)
+                    || !string.Equals(first.Display, second.Display, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var rejected = ReferenceEquals(first.ViewModel, changedBinding) ? first
+                    : ReferenceEquals(second.ViewModel, changedBinding) ? second
+                    : previouslyInvalidBindings.Contains(first.ViewModel) ? first
+                    : second;
+                var accepted = ReferenceEquals(rejected, first) ? second : first;
+                var message = string.Equals(first.Action.Id, second.Action.Id, StringComparison.Ordinal)
+                    ? $"Duplicate shortcut for '{accepted.Action.Name}'."
+                    : $"Already used by '{accepted.Action.Name}'.";
+                RejectBinding(rejected, message, invalidBindings);
+            }
+        }
+
+        ShortcutConflictMessage = invalidBindings.Count == 0
+            ? string.Empty
+            : $"{invalidBindings.Count} shortcut{(invalidBindings.Count == 1 ? " is" : "s are")} not applied. See the affected row{(invalidBindings.Count == 1 ? string.Empty : "s")}.";
+
+        var unmodified = entries.FirstOrDefault(entry =>
+            !invalidBindings.Contains(entry.ViewModel)
+            && !entry.Display.Contains('+', StringComparison.Ordinal)
+            && IsPrintableKey(entry.Binding.Key)
+            && !RunsInsideTextInput(entry.Action));
+        ShortcutWarningMessage = unmodified is null
+            ? string.Empty
+            : $"Warning: {unmodified.Display} may interfere with typing and will be ignored while a text input is active.";
+    }
+
+    private static void RejectBinding(
+        ShortcutValidationEntry entry,
+        string message,
+        ISet<KeyboardShortcutBindingViewModel> invalidBindings)
+    {
+        invalidBindings.Add(entry.ViewModel);
+        entry.ViewModel.SetValidation(message);
+    }
+
+    private static bool RunsInsideTextInput(KeyboardShortcutActionViewModel action)
+    {
+        return action.Scope is KeyboardShortcutScope.Editor or KeyboardShortcutScope.TitleSuggestions or KeyboardShortcutScope.Chat
+               || action.Id is KeyboardShortcutActionIds.DeleteNote
+                   or KeyboardShortcutActionIds.ToggleYaml
+                   or KeyboardShortcutActionIds.ToggleSidebar
+                   or KeyboardShortcutActionIds.ShowShortcuts;
+    }
+
+    private static IReadOnlyList<(KeyboardShortcutScope Scope, string Display, string Name)> BuildFixedShortcutEntries()
+    {
+        return
+        [
+            (KeyboardShortcutScope.Editor, "Ctrl+Z", "Undo"),
+            (KeyboardShortcutScope.Editor, "Ctrl+Y", "Redo"),
+            (KeyboardShortcutScope.Editor, "Ctrl+Shift+Z", "Redo"),
+            (KeyboardShortcutScope.Editor, "Meta+Z", "Undo"),
+            (KeyboardShortcutScope.Editor, "Meta+Shift+Z", "Redo"),
+            (KeyboardShortcutScope.Editor, "Ctrl+C", "Copy"),
+            (KeyboardShortcutScope.Editor, "Ctrl+X", "Cut"),
+            (KeyboardShortcutScope.Editor, "Ctrl+V", "Paste"),
+            (KeyboardShortcutScope.Editor, "Tab", "Indent"),
+            (KeyboardShortcutScope.Editor, "Shift+Tab", "Outdent"),
+            (KeyboardShortcutScope.MainWindow, "Ctrl+OemPlus", "Increase editor font size"),
+            (KeyboardShortcutScope.MainWindow, "Ctrl+Add", "Increase editor font size"),
+            (KeyboardShortcutScope.MainWindow, "Ctrl+Shift+OemPlus", "Increase UI font size"),
+            (KeyboardShortcutScope.MainWindow, "Ctrl+OemMinus", "Decrease editor font size"),
+            (KeyboardShortcutScope.MainWindow, "Ctrl+Subtract", "Decrease editor font size"),
+            (KeyboardShortcutScope.MainWindow, "Ctrl+Shift+OemMinus", "Decrease UI font size"),
+            (KeyboardShortcutScope.Chat, "Enter", "Accept mention"),
+            (KeyboardShortcutScope.Chat, "Escape", "Dismiss mention"),
+            (KeyboardShortcutScope.Chat, "Up", "Move mention selection"),
+            (KeyboardShortcutScope.Chat, "Down", "Move mention selection")
+        ];
+    }
+
+    private static bool ScopesOverlap(KeyboardShortcutScope first, KeyboardShortcutScope second)
+    {
+        if (first == second || first == KeyboardShortcutScope.Global || second == KeyboardShortcutScope.Global)
+        {
+            return true;
+        }
+
+        return (first == KeyboardShortcutScope.MainWindow && second == KeyboardShortcutScope.Editor)
+               || (first == KeyboardShortcutScope.Editor && second == KeyboardShortcutScope.MainWindow);
+    }
+
+    private static bool IsPrintableKey(string key)
+    {
+        return key.Length == 1
+               || (key.Length == 2 && key[0] == 'D' && char.IsDigit(key[1]))
+               || key.StartsWith("NumPad", StringComparison.Ordinal)
+               || key.StartsWith("Oem", StringComparison.Ordinal)
+               || key is "Space";
+    }
+
+    private static bool IsSafeUnmodifiedTextInputKey(string key)
+    {
+        return key.Length is 2 or 3
+               && key[0] == 'F'
+               && int.TryParse(key[1..], NumberStyles.None, CultureInfo.InvariantCulture, out var functionKey)
+               && functionKey is >= 1 and <= 24;
+    }
+
+    private static IReadOnlyList<string> BuildAvailableShortcutKeys(KeyboardShortcutSettings settings)
+    {
+        var configuredKeys = settings.Bindings.Values.SelectMany(bindings => bindings).Select(binding => binding.Key);
+        var defaultKeys = KeyboardShortcutCatalog.Definitions.SelectMany(definition => definition.DefaultBindings).Select(binding => binding.Key);
+        return Enum.GetValues<Key>()
+            .Where(key => key != Key.None)
+            .Select(key => key.ToString())
+            .Where(key => !key.Contains("Ctrl", StringComparison.OrdinalIgnoreCase)
+                          && !key.Contains("Shift", StringComparison.OrdinalIgnoreCase)
+                          && !key.Contains("Alt", StringComparison.OrdinalIgnoreCase)
+                          && !key.Contains("Win", StringComparison.OrdinalIgnoreCase))
+            .Concat(defaultKeys)
+            .Concat(configuredKeys)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private sealed record ShortcutValidationEntry(
+        KeyboardShortcutActionViewModel Action,
+        KeyboardShortcutBindingViewModel ViewModel,
+        KeyboardShortcutBinding Binding,
+        string Display);
 
     private void RefreshPromptLabels()
     {

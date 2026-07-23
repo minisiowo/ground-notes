@@ -64,11 +64,10 @@ public sealed class MainWindowShortcutTests
     }
 
     [Theory]
-    [InlineData(Key.Oem2, KeyModifiers.Control | KeyModifiers.Shift, true)]
-    [InlineData(Key.Oem2, KeyModifiers.Meta | KeyModifiers.Shift, true)]
-    [InlineData(Key.Oem2, KeyModifiers.Control, false)]
-    [InlineData(Key.Oem2, KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt, false)]
-    [InlineData(Key.OemComma, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    [InlineData(Key.F1, KeyModifiers.None, true)]
+    [InlineData(Key.F1, KeyModifiers.Control, false)]
+    [InlineData(Key.Oem2, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    [InlineData(Key.OemComma, KeyModifiers.None, false)]
     public void IsShowShortcutsHelpGesture_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected)
     {
         var result = MainWindow.IsShowShortcutsHelpGesture(key, modifiers);
@@ -103,12 +102,12 @@ public sealed class MainWindowShortcutTests
     }
 
     [Theory]
-    [InlineData(Key.Up, KeyModifiers.Control | KeyModifiers.Shift, true, false)]
-    [InlineData(Key.Down, KeyModifiers.Control | KeyModifiers.Shift, true, true)]
+    [InlineData(Key.Up, KeyModifiers.Alt, true, false)]
+    [InlineData(Key.Down, KeyModifiers.Alt, true, true)]
     [InlineData(Key.Up, KeyModifiers.Control, false, false)]
     [InlineData(Key.Down, KeyModifiers.Shift, false, false)]
-    [InlineData(Key.Up, KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Alt, false, false)]
-    [InlineData(Key.Left, KeyModifiers.Control | KeyModifiers.Shift, false, false)]
+    [InlineData(Key.Up, KeyModifiers.Control | KeyModifiers.Alt, false, false)]
+    [InlineData(Key.Left, KeyModifiers.Alt, false, false)]
     public void IsMoveLineShortcut_MatchesExpectedShortcut(Key key, KeyModifiers modifiers, bool expected, bool expectedMoveDown)
     {
         var result = MainWindow.IsMoveLineShortcut(key, modifiers, out var moveDown);
@@ -139,6 +138,19 @@ public sealed class MainWindowShortcutTests
         var result = MainWindow.IsRenameTextBoxCancelKey(key);
 
         Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(Key.Enter, KeyModifiers.None, true)]
+    [InlineData(Key.Up, KeyModifiers.None, true)]
+    [InlineData(Key.Down, KeyModifiers.None, true)]
+    [InlineData(Key.Escape, KeyModifiers.Control, true)]
+    [InlineData(Key.Enter, KeyModifiers.Control, false)]
+    [InlineData(Key.Up, KeyModifiers.Shift, false)]
+    [InlineData(Key.Space, KeyModifiers.None, false)]
+    public void SlashCommandNavigation_DoesNotConsumeModifiedShortcuts(Key key, KeyModifiers modifiers, bool expected)
+    {
+        Assert.Equal(expected, SlashCommandPopupController.ShouldHandleNavigationKey(key, modifiers));
     }
 
     [Theory]

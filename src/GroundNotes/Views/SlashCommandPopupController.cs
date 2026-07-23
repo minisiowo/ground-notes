@@ -47,6 +47,11 @@ internal sealed class SlashCommandPopupController
             return false;
         }
 
+        if (!ShouldHandleNavigationKey(e.Key, e.KeyModifiers))
+        {
+            return false;
+        }
+
         if (e.Key == Key.Down)
         {
             e.Handled = true;
@@ -76,6 +81,12 @@ internal sealed class SlashCommandPopupController
         }
 
         return false;
+    }
+
+    internal static bool ShouldHandleNavigationKey(Key key, KeyModifiers modifiers)
+    {
+        return key == Key.Escape
+               || (modifiers == KeyModifiers.None && key is Key.Down or Key.Up or Key.Enter);
     }
 
     public void ApplySelectedCommand(Action<MarkdownEditResult> applyEdit)

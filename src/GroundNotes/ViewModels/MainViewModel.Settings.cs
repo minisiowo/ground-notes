@@ -50,7 +50,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             OpenAiProjectId,
             OpenAiOrganizationId,
             CurrentAiPromptsDirectory,
-            AiPrompts);
+            AiPrompts,
+            _keyboardShortcutService.Settings);
     }
 
 
@@ -107,6 +108,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ShowScrollBars = model.ShowScrollBars;
         _appearanceService.ApplyScrollBars(model.ShowScrollBars);
 
+        _keyboardShortcutService.ApplySettings(model.KeyboardShortcuts);
+
         ApplyAiSettings(new AiSettings(
             model.ApiKey,
             model.DefaultModel,
@@ -129,7 +132,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EditorIndentSize = persistedEditorIndentSize,
             EditorLineHeightFactor = persistedEditorLineHeightFactor,
             ShowScrollBars = model.ShowScrollBars,
-            AiSettings = BuildAiSettings()
+            AiSettings = BuildAiSettings(),
+            KeyboardShortcuts = _keyboardShortcutService.Settings
         });
     }
 }

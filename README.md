@@ -54,6 +54,21 @@ Examples:
 
 The stored note text stays plain markdown; the image preview is render-only behavior in the editor.
 
+## Keyboard Shortcuts
+
+Keyboard shortcuts can be customized from Settings → Keyboard Shortcuts.
+
+- `Modifier` bindings use one shared modifier selected by the user, such as `Alt+N` or `Ctrl+N`.
+- `Direct` bindings are independent combinations such as `Ctrl+K`, `Ctrl+Shift+P`, or `F8`.
+- An action can have multiple bindings of both kinds; choose the type with `+ Modifier` or `+ Direct` when adding it.
+- Invalid or conflicting bindings are marked `Not applied` inline without blocking other valid shortcut changes.
+- Platform-specific defaults use `Ctrl` on Windows/Linux and `Meta` on macOS without showing duplicate alternatives.
+- The sidebar toggle is configurable and defaults to `Ctrl+Shift+B`.
+- Markdown editing includes configurable inline-code (`Ctrl+K`) and fenced-code-block (`Ctrl+Shift+K`) actions.
+- Click a binding and press the desired combination to record it; `Escape` cancels recording.
+- The modifier can be set to `None`; unmodified printable keys are ignored while typing in text inputs for main-window actions.
+- Conflicting bindings are excluded from the applied and persisted shortcut set until the affected row is fixed.
+
 ## AI Features
 
 GroundNotes has two separate AI workflows.

@@ -961,7 +961,8 @@ public sealed class MainViewModelTests : IDisposable
             string.Empty,
             string.Empty,
             string.Empty,
-            []);
+            [],
+            KeyboardShortcutSettings.CreateDefault());
 
         vm.ApplySettingsLive(model);
 
@@ -1114,6 +1115,7 @@ public sealed class MainViewModelTests : IDisposable
             appearanceService,
             editorLayoutState,
             chatViewModelFactory,
+            new KeyboardShortcutService(),
             noteSearchServiceFactory);
 
         await vm.InitializeAsync();

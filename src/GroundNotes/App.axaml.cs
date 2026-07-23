@@ -79,12 +79,14 @@ public partial class App : Application
             EditorDisplaySettings.NormalizeIndentSize(startup.Settings.EditorIndentSize),
             EditorDisplaySettings.NormalizeLineHeightFactor(startup.Settings.EditorLineHeightFactor)));
         var windowLayoutService = new SettingsWindowLayoutService(settingsService);
+        var keyboardShortcutService = new KeyboardShortcutService();
+        keyboardShortcutService.ApplySettings(KeyboardShortcutSettings.Normalize(startup.Settings.KeyboardShortcuts));
         var mainWindow = new MainWindow
         {
             Opacity = 0
         };
         mainWindow.SetEditorLayoutState(editorLayoutState);
-        var dialogService = new WindowDialogService(mainWindow, editorLayoutState);
+        var dialogService = new WindowDialogService(mainWindow, editorLayoutState, keyboardShortcutService);
         var repository = new NotesRepository();
         var noteMutationService = new NoteMutationService(repository);
         var fileWatcher = new FileWatcherService();
@@ -102,7 +104,7 @@ public partial class App : Application
         var aiChatService = new OpenAiChatService(aiCompletionsClient);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
         var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService, noteSearchServiceFactory);
-        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiPromptEditorService, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, noteSearchServiceFactory);
+        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiPromptEditorService, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, keyboardShortcutService, noteSearchServiceFactory);
         mainWindow.DataContext = mainViewModel;
         mainWindow.SetWindowLayoutService(windowLayoutService);
 

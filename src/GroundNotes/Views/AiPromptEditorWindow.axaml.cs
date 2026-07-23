@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using GroundNotes.Models;
+using GroundNotes.Services;
 using GroundNotes.Styles;
 using GroundNotes.ViewModels;
 
@@ -28,6 +29,8 @@ public partial class AiPromptEditorWindow : Window
     public AiPromptDefinition? Prompt { get; private set; }
 
     public Func<Task>? ShowKeyboardShortcutsHelpAsync { get; set; }
+
+    public IKeyboardShortcutService? KeyboardShortcuts { get; set; }
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e) => _dialogController.OnTitleBarPointerPressed(e);
 
@@ -59,7 +62,9 @@ public partial class AiPromptEditorWindow : Window
             return;
         }
 
-        if (ShowKeyboardShortcutsHelpAsync is not null && MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        if (ShowKeyboardShortcutsHelpAsync is not null
+            && (KeyboardShortcuts?.Matches(KeyboardShortcutActionIds.ShowShortcuts, e.Key, e.KeyModifiers)
+                ?? MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers)))
         {
             e.Handled = true;
             await ShowKeyboardShortcutsHelpAsync();

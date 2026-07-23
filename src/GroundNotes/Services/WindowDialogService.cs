@@ -13,11 +13,16 @@ public sealed class WindowDialogService : IWorkspaceDialogService
 
     private readonly Window _owner;
     private readonly IEditorLayoutState _editorLayoutState;
+    private readonly IKeyboardShortcutService _keyboardShortcutService;
 
-    public WindowDialogService(Window owner, IEditorLayoutState editorLayoutState)
+    public WindowDialogService(
+        Window owner,
+        IEditorLayoutState editorLayoutState,
+        IKeyboardShortcutService keyboardShortcutService)
     {
         _owner = owner;
         _editorLayoutState = editorLayoutState;
+        _keyboardShortcutService = keyboardShortcutService;
     }
 
     public async Task<string?> PickFolderAsync()
@@ -56,6 +61,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
             Height = ChatWindowDefaultHeight
         };
         dialog.ShowKeyboardShortcutsHelpAsync = () => ShowKeyboardShortcutsHelpAsync(dialog);
+        dialog.KeyboardShortcuts = _keyboardShortcutService;
         dialog.SetEditorLayoutState(_editorLayoutState);
 
         dialog.Show(_owner);
@@ -64,7 +70,10 @@ public sealed class WindowDialogService : IWorkspaceDialogService
 
     public async Task ShowKeyboardShortcutsHelpAsync(Window? owner = null)
     {
-        var dialog = new KeyboardShortcutsHelpWindow();
+        var dialog = new KeyboardShortcutsHelpWindow
+        {
+            DataContext = new KeyboardShortcutsHelpDisplayModel(_keyboardShortcutService.BuildHelpSections())
+        };
         await dialog.ShowDialog(owner ?? _owner);
     }
 
@@ -73,7 +82,8 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         var dialog = new SettingsWindow(model)
         {
             OnSettingsChanged = onChange,
-            PromptActions = promptActions
+            PromptActions = promptActions,
+            KeyboardShortcuts = _keyboardShortcutService
         };
 
         dialog.ShowKeyboardShortcutsHelpAsync = () => ShowKeyboardShortcutsHelpAsync(dialog);

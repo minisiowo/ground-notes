@@ -2,5 +2,15 @@ namespace GroundNotes.Models;
 
 public sealed class KeyboardShortcutsHelpDisplayModel
 {
-    public IReadOnlyList<KeyboardShortcutSection> Sections { get; } = KeyboardShortcutsReference.Sections;
+    public KeyboardShortcutsHelpDisplayModel()
+        : this(KeyboardShortcutsReference.Sections)
+    {
+    }
+
+    public KeyboardShortcutsHelpDisplayModel(IReadOnlyList<KeyboardShortcutSection> sections)
+    {
+        Sections = sections;
+    }
+
+    public IReadOnlyList<KeyboardShortcutSection> Sections { get; }
 }

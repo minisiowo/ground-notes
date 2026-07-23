@@ -147,6 +147,26 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAndLoad_RoundTripsKeyboardShortcuts()
+    {
+        var shortcuts = KeyboardShortcutSettings.CreateDefault() with
+        {
+            ApplicationModifier = ApplicationShortcutModifier.Alt
+        };
+        shortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker] =
+        [
+            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Modifier, "O"),
+            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "K", Control: true)
+        ];
+
+        await _service.UpdateSettingsAsync(settings => settings with { KeyboardShortcuts = shortcuts });
+        var loaded = await _service.GetSettingsAsync();
+
+        Assert.Equal(ApplicationShortcutModifier.Alt, loaded.KeyboardShortcuts?.ApplicationModifier);
+        Assert.Equal(shortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker], loaded.KeyboardShortcuts?.Bindings[KeyboardShortcutActionIds.OpenNotePicker]);
+    }
+
+    [Fact]
     public async Task GetSettingsAsync_DefaultsShowScrollBars_WhenMissingInJson()
     {
         var legacySettings = JsonSerializer.Serialize(new { notesFolder = "notes" });

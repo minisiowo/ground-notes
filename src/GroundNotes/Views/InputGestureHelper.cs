@@ -21,22 +21,7 @@ internal static class InputGestureHelper
 
     public static bool IsShowShortcutsHelpGesture(Key key, KeyModifiers modifiers)
     {
-        if (modifiers.HasFlag(KeyModifiers.Alt))
-        {
-            return false;
-        }
-
-        if (!modifiers.HasFlag(KeyModifiers.Shift))
-        {
-            return false;
-        }
-
-        if (!modifiers.HasFlag(KeyModifiers.Control) && !modifiers.HasFlag(KeyModifiers.Meta))
-        {
-            return false;
-        }
-
-        return key is Key.Oem2 or Key.OemQuestion;
+        return key == Key.F1 && modifiers == KeyModifiers.None;
     }
 
     public static bool IsRenameTextBoxSubmitKey(Key key) => key == Key.Enter;
@@ -103,9 +88,7 @@ internal static class InputGestureHelper
     {
         moveDown = false;
 
-        if (!modifiers.HasFlag(KeyModifiers.Control)
-            || !modifiers.HasFlag(KeyModifiers.Shift)
-            || modifiers.HasFlag(KeyModifiers.Alt))
+        if (modifiers != KeyModifiers.Alt)
         {
             return false;
         }

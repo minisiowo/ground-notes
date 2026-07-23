@@ -22,4 +22,5 @@ public sealed record SettingsDialogModel(
     string ProjectId,
     string OrganizationId,
     string PromptsDirectory,
-    IReadOnlyList<AiPromptDefinition> AiPrompts);
+    IReadOnlyList<AiPromptDefinition> AiPrompts,
+    KeyboardShortcutSettings KeyboardShortcuts);

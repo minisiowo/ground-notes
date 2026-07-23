@@ -36,6 +36,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IAppAppearanceService _appearanceService;
     private readonly IEditorLayoutState _editorLayoutState;
     private readonly IChatViewModelFactory _chatViewModelFactory;
+    private readonly IKeyboardShortcutService _keyboardShortcutService;
     private readonly INoteSearchService _noteSearchService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private HashSet<DateTime> _calendarNoteDates = [];
@@ -287,6 +288,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IAppAppearanceService appearanceService,
         IEditorLayoutState editorLayoutState,
         IChatViewModelFactory chatViewModelFactory,
+        IKeyboardShortcutService keyboardShortcutService,
         INoteSearchServiceFactory noteSearchServiceFactory)
     {
         _notesRepository = notesRepository;
@@ -303,6 +305,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _appearanceService = appearanceService;
         _editorLayoutState = editorLayoutState;
         _chatViewModelFactory = chatViewModelFactory;
+        _keyboardShortcutService = keyboardShortcutService;
         _noteSearchService = noteSearchServiceFactory.Create(() => _allNotes);
         _fileWatcherService.NoteChanged += OnNoteChanged;
         _noteMutationService.NoteMutated += OnNoteMutated;
@@ -321,6 +324,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool IsSettingsPreviewActive { get; private set; }
 
     public IReadOnlyList<SortOption> SortOptions { get; }
+
+    public IKeyboardShortcutService KeyboardShortcuts => _keyboardShortcutService;
 
     public NoteDocument? CurrentNote { get; private set; }
 
@@ -1484,6 +1489,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         ApplyAiSettings(settings.AiSettings);
+        _keyboardShortcutService.ApplySettings(KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts));
         var promptLoad = await LoadAiPromptsAsync();
         if (promptLoad.Warnings.Count > 0 && !HasSelectedFolder)
         {

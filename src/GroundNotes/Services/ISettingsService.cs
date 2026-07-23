@@ -33,7 +33,8 @@ public sealed record AppSettings(
     bool ShowYamlFrontMatterInEditor,
     bool ShowScrollBars,
     WindowLayout? WindowLayout,
-    AiSettings AiSettings);
+    AiSettings AiSettings,
+    KeyboardShortcutSettings? KeyboardShortcuts = null);
 
 public sealed record WindowLayout(
     double Width,

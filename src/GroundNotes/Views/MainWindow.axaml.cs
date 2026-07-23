@@ -2815,32 +2815,81 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (IsOpenSettingsGesture(e.Key, e.KeyModifiers))
+        var suppressUnmodifiedGlobalShortcut = e.KeyModifiers == KeyModifiers.None && IsTextInputSource(e.Source);
+        if (!suppressUnmodifiedGlobalShortcut)
         {
-            e.Handled = true;
-            await vm.OpenSettingsCommand.ExecuteAsync(null);
-            return;
-        }
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.OpenSettings, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await vm.OpenSettingsCommand.ExecuteAsync(null);
+                return;
+            }
 
-        if (IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
-        {
-            e.Handled = true;
-            await vm.ShowKeyboardShortcutsHelpCommand.ExecuteAsync(null);
-            return;
-        }
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ShowShortcuts, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await vm.ShowKeyboardShortcutsHelpCommand.ExecuteAsync(null);
+                return;
+            }
 
-        if (IsToggleYamlEditorShortcut(e.Key, e.KeyModifiers) && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
-        {
-            e.Handled = true;
-            await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
-            return;
-        }
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleYaml, e.Key, e.KeyModifiers)
+                && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
+            {
+                e.Handled = true;
+                await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+                return;
+            }
 
-        if (IsEqualizePaneWidthsGesture(e.Key, e.KeyModifiers))
-        {
-            e.Handled = true;
-            EqualizePaneWidthsToActivePane(vm);
-            return;
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleSidebar, e.Key, e.KeyModifiers)
+                && vm.ToggleSidebarCommand.CanExecute(null))
+            {
+                e.Handled = true;
+                vm.ToggleSidebarCommand.Execute(null);
+                return;
+            }
+
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.EqualizePanes, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                EqualizePaneWidthsToActivePane(vm);
+                return;
+            }
+
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ReloadNotes, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await vm.ReloadCommand.ExecuteAsync(null);
+                return;
+            }
+
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.NewNote, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await vm.NewNoteCommand.ExecuteAsync(null);
+                return;
+            }
+
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.OpenNotePicker, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                vm.OpenNotePickerCommand.Execute(null);
+                return;
+            }
+
+            if (!vm.IsNotePickerOpen
+                && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.DeleteNote, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
+                return;
+            }
+
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ClosePane, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await vm.CloseActivePaneAsync();
+                return;
+            }
         }
 
         if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Alt))
@@ -2849,7 +2898,6 @@ public partial class MainWindow : Window
         }
 
         var hasShift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
-
         if (e.Key is Key.Add or Key.OemPlus)
         {
             e.Handled = true;
@@ -2874,31 +2922,17 @@ public partial class MainWindow : Window
                 await vm.DecreaseEditorFontSizeCommand.ExecuteAsync(null);
             }
         }
-        else if (!hasShift && e.Key is Key.R)
+    }
+
+    private static bool IsTextInputSource(object? source)
+    {
+        if (source is not Visual visual)
         {
-            e.Handled = true;
-            await vm.ReloadCommand.ExecuteAsync(null);
+            return false;
         }
-        else if (!hasShift && e.Key is Key.N)
-        {
-            e.Handled = true;
-            await vm.NewNoteCommand.ExecuteAsync(null);
-        }
-        else if (!hasShift && e.Key is Key.O)
-        {
-            e.Handled = true;
-            vm.OpenNotePickerCommand.Execute(null);
-        }
-        else if (!hasShift && e.Key is Key.D && !vm.IsNotePickerOpen)
-        {
-            e.Handled = true;
-            await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
-        }
-        else if (IsClosePaneGesture(e.Key, e.KeyModifiers))
-        {
-            e.Handled = true;
-            await vm.CloseActivePaneAsync();
-        }
+
+        return visual is TextBox or TextEditor
+               || visual.GetVisualAncestors().Any(ancestor => ancestor is TextBox or TextEditor);
     }
 
     internal static bool IsOpenSettingsGesture(Key key, KeyModifiers modifiers) =>
@@ -3072,22 +3106,45 @@ public partial class MainWindow : Window
 
         var vm = DataContext as MainViewModel;
 
-        if (_slashCommandPopup.HandleKeyDown(e, edit => ApplyEditorEdit(textEditor, edit)))
-        {
-            return;
-        }
-
-        if (vm is not null && IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ShowShortcuts, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
             await vm.ShowKeyboardShortcutsHelpCommand.ExecuteAsync(null);
             return;
         }
 
-        if (vm is not null && IsToggleYamlEditorShortcut(e.Key, e.KeyModifiers) && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
+        if (vm is not null
+            && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleYaml, e.Key, e.KeyModifiers)
+            && vm.ToggleYamlFrontMatterVisibilityCommand.CanExecute(null))
         {
             e.Handled = true;
             await vm.ToggleYamlFrontMatterVisibilityCommand.ExecuteAsync(null);
+            return;
+        }
+
+        if (vm is not null
+            && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleSidebar, e.Key, e.KeyModifiers)
+            && vm.ToggleSidebarCommand.CanExecute(null))
+        {
+            e.Handled = true;
+            vm.ToggleSidebarCommand.Execute(null);
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleTaskState, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            var toggleTaskEdit = MarkdownEditingCommands.ToggleTaskState(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength);
+            ApplyEditorEdit(
+                textEditor,
+                toggleTaskEdit.Length != 0 || toggleTaskEdit.Replacement.Length != 0
+                    ? toggleTaskEdit
+                    : MarkdownEditingCommands.InsertLineBelow(GetEditorText(textEditor), textEditor.CaretOffset));
+            return;
+        }
+
+        if (_slashCommandPopup.HandleKeyDown(e, edit => ApplyEditorEdit(textEditor, edit)))
+        {
             return;
         }
 
@@ -3105,133 +3162,108 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        if (vm is not null
+            && !vm.IsNotePickerOpen
+            && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.DeleteNote, e.Key, e.KeyModifiers))
         {
-            if (IsToggleTaskShortcut(e.Key, e.KeyModifiers))
-            {
-                var toggleTaskEdit = MarkdownEditingCommands.ToggleTaskState(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength);
-                if (toggleTaskEdit.Length != 0 || toggleTaskEdit.Replacement.Length != 0)
-                {
-                    e.Handled = true;
-                    ApplyEditorEdit(textEditor, toggleTaskEdit);
-                    return;
-                }
-            }
-
-            if (!e.KeyModifiers.HasFlag(KeyModifiers.Shift) && e.Key == Key.D && vm is not null && !vm.IsNotePickerOpen)
-            {
-                e.Handled = true;
-                await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
-                return;
-            }
-
-            if (e.Key == Key.C)
-            {
-                e.Handled = true;
-                await CopyEditorSelectionAsync(textEditor);
-                return;
-            }
-
-            if (e.Key == Key.X)
-            {
-                e.Handled = true;
-                await CutEditorSelectionAsync(textEditor);
-                return;
-            }
-
-            if (e.Key == Key.V)
-            {
-                e.Handled = true;
-                await PasteIntoEditorAsync(textEditor);
-                return;
-            }
-
-            if (e.Key == Key.B)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
-                return;
-            }
-
-            if (e.Key == Key.I)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
-                return;
-            }
-
-            if (e.Key == Key.K)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
-                return;
-            }
-
-            if (e.Key == Key.Enter)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.InsertLineBelow(GetEditorText(textEditor), textEditor.CaretOffset));
-                return;
-            }
+            e.Handled = true;
+            await vm.DeleteCurrentNoteCommand.ExecuteAsync(null);
+            return;
         }
 
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Shift) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.C)
         {
-            if (IsMoveLineShortcut(e.Key, e.KeyModifiers, out var moveDown))
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(
-                    GetEditorText(textEditor),
-                    textEditor.SelectionStart,
-                    textEditor.SelectionLength,
-                    moveDown));
-                return;
-            }
-
-            if (e.Key == Key.D)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
-                return;
-            }
-
-            if (e.Key == Key.D7)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleTaskList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
-                return;
-            }
-
-            if (e.Key == Key.D8)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleBulletList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
-                return;
-            }
+            e.Handled = true;
+            await CopyEditorSelectionAsync(textEditor);
+            return;
         }
 
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.X)
         {
-            if (e.Key == Key.D1)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, 1));
-                return;
-            }
+            e.Handled = true;
+            await CutEditorSelectionAsync(textEditor);
+            return;
+        }
 
-            if (e.Key == Key.D2)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, 2));
-                return;
-            }
+        if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.V)
+        {
+            e.Handled = true;
+            await PasteIntoEditorAsync(textEditor);
+            return;
+        }
 
-            if (e.Key == Key.D3)
-            {
-                e.Handled = true;
-                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, 3));
-                return;
-            }
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Bold, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Italic, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.InlineCode, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleCodeBlock, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleCodeBlock(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.MoveLineUp, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, moveDown: false));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.MoveLineDown, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, moveDown: true));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.DeleteLine, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleTaskList, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleTaskList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            return;
+        }
+
+        if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleBulletList, e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleBulletList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            return;
+        }
+
+        var headingLevel = vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Heading1, e.Key, e.KeyModifiers) ? 1
+            : vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Heading2, e.Key, e.KeyModifiers) ? 2
+            : vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Heading3, e.Key, e.KeyModifiers) ? 3
+            : 0;
+        if (headingLevel != 0)
+        {
+            e.Handled = true;
+            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, headingLevel));
+            return;
         }
 
         if (e.Key != Key.Tab)
@@ -3343,7 +3375,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!AiSendShortcut.IsSendGesture(e.Key, e.KeyModifiers))
+        if (!vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.GenerateTitleSuggestions, e.Key, e.KeyModifiers))
         {
             return;
         }

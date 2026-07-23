@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using GroundNotes.Models;
+using GroundNotes.Services;
 using GroundNotes.Styles;
 using GroundNotes.ViewModels;
 
@@ -11,10 +12,13 @@ public partial class SettingsWindow : Window
 {
     private readonly DialogWindowController _dialogController;
     private SettingsViewModel? _viewModel;
+    private KeyboardShortcutBindingViewModel? _recordingShortcut;
 
     public Action<SettingsDialogModel>? OnSettingsChanged { get; set; }
 
     public SettingsPromptActions? PromptActions { get; set; }
+
+    public IKeyboardShortcutService? KeyboardShortcuts { get; set; }
 
     public Func<Task>? ShowKeyboardShortcutsHelpAsync { get; set; }
 
@@ -26,11 +30,13 @@ public partial class SettingsWindow : Window
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
         AddHandler(PointerPressedEvent, OnWindowPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnShortcutCaptureKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
         Closed += (_, _) =>
         {
             PointerMoved -= OnWindowPointerMoved;
             PointerExited -= OnWindowPointerExited;
             RemoveHandler(PointerPressedEvent, OnWindowPointerPressed);
+            RemoveHandler(KeyDownEvent, OnShortcutCaptureKeyDown);
             _dialogController.Detach();
         };
         Opened += (_, _) => ThemeService.SyncScrollBarClassFromMainWindow(this);
@@ -88,6 +94,58 @@ public partial class SettingsWindow : Window
 
         e.Handled = true;
         await EditPromptAsync(selectedPrompt.Definition, duplicate: false);
+    }
+
+    private void OnRecordShortcutClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: KeyboardShortcutBindingViewModel binding })
+        {
+            return;
+        }
+
+        _recordingShortcut?.CancelRecording();
+        _recordingShortcut = binding;
+        binding.BeginRecording();
+    }
+
+    private void OnShortcutCaptureKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_recordingShortcut is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (e.Key == Key.Escape)
+        {
+            _recordingShortcut.CancelRecording();
+            _recordingShortcut = null;
+            return;
+        }
+
+        if (e.Key == Key.None || IsModifierKey(e.Key))
+        {
+            return;
+        }
+
+        var binding = _recordingShortcut;
+        _recordingShortcut = null;
+        binding.Capture(
+            e.Key.ToString(),
+            e.KeyModifiers.HasFlag(KeyModifiers.Control),
+            e.KeyModifiers.HasFlag(KeyModifiers.Shift),
+            e.KeyModifiers.HasFlag(KeyModifiers.Alt),
+            e.KeyModifiers.HasFlag(KeyModifiers.Meta));
+    }
+
+    private static bool IsModifierKey(Key key)
+    {
+        var name = key.ToString();
+        return name.Contains("Ctrl", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("Shift", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("Alt", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("Win", StringComparison.OrdinalIgnoreCase)
+               || name.Contains("Meta", StringComparison.OrdinalIgnoreCase);
     }
 
     private async void OnAddPromptClick(object? sender, RoutedEventArgs e)
@@ -163,7 +221,8 @@ public partial class SettingsWindow : Window
             duplicate);
         var dialog = new AiPromptEditorWindow(editorViewModel)
         {
-            ShowKeyboardShortcutsHelpAsync = ShowKeyboardShortcutsHelpAsync
+            ShowKeyboardShortcutsHelpAsync = ShowKeyboardShortcutsHelpAsync,
+            KeyboardShortcuts = KeyboardShortcuts
         };
 
         var saved = await dialog.ShowDialog<bool>(this);
@@ -218,7 +277,9 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (ShowKeyboardShortcutsHelpAsync is not null && MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        if (ShowKeyboardShortcutsHelpAsync is not null
+            && (KeyboardShortcuts?.Matches(KeyboardShortcutActionIds.ShowShortcuts, e.Key, e.KeyModifiers)
+                ?? MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers)))
         {
             e.Handled = true;
             await ShowKeyboardShortcutsHelpAsync();

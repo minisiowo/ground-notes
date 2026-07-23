@@ -38,6 +38,8 @@ public partial class ChatWindow : Window
 
     public Func<Task>? ShowKeyboardShortcutsHelpAsync { get; set; }
 
+    public IKeyboardShortcutService? KeyboardShortcuts { get; set; }
+
     public ChatWindow()
     {
         InitializeComponent();
@@ -395,18 +397,41 @@ public partial class ChatWindow : Window
 
     private async void OnWindowShortcutKeyDown(object? sender, KeyEventArgs e)
     {
-        if (ShowKeyboardShortcutsHelpAsync is null)
+        if (ShowKeyboardShortcutsHelpAsync is not null
+            && (KeyboardShortcuts?.Matches(KeyboardShortcutActionIds.ShowShortcuts, e.Key, e.KeyModifiers)
+                ?? MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers)))
+        {
+            e.Handled = true;
+            await ShowKeyboardShortcutsHelpAsync();
+            return;
+        }
+
+        if (DataContext is not ChatViewModel vm)
         {
             return;
         }
 
-        if (!MainWindow.IsShowShortcutsHelpGesture(e.Key, e.KeyModifiers))
+        if (vm.IsMentionPopupOpen && e.Key is Key.Enter or Key.Escape or Key.Up or Key.Down)
         {
             return;
         }
 
-        e.Handled = true;
-        await ShowKeyboardShortcutsHelpAsync();
+        var matchesSave = KeyboardShortcuts?.Matches(KeyboardShortcutActionIds.ChatSave, e.Key, e.KeyModifiers)
+            ?? (e.Key == Key.S && e.KeyModifiers == KeyModifiers.Control);
+        if (matchesSave && vm.SaveConversationCommand.CanExecute(null))
+        {
+            e.Handled = true;
+            vm.SaveConversationCommand.Execute(null);
+            return;
+        }
+
+        var matchesSend = KeyboardShortcuts?.Matches(KeyboardShortcutActionIds.ChatSend, e.Key, e.KeyModifiers)
+            ?? AiSendShortcut.IsSendGesture(e.Key, e.KeyModifiers);
+        if (matchesSend && vm.SendMessageCommand.CanExecute(null))
+        {
+            e.Handled = true;
+            vm.SendMessageCommand.Execute(null);
+        }
     }
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
@@ -469,25 +494,7 @@ public partial class ChatWindow : Window
     {
         if (DataContext is not ChatViewModel vm) return;
 
-        if (e.Key == Key.S && e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Alt))
-        {
-            if (vm.SaveConversationCommand.CanExecute(null))
-            {
-                vm.SaveConversationCommand.Execute(null);
-                e.Handled = true;
-            }
-            return;
-        }
 
-        if (AiSendShortcut.IsSendGesture(e.Key, e.KeyModifiers))
-        {
-             if (vm.SendMessageCommand.CanExecute(null))
-             {
-                 vm.SendMessageCommand.Execute(null);
-                 e.Handled = true;
-             }
-             return;
-        }
 
         if (e.Key is Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown or Key.Back or Key.Delete)
         {
