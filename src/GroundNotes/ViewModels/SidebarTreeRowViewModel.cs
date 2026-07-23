@@ -37,7 +37,7 @@ public sealed partial class SidebarTreeRowViewModel : ViewModelBase
 
     public int Depth { get; }
 
-    public Thickness IndentMargin => new(Depth * 12, 0, 0, 0);
+    public Thickness IndentMargin => new(Depth * 12, 0, 0, 3);
 
     public bool IsFolder => Node.Kind == SidebarTreeNodeKind.Folder;
 

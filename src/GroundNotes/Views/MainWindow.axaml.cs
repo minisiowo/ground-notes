@@ -2017,7 +2017,7 @@ public partial class MainWindow : Window
         Dispatcher.UIThread.Post(() => NotesListBox.Focus(), DispatcherPriority.Input);
     }
 
-    private async void OnNoteListItemPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void OnNoteListItemPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Border { DataContext: SidebarTreeRowViewModel { Note: { } noteItem } } border
             || DataContext is not MainViewModel vm)
@@ -2067,7 +2067,7 @@ public partial class MainWindow : Window
         }
 
         vm.SelectOnlySidebarNote(row);
-        await vm.OpenSidebarNoteCommand.ExecuteAsync(noteItem);
+        _sidebarPendingSingleClickRow = row;
         e.Handled = true;
     }
 
