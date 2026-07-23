@@ -42,6 +42,59 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         return await dialog.ShowDialog<bool>(_owner);
     }
 
+    public async Task<string?> PromptCreateTagFolderAsync()
+    {
+        var dialog = TagFolderDialogWindow.Create();
+        return await dialog.ShowDialog<string?>(_owner);
+    }
+
+    public async Task<string?> PromptRenameTagFolderAsync(string currentPath)
+    {
+        var dialog = TagFolderDialogWindow.Rename(currentPath);
+        return await dialog.ShowDialog<string?>(_owner);
+    }
+
+    public async Task<string?> ChooseTagFolderDestinationAsync(IReadOnlyList<string> folderPaths)
+    {
+        if (folderPaths.Count == 0)
+        {
+            return null;
+        }
+
+        var dialog = TagFolderDialogWindow.ChooseDestination(folderPaths);
+        return await dialog.ShowDialog<string?>(_owner);
+    }
+
+    public async Task<bool> ConfirmDeleteTagFolderAsync(string folderPath)
+    {
+        var dialog = new ConfirmDeleteWindow(
+            "Delete tag folder",
+            "Delete tag folder?",
+            $"Delete '{folderPath}'? Notes will remain, but tags in this folder will be removed from them.",
+            "Delete");
+        return await dialog.ShowDialog<bool>(_owner);
+    }
+
+    public async Task<bool> ConfirmDeleteNotesAsync(IReadOnlyList<string> noteNames)
+    {
+        if (noteNames.Count == 0)
+        {
+            return false;
+        }
+
+        var noteLabel = noteNames.Count == 1 ? "note" : "notes";
+        var names = string.Join(Environment.NewLine, noteNames.Select(name => $"- {name}"));
+        var dialog = new ConfirmDeleteWindow(
+            "Delete notes",
+            $"Delete {noteNames.Count} {noteLabel}?",
+            $"The selected {noteLabel} will be permanently deleted:{Environment.NewLine}{Environment.NewLine}{names}",
+            "Delete")
+        {
+            Height = 280
+        };
+        return await dialog.ShowDialog<bool>(_owner);
+    }
+
     public async Task<bool> ConfirmDiscardInvalidDraftAsync()
     {
         var dialog = new ConfirmDeleteWindow(

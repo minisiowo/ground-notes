@@ -111,6 +111,35 @@ public sealed class SidebarTreeBuilderTests
         Assert.Same(note, Assert.IsType<SidebarTreeNoteNode>(Assert.Single(tree)).Note);
     }
 
+    [Fact]
+    public void Build_IncludesEmptyExplicitFolder()
+    {
+        var tree = SidebarTreeBuilder.Build([], SortOption.Title, ["Archive"]);
+
+        var archive = Assert.IsType<SidebarTreeFolderNode>(Assert.Single(tree));
+        Assert.Equal("Archive", archive.Name);
+        Assert.Equal("Archive", archive.TagPath);
+        Assert.Empty(archive.Children);
+    }
+
+    [Fact]
+    public void Build_IncludesAncestorsOfNestedExplicitFoldersAndPreservesOrdering()
+    {
+        var rootNote = CreateNote("root", tags: []);
+
+        var tree = SidebarTreeBuilder.Build(
+            [rootNote],
+            SortOption.Title,
+            [" Projects / Empty / Child ", "archive"]);
+
+        Assert.Equal(new[] { "archive", "Projects", "root" }, tree.Select(node => node.Name));
+        var projects = Assert.IsType<SidebarTreeFolderNode>(tree[1]);
+        var empty = Assert.IsType<SidebarTreeFolderNode>(Assert.Single(projects.Children));
+        var child = Assert.IsType<SidebarTreeFolderNode>(Assert.Single(empty.Children));
+        Assert.Equal("Projects/Empty/Child", child.TagPath);
+        Assert.Empty(child.Children);
+    }
+
     private static NoteSummary CreateNote(
         string name,
         IReadOnlyList<string> tags,

@@ -130,23 +130,72 @@
               <Border Grid.Row="0"
                       Classes="sidebarNotesContainer"
                       Classes.backgroundVisible="{Binding ShowSidebarListBackground}"
-                      Classes.borderVisible="{Binding ShowSidebarListBorder}">
+                      Classes.borderVisible="{Binding ShowSidebarListBorder}"
+                      DragDrop.AllowDrop="True"
+                      DragDrop.DragOver="OnSidebarRootDragOver"
+                      DragDrop.DragLeave="OnSidebarRootDragLeave">
+                <Border.ContextMenu>
+                  <ContextMenu>
+                    <MenuItem Header="New folder"
+                              Command="{Binding #RootWindow.DataContext.CreateTagFolderCommand}" />
+                    <MenuItem Header="Move selected to root"
+                              IsVisible="{Binding #RootWindow.DataContext.CanMoveSelectedNotesToRoot}"
+                              Command="{Binding #RootWindow.DataContext.MoveSelectedNotesToRootCommand}" />
+                  </ContextMenu>
+                </Border.ContextMenu>
+                <Grid RowDefinitions="Auto,*">
+                  <Border Grid.Row="0"
+                          Classes="sidebarFocusBar"
+                          Margin="0,0,0,4"
+                          IsVisible="{Binding IsSidebarFolderFocused}">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBlock Classes="sidebarFocusText"
+                                 VerticalAlignment="Center"
+                                 Text="{Binding FocusedSidebarFolderLabel}"
+                                 TextTrimming="CharacterEllipsis" />
+                      <Button Grid.Column="1"
+                              Classes="sidebarFocusClearButton"
+                              Command="{Binding ClearSidebarFolderFocusCommand}"
+                              Content="Show all" />
+                    </Grid>
+                  </Border>
                 <ListBox x:Name="NotesListBox"
-                       Grid.Row="0"
+                       Grid.Row="1"
                        HorizontalAlignment="Stretch"
                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                        ItemsSource="{Binding VisibleSidebarRows}"
                        SelectedItem="{Binding SelectedSidebarRow}"
+                       SelectionMode="Multiple"
                        KeyDown="OnSidebarTreeKeyDown">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="viewModels:SidebarTreeRowViewModel">
                     <Grid HorizontalAlignment="Stretch"
                           Margin="{Binding IndentMargin}">
-                      <Button Classes="sidebarTreeFolderRow"
-                              IsVisible="{Binding IsFolder}"
-                              HorizontalAlignment="Stretch"
-                              HorizontalContentAlignment="Stretch"
-                              Command="{Binding ToggleExpandedCommand}">
+                       <Button Classes="sidebarTreeFolderRow"
+                               IsVisible="{Binding IsFolder}"
+                               HorizontalAlignment="Stretch"
+                               HorizontalContentAlignment="Stretch"
+                               Command="{Binding ToggleExpandedCommand}"
+                               DragDrop.AllowDrop="True"
+                               DragDrop.DragOver="OnSidebarFolderDragOver"
+                               DragDrop.DragLeave="OnSidebarFolderDragLeave"
+                               DragDrop.Drop="OnSidebarFolderDrop">
+                         <Button.ContextMenu>
+                           <ContextMenu>
+                             <MenuItem Header="New subfolder"
+                                       Command="{Binding #RootWindow.DataContext.CreateTagFolderCommand}"
+                                       CommandParameter="{Binding TagPath}" />
+                             <MenuItem Header="Focus folder"
+                                       Command="{Binding #RootWindow.DataContext.FocusSidebarFolderCommand}"
+                                       CommandParameter="{Binding TagPath}" />
+                             <MenuItem Header="Rename folder"
+                                       Command="{Binding #RootWindow.DataContext.RenameTagFolderCommand}"
+                                       CommandParameter="{Binding TagPath}" />
+                             <MenuItem Header="Delete folder"
+                                       Command="{Binding #RootWindow.DataContext.DeleteTagFolderCommand}"
+                                       CommandParameter="{Binding TagPath}" />
+                           </ContextMenu>
+                         </Button.ContextMenu>
                         <Grid ColumnDefinitions="16,*" ColumnSpacing="2">
                           <TextBlock Classes="sidebarTreeChevron"
                                      Text="{Binding ExpansionGlyph}"
@@ -160,24 +209,31 @@
                       </Button>
 
                       <Border Classes="fileRow sidebarTreeNoteRow"
-                              Classes.active="{Binding Note.IsActive}"
-                              Classes.open="{Binding Note.IsOpen}"
-                              IsVisible="{Binding IsNote}"
+                               Classes.active="{Binding Note.IsActive}"
+                               Classes.open="{Binding Note.IsOpen}"
+                               Classes.bulkSelected="{Binding Note.IsSelected}"
+                               IsVisible="{Binding IsNote}"
                               HorizontalAlignment="Stretch"
                               Padding="8,4"
-                              BorderThickness="1"
-                              PointerPressed="OnNoteListItemPointerPressed">
+                               BorderThickness="1"
+                               PointerPressed="OnNoteListItemPointerPressed"
+                               PointerMoved="OnNoteListItemPointerMoved"
+                               PointerReleased="OnNoteListItemPointerReleased">
                         <Border.ContextMenu>
                           <ContextMenu>
-                            <MenuItem Header="Open to right"
-                                      Command="{Binding #RootWindow.DataContext.OpenNoteInSplitCommand}"
-                                      CommandParameter="{Binding Note}" />
-                            <MenuItem Header="Rename"
-                                      Command="{Binding #RootWindow.DataContext.StartRenameNoteCommand}"
-                                      CommandParameter="{Binding Note}" />
-                            <MenuItem Header="Delete"
-                                      Command="{Binding #RootWindow.DataContext.DeleteNoteCommand}"
-                                      CommandParameter="{Binding Note}" />
+                             <MenuItem Header="Open to right"
+                                       Command="{Binding #RootWindow.DataContext.OpenNoteInSplitCommand}"
+                                       CommandParameter="{Binding Note}" />
+                             <MenuItem Header="Add selected to folder..."
+                                       Command="{Binding #RootWindow.DataContext.AddSelectedNotesToTagFolderCommand}" />
+                             <MenuItem Header="Move selected to root"
+                                       IsVisible="{Binding #RootWindow.DataContext.CanMoveSelectedNotesToRoot}"
+                                       Command="{Binding #RootWindow.DataContext.MoveSelectedNotesToRootCommand}" />
+                             <MenuItem Header="Rename"
+                                       Command="{Binding #RootWindow.DataContext.StartRenameNoteCommand}"
+                                       CommandParameter="{Binding Note}" />
+                             <MenuItem Header="Delete selected"
+                                       Command="{Binding #RootWindow.DataContext.DeleteSelectedSidebarNotesCommand}" />
                           </ContextMenu>
                         </Border.ContextMenu>
                         <Grid>
@@ -196,6 +252,23 @@
                   </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
+                <Border x:Name="SidebarRootDropTarget"
+                        Grid.Row="1"
+                        Classes="sidebarRootDropTarget"
+                        Margin="8"
+                        Padding="10,7"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Bottom"
+                        IsVisible="False"
+                        DragDrop.AllowDrop="True"
+                        DragDrop.DragOver="OnSidebarRootDragOver"
+                        DragDrop.DragLeave="OnSidebarRootDragLeave"
+                        DragDrop.Drop="OnSidebarRootDrop">
+                  <TextBlock HorizontalAlignment="Center"
+                             FontWeight="SemiBold"
+                             Text="Move to root" />
+                </Border>
+                </Grid>
               </Border>
 
               <Grid Grid.Row="1"

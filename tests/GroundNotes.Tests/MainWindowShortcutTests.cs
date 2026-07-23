@@ -6,6 +6,24 @@ namespace GroundNotes.Tests;
 
 public sealed class MainWindowShortcutTests
 {
+    [Fact]
+    public void FormatSidebarDragLabel_UsesNameAndSelectionCount()
+    {
+        var first = new GroundNotes.ViewModels.NoteListItemViewModel(new GroundNotes.Models.NoteSummary
+        {
+            FilePath = "/notes/alpha.md",
+            Title = "alpha"
+        });
+        var second = new GroundNotes.ViewModels.NoteListItemViewModel(new GroundNotes.Models.NoteSummary
+        {
+            FilePath = "/notes/beta.md",
+            Title = "beta"
+        });
+
+        Assert.Equal("alpha", MainWindow.FormatSidebarDragLabel([first]));
+        Assert.Equal("alpha +1", MainWindow.FormatSidebarDragLabel([first, second]));
+    }
+
     [Theory]
     [InlineData(Key.Z, KeyModifiers.Control, true)]
     [InlineData(Key.Z, KeyModifiers.Meta, true)]

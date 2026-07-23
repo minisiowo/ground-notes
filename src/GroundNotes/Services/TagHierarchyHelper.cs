@@ -101,7 +101,7 @@ internal static class TagHierarchyHelper
         return separatorIndex < 0 ? normalized : normalized[(separatorIndex + 1)..];
     }
 
-    private static string? TryNormalize(string? tag)
+    public static string? TryNormalize(string? tag)
     {
         if (string.IsNullOrWhiteSpace(tag))
         {

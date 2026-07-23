@@ -44,4 +44,7 @@ public sealed partial class NoteListItemViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isOpen;
+
+    [ObservableProperty]
+    private bool _isSelected;
 }

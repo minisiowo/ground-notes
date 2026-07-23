@@ -41,6 +41,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IChatViewModelFactory _chatViewModelFactory;
     private readonly IKeyboardShortcutService _keyboardShortcutService;
     private readonly INoteSearchService _noteSearchService;
+    private readonly ITagFolderCatalogService _tagFolderCatalogService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private HashSet<DateTime> _calendarNoteDates = [];
     private readonly Dictionary<string, bool> _sidebarTreeExpansionStates = new(StringComparer.OrdinalIgnoreCase);
@@ -55,6 +56,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             [new BundledFontVariantOption(FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultVariantKey, FontWeight.Normal, FontStyle.Normal)])
     ];
     private CancellationTokenSource? _saveCts;
+    private readonly SemaphoreSlim _notePersistenceLock = new(1, 1);
     private Task? _initializationTask;
     private bool _isApplyingSelection;
     private bool _isSyncingSidebarSelectionFromActivePane;
@@ -289,7 +291,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IEditorLayoutState editorLayoutState,
         IChatViewModelFactory chatViewModelFactory,
         IKeyboardShortcutService keyboardShortcutService,
-        INoteSearchServiceFactory noteSearchServiceFactory)
+        INoteSearchServiceFactory noteSearchServiceFactory,
+        ITagFolderCatalogService tagFolderCatalogService)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
@@ -307,6 +310,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _chatViewModelFactory = chatViewModelFactory;
         _keyboardShortcutService = keyboardShortcutService;
         _noteSearchService = noteSearchServiceFactory.Create(() => _allNotes);
+        _tagFolderCatalogService = tagFolderCatalogService;
         _fileWatcherService.NoteChanged += OnNoteChanged;
         _noteMutationService.NoteMutated += OnNoteMutated;
         SecondaryPanes.CollectionChanged += OnSecondaryPanesCollectionChanged;
@@ -641,6 +645,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnVisibleNotesChanged(ObservableCollection<NoteListItemViewModel> value)
     {
+        RestoreSidebarSelectionFlags();
         OnPropertyChanged(nameof(HasNotes));
         UpdateActiveVisibleNote(GetActiveSidebarFilePath());
         RefreshSidebarTree();
@@ -1310,9 +1315,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         CancelScheduledSave();
         SuppressWatcher();
-        using (BeginMutationScope())
+        await _notePersistenceLock.WaitAsync();
+        try
         {
-            await _noteMutationService.DeleteIfExistsAsync(noteItem.FilePath);
+            using (BeginMutationScope())
+            {
+                await _noteMutationService.DeleteIfExistsAsync(noteItem.FilePath);
+            }
+        }
+        finally
+        {
+            _notePersistenceLock.Release();
         }
         StatusMessage = $"Deleted {displayName}";
     }
@@ -1449,6 +1462,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             _sidebarTreeExpansionStates.Clear();
         }
+        ClearSidebarSelection();
+        SetFocusedSidebarTagPath(null);
         SelectedCalendarDate = null;
         DisplayedCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         NotesFolder = folderPath;

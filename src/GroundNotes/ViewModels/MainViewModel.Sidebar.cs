@@ -10,7 +10,10 @@ public partial class MainViewModel
 
     private void RefreshSidebarTree()
     {
-        _sidebarTree = SidebarTreeBuilder.Build(VisibleNotes.Select(item => item.Summary), SelectedSortOption);
+        var explicitFolderPaths = string.IsNullOrWhiteSpace(FocusedSidebarTagPath)
+            ? _tagFolderPaths
+            : _tagFolderPaths.Append(FocusedSidebarTagPath);
+        _sidebarTree = SidebarTreeBuilder.Build(VisibleNotes.Select(item => item.Summary), SelectedSortOption, explicitFolderPaths);
         RefreshVisibleSidebarRows();
     }
 
@@ -21,8 +24,11 @@ public partial class MainViewModel
         var activeFilePath = GetActiveSidebarFilePath();
         var forceExpand = !string.IsNullOrWhiteSpace(SearchText) || SelectedCalendarDate is not null;
         var selectedOccurrence = SelectedSidebarRow?.OccurrencePath;
+        var focusedFolder = FindSidebarFolder(_sidebarTree, FocusedSidebarTagPath);
+        var rootNodes = focusedFolder?.Children ?? _sidebarTree;
+        var rootOccurrencePath = focusedFolder is null ? string.Empty : $"folder:{focusedFolder.TagPath}";
 
-        AddRows(_sidebarTree, depth: 0, parentOccurrencePath: string.Empty);
+        AddRows(rootNodes, depth: 0, parentOccurrencePath: rootOccurrencePath);
 
         if (rows.Count == VisibleSidebarRows.Count
             && rows.Select(row => row.OccurrencePath).SequenceEqual(
@@ -56,11 +62,9 @@ public partial class MainViewModel
                 if (node is SidebarTreeFolderNode folder)
                 {
                     var folderOccurrencePath = $"folder:{folder.TagPath}";
-                    var containsActiveNote = !string.IsNullOrWhiteSpace(activeFilePath)
-                                             && ContainsFilePath(folder, activeFilePath);
-                    var isExpanded = forceExpand
-                                     || containsActiveNote
-                                     || (_sidebarTreeExpansionStates.TryGetValue(folder.TagPath, out var expanded) && expanded);
+                    var isExpanded = _sidebarTreeExpansionStates.TryGetValue(folder.TagPath, out var expanded)
+                        ? expanded
+                        : forceExpand;
                     rows.Add(new SidebarTreeRowViewModel(
                         folder,
                         note: null,
@@ -113,23 +117,28 @@ public partial class MainViewModel
             && string.Equals(row.Note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static bool ContainsFilePath(SidebarTreeFolderNode folder, string filePath)
+    private static SidebarTreeFolderNode? FindSidebarFolder(IEnumerable<SidebarTreeNode> nodes, string? tagPath)
     {
-        foreach (var child in folder.Children)
+        if (string.IsNullOrWhiteSpace(tagPath))
         {
-            if (child is SidebarTreeNoteNode note
-                && string.Equals(note.Note.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+            return null;
+        }
+
+        foreach (var folder in nodes.OfType<SidebarTreeFolderNode>())
+        {
+            if (string.Equals(folder.TagPath, tagPath, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                return folder;
             }
 
-            if (child is SidebarTreeFolderNode childFolder && ContainsFilePath(childFolder, filePath))
+            var nested = FindSidebarFolder(folder.Children, tagPath);
+            if (nested is not null)
             {
-                return true;
+                return nested;
             }
         }
 
-        return false;
+        return null;
     }
 
 

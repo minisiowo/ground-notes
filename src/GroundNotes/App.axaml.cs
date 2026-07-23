@@ -105,8 +105,9 @@ public partial class App : Application
         var aiTitleSuggestionService = new OpenAiTitleSuggestionService(aiCompletionsClient);
         var aiChatService = new OpenAiChatService(aiCompletionsClient);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
+        var tagFolderCatalogService = new TagFolderCatalogService();
         var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService, noteSearchServiceFactory);
-        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiPromptEditorService, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, keyboardShortcutService, noteSearchServiceFactory);
+        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiPromptEditorService, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, keyboardShortcutService, noteSearchServiceFactory, tagFolderCatalogService);
         mainWindow.DataContext = mainViewModel;
         mainWindow.SetWindowLayoutService(windowLayoutService);
 

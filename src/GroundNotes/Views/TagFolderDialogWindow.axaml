@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="using:GroundNotes.Views"
+        x:Class="GroundNotes.Views.TagFolderDialogWindow"
+        Title="{Binding Title}"
+        Width="420"
+        Height="220"
+        CanResize="False"
+        SystemDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="NoChrome"
+        KeyDown="OnWindowKeyDown"
+        WindowStartupLocation="CenterOwner">
+  <Grid RowDefinitions="Auto,*">
+    <views:TitleBarControl Grid.Row="0"
+                           Title="{Binding Title}"
+                           TitleBarPointerPressed="OnTitleBarPointerPressed"
+                           CloseRequested="OnTitleBarCloseRequested" />
+
+    <Border Grid.Row="1" Classes="sectionSurface" Margin="12" Padding="14" BorderThickness="1">
+      <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <TextBlock Text="{Binding Heading}"
+                   FontSize="{DynamicResource AppFontSizeLarge}"
+                   FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1"
+                   Classes="metaText"
+                   Margin="0,8,0,8"
+                   TextWrapping="Wrap"
+                   Text="{Binding Message}" />
+        <TextBox x:Name="PathTextBox"
+                 Grid.Row="2"
+                 IsVisible="{Binding IsTextInput}"
+                 Text="{Binding Value, Mode=TwoWay}"
+                 VerticalContentAlignment="Center" />
+        <ComboBox x:Name="FolderComboBox"
+                  Grid.Row="2"
+                  IsVisible="{Binding IsFolderChoice}"
+                  ItemsSource="{Binding FolderPaths}"
+                  SelectedItem="{Binding Value, Mode=TwoWay}" />
+        <StackPanel Grid.Row="3"
+                    Margin="0,14,0,0"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="8">
+          <Button Classes="secondaryButton" Content="Cancel" Click="OnCancelClick" />
+          <Button x:Name="ConfirmButton" Content="{Binding ConfirmButtonText}" Click="OnConfirmClick" />
+        </StackPanel>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

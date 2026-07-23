@@ -83,6 +83,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _tagFolderPaths = await _tagFolderCatalogService.LoadAsync(NotesFolder);
+
         var summaries = await _notesRepository.LoadSummariesAsync(NotesFolder);
         _allNotes.Clear();
         foreach (var summary in summaries)
@@ -470,13 +472,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task<NoteDocument> PersistNoteAsync(NoteDocument document, CancellationToken cancellationToken)
     {
-        SuppressWatcher();
-        NoteDocument saved;
-        using (BeginMutationScope())
+        await _notePersistenceLock.WaitAsync(cancellationToken);
+        try
         {
-            saved = await _noteMutationService.SaveAsync(NotesFolder, document, cancellationToken);
+            SuppressWatcher();
+            using (BeginMutationScope())
+            {
+                return await _noteMutationService.SaveAsync(NotesFolder, document, cancellationToken);
+            }
         }
-        return saved;
+        finally
+        {
+            _notePersistenceLock.Release();
+        }
     }
 
     private async Task FlushPendingSaveAsync()
@@ -591,14 +599,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshAvailableTags()
     {
-        AvailableTags = new ObservableCollection<string>(_allNotes
-            .SelectMany(note => TagHierarchyHelper.ExpandWithAncestors(note.Tags))
+        AvailableTags = new ObservableCollection<string>(TagHierarchyHelper
+            .ExpandWithAncestors(_tagFolderPaths.Concat(_allNotes.SelectMany(note => note.Tags)))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase));
     }
 
     private void ReplaceSummary(string previousPath, NoteSummary summary)
     {
+        if (_selectedSidebarFilePaths.Remove(previousPath))
+        {
+            _selectedSidebarFilePaths.Add(summary.FilePath);
+        }
+
         RemoveSummary(previousPath, refreshCalendarNoteDates: false);
         _allNotes.Add(summary);
         RefreshCalendarNoteDates();
@@ -1081,6 +1094,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void OnNoteMutated(object? sender, NoteMutationEventArgs e)
     {
+        if (_isApplyingSidebarBulkMutation)
+        {
+            return;
+        }
+
         if (!HasSelectedFolder)
         {
             return;
@@ -1309,6 +1327,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void ApplyDeletedNote(string filePath, bool refreshCollections)
     {
+        _selectedSidebarFilePaths.Remove(filePath);
         RemoveSummary(filePath);
         if (refreshCollections)
         {

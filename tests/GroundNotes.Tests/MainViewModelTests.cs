@@ -145,8 +145,7 @@ public sealed class MainViewModelTests : IDisposable
 
         using var vm = await CreateViewModelAsync(dialogService: dialogService, aiTitleSuggestionService: aiTitleSuggestionService);
         await vm.ChooseFolderCommand.ExecuteAsync(null);
-        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
-        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(Assert.Single(vm.VisibleNotes));
 
         await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
 
@@ -517,6 +516,355 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task SidebarTree_CollapsedBranchContainingActiveNoteStaysCollapsed()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("nested.md", "nested", "body", new DateTime(2026, 3, 9), ["work/projects"]);
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var work = vm.VisibleSidebarRows.Single(row => row.TagPath == "work");
+        work.ToggleExpandedCommand.Execute(null);
+        var projects = vm.VisibleSidebarRows.Single(row => row.TagPath == "work/projects");
+        projects.ToggleExpandedCommand.Execute(null);
+        var note = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "nested");
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(note.Note);
+
+        vm.VisibleSidebarRows.Single(row => row.TagPath == "work").ToggleExpandedCommand.Execute(null);
+
+        Assert.False(vm.VisibleSidebarRows.Single(row => row.TagPath == "work").IsExpanded);
+        Assert.DoesNotContain(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "nested");
+        Assert.Equal("nested", vm.CurrentNote?.Title);
+    }
+
+    [Fact]
+    public async Task SidebarTree_ExplicitCollapseOverridesSearchAutoExpansion()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("nested.md", "nested", "matching body", new DateTime(2026, 3, 9), ["work/projects"]);
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.SearchText = "nested";
+        vm.VisibleSidebarRows.Single(row => row.TagPath == "work").ToggleExpandedCommand.Execute(null);
+
+        Assert.False(vm.VisibleSidebarRows.Single(row => row.TagPath == "work").IsExpanded);
+        Assert.DoesNotContain(vm.VisibleSidebarRows, row => row.TagPath == "work/projects");
+    }
+
+    [Fact]
+    public async Task FocusSidebarFolder_ShowsWholeSubtreeAndShowAllRestoresRoot()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("direct.md", "direct", "body", new DateTime(2026, 3, 9), ["work"]);
+        await WriteNoteAsync("nested.md", "nested", "body", new DateTime(2026, 3, 10), ["work/projects"]);
+        await WriteNoteAsync("personal.md", "personal", "body", new DateTime(2026, 3, 11), ["personal"]);
+        await WriteNoteAsync("root.md", "root", "body", new DateTime(2026, 3, 12));
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        vm.FocusSidebarFolderCommand.Execute("work");
+
+        Assert.True(vm.IsSidebarFolderFocused);
+        Assert.Equal("Focused: work", vm.FocusedSidebarFolderLabel);
+        Assert.Equal(new[] { "projects", "direct" }, vm.VisibleSidebarRows.Select(row => row.Label).ToArray());
+        vm.VisibleSidebarRows.Single(row => row.TagPath == "work/projects").ToggleExpandedCommand.Execute(null);
+        Assert.Contains(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "nested");
+        Assert.DoesNotContain(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "personal");
+        Assert.DoesNotContain(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "root");
+
+        vm.ClearSidebarFolderFocusCommand.Execute(null);
+
+        Assert.False(vm.IsSidebarFolderFocused);
+        Assert.Contains(vm.VisibleSidebarRows, row => row.TagPath == "personal");
+        Assert.Contains(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "root");
+    }
+
+    [Fact]
+    public async Task FocusSidebarFolder_PreservesSearchAndDoesNotCloseOutsideActiveNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("matching.md", "matching", "needle", new DateTime(2026, 3, 9), ["work/projects"]);
+        await WriteNoteAsync("hidden.md", "hidden", "other", new DateTime(2026, 3, 10), ["work"]);
+        await WriteNoteAsync("personal.md", "personal", "needle", new DateTime(2026, 3, 11), ["personal"]);
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(vm.VisibleNotes.Single(note => note.DisplayName == "personal"));
+
+        vm.SearchText = "matching";
+        vm.FocusSidebarFolderCommand.Execute("work");
+
+        Assert.Equal("personal", vm.CurrentNote?.Title);
+        Assert.Contains(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "matching");
+        Assert.DoesNotContain(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "hidden");
+        Assert.DoesNotContain(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "personal");
+    }
+
+    [Fact]
+    public async Task FocusSidebarFolder_RenameUpdatesFocusAndDeleteClearsIt()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("note.md", "note", "body", new DateTime(2026, 3, 9), ["work/projects"]);
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            RenameTagFolderResult = "archive",
+            ConfirmDeleteTagFolderResult = true
+        };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.FocusSidebarFolderCommand.Execute("work");
+
+        await vm.RenameTagFolderCommand.ExecuteAsync("work");
+
+        Assert.Equal("archive", vm.FocusedSidebarTagPath);
+        Assert.True(vm.IsSidebarFolderFocused);
+
+        await vm.DeleteTagFolderCommand.ExecuteAsync("archive");
+
+        Assert.False(vm.IsSidebarFolderFocused);
+        Assert.Null(vm.FocusedSidebarTagPath);
+    }
+
+    [Fact]
+    public async Task FocusSidebarFolder_NoSearchMatchesKeepsFocusUntilWorkspaceChanges()
+    {
+        var firstFolder = Path.Combine(_tempRoot, "first");
+        var secondFolder = Path.Combine(_tempRoot, "second");
+        Directory.CreateDirectory(firstFolder);
+        Directory.CreateDirectory(secondFolder);
+        await File.WriteAllTextAsync(Path.Combine(firstFolder, "note.md"), "---\ntitle: note\ntags: [work]\n---\nbody");
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = firstFolder };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.FocusSidebarFolderCommand.Execute("work");
+
+        vm.SearchText = "no-match";
+
+        Assert.True(vm.IsSidebarFolderFocused);
+        Assert.Empty(vm.VisibleSidebarRows);
+
+        dialogService.FolderToPick = secondFolder;
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        Assert.False(vm.IsSidebarFolderFocused);
+    }
+
+    [Fact]
+    public async Task SidebarSelection_ShiftRangeSkipsFoldersAndDeduplicatesNoteOccurrences()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9), ["one", "two"]);
+        await WriteNoteAsync("omega.md", "omega", "body", new DateTime(2026, 3, 10));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.VisibleSidebarRows.First(row => row.IsFolder).ToggleExpandedCommand.Execute(null);
+        vm.VisibleSidebarRows.First(row => row.IsFolder && !row.IsExpanded).ToggleExpandedCommand.Execute(null);
+        var alphaOccurrences = vm.VisibleSidebarRows.Where(row => row.Note?.DisplayName == "alpha").ToList();
+        var omega = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "omega");
+
+        vm.SelectOnlySidebarNote(alphaOccurrences[0]);
+        vm.SelectSidebarNoteRange(omega);
+
+        Assert.Equal(2, vm.SelectedSidebarNotes.Count);
+        Assert.Single(vm.SelectedSidebarNotes.Where(note => note.DisplayName == "alpha"));
+        Assert.Contains(vm.SelectedSidebarNotes, note => note.DisplayName == "omega");
+    }
+
+    [Fact]
+    public async Task CreateTagFolderCommand_PersistsAndShowsEmptyFolder()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            CreateTagFolderResult = "work/projects"
+        };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.CreateTagFolderCommand.ExecuteAsync(null);
+
+        Assert.Contains(vm.VisibleSidebarRows, row => row.IsFolder && row.TagPath == "work");
+        Assert.Contains(vm.VisibleSidebarRows, row => row.IsFolder && row.TagPath == "work/projects");
+        var saved = await new TagFolderCatalogService().LoadAsync(_tempRoot);
+        Assert.Contains("work/projects", saved);
+    }
+
+    [Fact]
+    public async Task AddSidebarSelectionToTagFolderAsync_AddsTagToEverySelectedNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var timestamp = new DateTime(2026, 3, 9, 7, 33, 0);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", timestamp);
+        await WriteNoteAsync("beta.md", "beta", "body beta", timestamp.AddDays(1));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var alpha = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var beta = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alpha);
+        vm.ToggleSidebarNoteSelection(beta);
+
+        await vm.AddSidebarSelectionToTagFolderAsync("work/projects");
+
+        var repository = new NotesRepository();
+        var updatedAlpha = await repository.LoadNoteAsync(Path.Combine(_tempRoot, "alpha.md"));
+        var updatedBeta = await repository.LoadNoteAsync(Path.Combine(_tempRoot, "beta.md"));
+        Assert.Contains("work/projects", updatedAlpha!.Tags);
+        Assert.Contains("work/projects", updatedBeta!.Tags);
+        Assert.Equal(timestamp.AddMinutes(1), updatedAlpha.UpdatedAt);
+        Assert.Equal(timestamp.AddDays(1).AddMinutes(1), updatedBeta.UpdatedAt);
+        Assert.Equal(2, vm.SelectedSidebarNotes.Count);
+    }
+
+    [Fact]
+    public async Task AddSidebarNotesToTagFolderAsync_UsesDragPayloadInsteadOfCurrentSelection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9));
+        await WriteNoteAsync("beta.md", "beta", "body", new DateTime(2026, 3, 10));
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var alpha = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var beta = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alpha);
+        var payloadPaths = new[] { alpha.Note!.FilePath };
+        vm.SelectOnlySidebarNote(beta);
+
+        await vm.AddSidebarNotesToTagFolderAsync(payloadPaths, "work");
+
+        var repository = new NotesRepository();
+        Assert.Contains("work", (await repository.LoadNoteAsync(alpha.Note.FilePath))!.Tags);
+        Assert.Empty((await repository.LoadNoteAsync(beta.Note!.FilePath))!.Tags);
+    }
+
+    [Fact]
+    public async Task MoveSidebarSelectionToRootAsync_RemovesAllTagsAndKeepsNoteSelected()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var timestamp = new DateTime(2026, 3, 9, 7, 33, 0);
+        await WriteNoteAsync("alpha.md", "alpha", "body", timestamp, ["work/projects", "pinned"]);
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.VisibleSidebarRows.First(row => row.IsFolder).ToggleExpandedCommand.Execute(null);
+        var alpha = vm.VisibleSidebarRows.First(row => row.Note?.DisplayName == "alpha");
+        vm.SelectOnlySidebarNote(alpha);
+        Assert.True(vm.CanMoveSelectedNotesToRoot);
+
+        await vm.MoveSidebarSelectionToRootAsync();
+
+        var updated = await new NotesRepository().LoadNoteAsync(Path.Combine(_tempRoot, "alpha.md"));
+        Assert.Empty(updated!.Tags);
+        Assert.Equal(timestamp.AddMinutes(1), updated.UpdatedAt);
+        Assert.Equal("alpha", Assert.Single(vm.SelectedSidebarNotes).DisplayName);
+        Assert.Contains(vm.VisibleSidebarRows, row => row.Depth == 0 && row.Note?.DisplayName == "alpha");
+        Assert.False(vm.CanMoveSelectedNotesToRoot);
+    }
+
+    [Fact]
+    public async Task DeleteSelectedSidebarNotesCommand_DeletesDistinctPhysicalFiles()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9), ["one", "two"]);
+        await WriteNoteAsync("beta.md", "beta", "body", new DateTime(2026, 3, 10));
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            ConfirmDeleteNotesResult = true
+        };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.VisibleSidebarRows.First(row => row.IsFolder).ToggleExpandedCommand.Execute(null);
+        var alpha = vm.VisibleSidebarRows.First(row => row.Note?.DisplayName == "alpha");
+        var beta = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alpha);
+        vm.ToggleSidebarNoteSelection(beta);
+
+        await vm.DeleteSelectedSidebarNotesCommand.ExecuteAsync(null);
+
+        Assert.False(File.Exists(Path.Combine(_tempRoot, "alpha.md")));
+        Assert.False(File.Exists(Path.Combine(_tempRoot, "beta.md")));
+        Assert.Equal(2, dialogService.LastDeleteNotes.Count);
+        Assert.Empty(vm.VisibleNotes);
+    }
+
+    [Fact]
+    public async Task RenameTagFolderCommand_UpdatesDescendantTagsAndPreservesTimestamp()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var timestamp = new DateTime(2026, 3, 9, 7, 33, 0);
+        await WriteNoteAsync("alpha.md", "alpha", "body", timestamp, ["work/projects", "pinned"]);
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            RenameTagFolderResult = "archive"
+        };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.RenameTagFolderCommand.ExecuteAsync("work");
+
+        var updated = await new NotesRepository().LoadNoteAsync(Path.Combine(_tempRoot, "alpha.md"));
+        Assert.Contains("archive/projects", updated!.Tags);
+        Assert.Contains("pinned", updated.Tags);
+        Assert.DoesNotContain("work/projects", updated.Tags);
+        Assert.Equal(timestamp.AddMinutes(1), updated.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task DeleteTagFolderCommand_RemovesMatchingTagsButKeepsNotes()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9), ["work/projects", "pinned"]);
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            ConfirmDeleteTagFolderResult = true
+        };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.DeleteTagFolderCommand.ExecuteAsync("work");
+
+        var notePath = Path.Combine(_tempRoot, "alpha.md");
+        Assert.True(File.Exists(notePath));
+        var updated = await new NotesRepository().LoadNoteAsync(notePath);
+        Assert.Equal(["pinned"], updated!.Tags);
+        Assert.DoesNotContain(vm.TagFolderPaths, path => path.StartsWith("work", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task ChooseFolderCommand_ClearsSidebarSelectionFromPreviousWorkspace()
+    {
+        var firstFolder = Path.Combine(_tempRoot, "first");
+        var secondFolder = Path.Combine(_tempRoot, "second");
+        Directory.CreateDirectory(firstFolder);
+        Directory.CreateDirectory(secondFolder);
+        await File.WriteAllTextAsync(Path.Combine(firstFolder, "first.md"), "first");
+        await File.WriteAllTextAsync(Path.Combine(secondFolder, "second.md"), "second");
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = firstFolder };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        vm.SelectOnlySidebarNote(Assert.Single(vm.VisibleSidebarRows.Where(row => row.IsNote)));
+
+        dialogService.FolderToPick = secondFolder;
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.SelectedSidebarNotes);
+        Assert.Equal("second", Assert.Single(vm.VisibleNotes).DisplayName);
+    }
+
+    [Fact]
     public async Task SidebarTree_KeepsTagCatalogForEditorSuggestions()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -641,12 +989,10 @@ public sealed class MainViewModelTests : IDisposable
         var first = Assert.Single(vm.VisibleNotes.Where(note => string.Equals(note.DisplayName, "first", StringComparison.Ordinal)));
         var second = Assert.Single(vm.VisibleNotes.Where(note => string.Equals(note.DisplayName, "second", StringComparison.Ordinal)));
 
-        vm.SelectedVisibleNote = first;
-        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(first);
         vm.TitleSuggestionsContext = "Prefer concise release note naming.";
 
-        vm.SelectedVisibleNote = second;
-        await WaitForConditionAsync(() => string.Equals(vm.CurrentNote?.FilePath, second.FilePath, StringComparison.OrdinalIgnoreCase));
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(second);
 
         Assert.Equal(string.Empty, vm.TitleSuggestionsContext);
     }
@@ -671,8 +1017,7 @@ public sealed class MainViewModelTests : IDisposable
 
         using var vm = await CreateViewModelAsync(dialogService: dialogService, settingsService: settingsService, aiTitleSuggestionService: aiTitleSuggestionService);
         await vm.ChooseFolderCommand.ExecuteAsync(null);
-        vm.SelectedVisibleNote = Assert.Single(vm.VisibleNotes);
-        await WaitForConditionAsync(() => vm.CurrentNote is not null);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(Assert.Single(vm.VisibleNotes));
 
         await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
 
@@ -991,7 +1336,8 @@ public sealed class MainViewModelTests : IDisposable
             editorLayoutState,
             chatViewModelFactory,
             new KeyboardShortcutService(),
-            noteSearchServiceFactory);
+            noteSearchServiceFactory,
+            new TagFolderCatalogService());
 
         await vm.InitializeAsync();
         return vm;
@@ -1042,6 +1388,18 @@ public sealed class MainViewModelTests : IDisposable
     {
         public string? FolderToPick { get; set; }
 
+        public string? CreateTagFolderResult { get; set; }
+
+        public string? RenameTagFolderResult { get; set; }
+
+        public string? TagFolderDestinationResult { get; set; }
+
+        public bool ConfirmDeleteTagFolderResult { get; set; }
+
+        public bool ConfirmDeleteNotesResult { get; set; }
+
+        public IReadOnlyList<string> LastDeleteNotes { get; private set; } = [];
+
         public bool ConfirmDeleteResult { get; set; } = true;
 
         public int PickFolderCallCount { get; private set; }
@@ -1072,6 +1430,20 @@ public sealed class MainViewModelTests : IDisposable
         {
             ConfirmDeleteCallCount++;
             return Task.FromResult(ConfirmDeleteResult);
+        }
+
+        public Task<string?> PromptCreateTagFolderAsync() => Task.FromResult(CreateTagFolderResult);
+
+        public Task<string?> PromptRenameTagFolderAsync(string currentPath) => Task.FromResult(RenameTagFolderResult);
+
+        public Task<string?> ChooseTagFolderDestinationAsync(IReadOnlyList<string> folderPaths) => Task.FromResult(TagFolderDestinationResult);
+
+        public Task<bool> ConfirmDeleteTagFolderAsync(string folderPath) => Task.FromResult(ConfirmDeleteTagFolderResult);
+
+        public Task<bool> ConfirmDeleteNotesAsync(IReadOnlyList<string> noteNames)
+        {
+            LastDeleteNotes = noteNames;
+            return Task.FromResult(ConfirmDeleteNotesResult);
         }
 
         public Task<bool> ConfirmDiscardInvalidDraftAsync()

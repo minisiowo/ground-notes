@@ -22,6 +22,8 @@ namespace GroundNotes.Views;
 
 public partial class MainWindow : Window
 {
+    private static readonly DataFormat<string> s_sidebarNotePathsDataFormat =
+        DataFormat.CreateStringApplicationFormat("GroundNotes.NotePaths");
     private IWindowLayoutService? _windowLayoutService;
     private readonly MenuFlyout _editorContextFlyout = new();
     private readonly MenuFlyout _imageContextFlyout = new();
@@ -43,6 +45,14 @@ public partial class MainWindow : Window
     private bool _isUpdatingEditorFromViewModel;
     private bool _isUpdatingViewModelFromEditor;
     private SlashCommandPopupController _slashCommandPopup;
+    private PointerPressedEventArgs? _sidebarDragPointerPressedEvent;
+    private Point _sidebarDragStartPoint;
+    private bool _isSidebarDragStarting;
+    private SidebarTreeRowViewModel? _sidebarPendingSingleClickRow;
+    private OverlayLayer? _sidebarDragOverlay;
+    private Border? _sidebarDragGhost;
+    private TextBlock? _sidebarDragGhostText;
+    private string _sidebarDragBaseLabel = string.Empty;
     private readonly ToolPopupController _titleSuggestionsPopup;
     private readonly ToolPopupController _tagSuggestionsPopup;
     private readonly DispatcherTimer _resizeHandleHoverTimer;
@@ -2019,6 +2029,7 @@ public partial class MainWindow : Window
 
         if (point.Properties.IsRightButtonPressed)
         {
+            vm.EnsureSidebarNoteSelected((SidebarTreeRowViewModel)border.DataContext!);
             e.Handled = true;
             border.ContextMenu?.Open(border);
             return;
@@ -2029,21 +2040,323 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Meta))
+        var row = (SidebarTreeRowViewModel)border.DataContext!;
+        _sidebarPendingSingleClickRow = null;
+        _sidebarDragPointerPressedEvent = e;
+        _sidebarDragStartPoint = e.GetPosition(NotesListBox);
+
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
         {
-            await vm.OpenSidebarNoteCommand.ExecuteAsync(noteItem);
+            vm.SelectSidebarNoteRange(row);
             e.Handled = true;
             return;
         }
 
-        await vm.OpenNoteInSplitCommand.ExecuteAsync(noteItem);
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            vm.ToggleSidebarNoteSelection(row);
+            e.Handled = true;
+            return;
+        }
+
+        if (noteItem.IsSelected && vm.SelectedSidebarNotes.Count > 1)
+        {
+            _sidebarPendingSingleClickRow = row;
+            e.Handled = true;
+            return;
+        }
+
+        vm.SelectOnlySidebarNote(row);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(noteItem);
         e.Handled = true;
+    }
+
+    private async void OnNoteListItemPointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_sidebarDragPointerPressedEvent is null
+            || _isSidebarDragStarting
+            || DataContext is not MainViewModel vm
+            || !e.GetCurrentPoint(NotesListBox).Properties.IsLeftButtonPressed)
+        {
+            return;
+        }
+
+        var delta = e.GetPosition(NotesListBox) - _sidebarDragStartPoint;
+        if (Math.Abs(delta.X) < 4 && Math.Abs(delta.Y) < 4)
+        {
+            return;
+        }
+
+        var paths = vm.SelectedSidebarNotes.Select(note => note.FilePath).ToArray();
+        if (paths.Length == 0)
+        {
+            return;
+        }
+
+        _isSidebarDragStarting = true;
+        _sidebarPendingSingleClickRow = null;
+        var pointerPressedEvent = _sidebarDragPointerPressedEvent;
+        _sidebarDragPointerPressedEvent = null;
+        try
+        {
+            ShowSidebarDragGhost(vm.SelectedSidebarNotes, e);
+            var data = new DataTransfer();
+            data.Add(DataTransferItem.Create(s_sidebarNotePathsDataFormat, string.Join('\n', paths)));
+            await DragDrop.DoDragDropAsync(pointerPressedEvent, data, DragDropEffects.Move);
+        }
+        finally
+        {
+            HideSidebarDragGhost();
+            _isSidebarDragStarting = false;
+        }
+    }
+
+    private async void OnNoteListItemPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        _sidebarDragPointerPressedEvent = null;
+        var pendingRow = _sidebarPendingSingleClickRow;
+        _sidebarPendingSingleClickRow = null;
+        if (pendingRow?.Note is not { } note || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        vm.SelectOnlySidebarNote(pendingRow);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(note);
+    }
+
+    private void OnSidebarFolderDragOver(object? sender, DragEventArgs e)
+    {
+        if (sender is Button { DataContext: SidebarTreeRowViewModel { TagPath: { } tagPath } } button
+            && GetSidebarDragPaths(e.DataTransfer).Count > 0)
+        {
+            e.DragEffects = DragDropEffects.Move;
+            button.Classes.Set("dragTarget", true);
+            UpdateSidebarDragGhost(e);
+            SetSidebarDragGhostTarget($"Add to {tagPath}");
+            e.Handled = true;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.None;
+    }
+
+    private void OnSidebarFolderDragLeave(object? sender, DragEventArgs e)
+    {
+        if (sender is Button button)
+        {
+            button.Classes.Set("dragTarget", false);
+            SetSidebarDragGhostTarget(null);
+        }
+    }
+
+    private async void OnSidebarFolderDrop(object? sender, DragEventArgs e)
+    {
+        var paths = GetSidebarDragPaths(e.DataTransfer);
+        if (sender is not Button { DataContext: SidebarTreeRowViewModel { TagPath: { } tagPath } } button
+            || DataContext is not MainViewModel vm
+            || paths.Count == 0)
+        {
+            return;
+        }
+
+        button.Classes.Set("dragTarget", false);
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+        await vm.AddSidebarNotesToTagFolderAsync(paths, tagPath);
+    }
+
+    private void OnSidebarRootDragOver(object? sender, DragEventArgs e)
+    {
+        if (sender is Border border && GetSidebarDragPaths(e.DataTransfer).Count > 0)
+        {
+            UpdateSidebarDragGhost(e);
+            if (ReferenceEquals(border, SidebarRootDropTarget))
+            {
+                e.DragEffects = DragDropEffects.Move;
+                border.Classes.Set("dragTarget", true);
+                SetSidebarDragGhostTarget("Move to root");
+            }
+            else
+            {
+                e.DragEffects = DragDropEffects.None;
+                SetSidebarDragGhostTarget(null);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        e.DragEffects = DragDropEffects.None;
+    }
+
+    private void OnSidebarRootDragLeave(object? sender, DragEventArgs e)
+    {
+        if (sender is Border border)
+        {
+            border.Classes.Set("dragTarget", false);
+            SetSidebarDragGhostTarget(null);
+        }
+    }
+
+    private async void OnSidebarRootDrop(object? sender, DragEventArgs e)
+    {
+        var paths = GetSidebarDragPaths(e.DataTransfer);
+        if (sender is not Border border
+            || DataContext is not MainViewModel vm
+            || paths.Count == 0)
+        {
+            return;
+        }
+
+        border.Classes.Set("dragTarget", false);
+        e.DragEffects = DragDropEffects.Move;
+        e.Handled = true;
+        await vm.MoveSidebarNotesToRootAsync(paths);
+    }
+
+    internal static string FormatSidebarDragLabel(IReadOnlyList<NoteListItemViewModel> notes)
+    {
+        if (notes.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return notes.Count == 1
+            ? notes[0].DisplayName
+            : $"{notes[0].DisplayName} +{notes.Count - 1}";
+    }
+
+    private static IReadOnlyList<string> GetSidebarDragPaths(IDataTransfer dataTransfer)
+    {
+        return dataTransfer.TryGetValues(s_sidebarNotePathsDataFormat)?
+            .SelectMany(value => value.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList()
+            ?? [];
+    }
+
+    private void ShowSidebarDragGhost(IReadOnlyList<NoteListItemViewModel> notes, PointerEventArgs e)
+    {
+        HideSidebarDragGhost();
+        _sidebarDragOverlay = OverlayLayer.GetOverlayLayer(NotesListBox);
+        if (_sidebarDragOverlay is null)
+        {
+            return;
+        }
+
+        _sidebarDragBaseLabel = FormatSidebarDragLabel(notes);
+        _sidebarDragGhostText = new TextBlock { Text = _sidebarDragBaseLabel };
+        _sidebarDragGhostText.Classes.Add("sidebarDragGhostText");
+        _sidebarDragGhost = new Border
+        {
+            Child = _sidebarDragGhostText,
+            IsHitTestVisible = false
+        };
+        _sidebarDragGhost.Classes.Add("sidebarDragGhost");
+        _sidebarDragOverlay.Children.Add(_sidebarDragGhost);
+        SidebarRootDropTarget.IsVisible = true;
+        UpdateSidebarDragGhost(e.GetPosition(_sidebarDragOverlay));
+    }
+
+    private void UpdateSidebarDragGhost(DragEventArgs e)
+    {
+        if (_sidebarDragOverlay is not null)
+        {
+            UpdateSidebarDragGhost(e.GetPosition(_sidebarDragOverlay));
+        }
+    }
+
+    private void UpdateSidebarDragGhost(Point point)
+    {
+        if (_sidebarDragGhost is null)
+        {
+            return;
+        }
+
+        Canvas.SetLeft(_sidebarDragGhost, point.X + 14);
+        Canvas.SetTop(_sidebarDragGhost, point.Y + 14);
+    }
+
+    private void SetSidebarDragGhostTarget(string? target)
+    {
+        if (_sidebarDragGhostText is not null)
+        {
+            _sidebarDragGhostText.Text = string.IsNullOrWhiteSpace(target)
+                ? _sidebarDragBaseLabel
+                : $"{_sidebarDragBaseLabel} -> {target}";
+        }
+    }
+
+    private void HideSidebarDragGhost()
+    {
+        if (_sidebarDragOverlay is not null && _sidebarDragGhost is not null)
+        {
+            _sidebarDragOverlay.Children.Remove(_sidebarDragGhost);
+        }
+
+        foreach (var button in NotesListBox.GetVisualDescendants().OfType<Button>())
+        {
+            button.Classes.Set("dragTarget", false);
+        }
+
+        SidebarRootDropTarget.Classes.Set("dragTarget", false);
+        SidebarRootDropTarget.IsVisible = false;
+        _sidebarDragOverlay = null;
+        _sidebarDragGhost = null;
+        _sidebarDragGhostText = null;
+        _sidebarDragBaseLabel = string.Empty;
     }
 
     private async void OnSidebarTreeKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not MainViewModel vm || vm.SelectedSidebarRow is not { } row)
         {
+            return;
+        }
+
+        if (row.IsNote
+            && e.Key == Key.Space
+            && (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta)))
+        {
+            vm.ToggleSidebarNoteSelection(row);
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key is Key.Up or Key.Down)
+        {
+            var currentIndex = vm.VisibleSidebarRows.IndexOf(row);
+            var nextIndex = Math.Clamp(currentIndex + (e.Key == Key.Up ? -1 : 1), 0, vm.VisibleSidebarRows.Count - 1);
+            var nextRow = vm.VisibleSidebarRows[nextIndex];
+            vm.SelectedSidebarRow = nextRow;
+            NotesListBox.SelectedItem = nextRow;
+            NotesListBox.ScrollIntoView(nextRow);
+
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) && nextRow.IsNote)
+            {
+                vm.SelectSidebarNoteRange(nextRow);
+            }
+            else if (!e.KeyModifiers.HasFlag(KeyModifiers.Control) && !e.KeyModifiers.HasFlag(KeyModifiers.Meta))
+            {
+                if (nextRow.IsNote)
+                {
+                    vm.SelectOnlySidebarNote(nextRow);
+                }
+                else
+                {
+                    vm.ClearSidebarSelection();
+                }
+            }
+
+            e.Handled = true;
+            return;
+        }
+
+        if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.DeleteNote, e.Key, e.KeyModifiers)
+            && vm.SelectedSidebarNotes.Count > 0)
+        {
+            e.Handled = true;
+            await vm.DeleteSelectedSidebarNotesCommand.ExecuteAsync(null);
             return;
         }
 
@@ -2086,6 +2399,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        vm.SelectOnlySidebarNote(row);
         await vm.OpenSidebarNoteCommand.ExecuteAsync(row.Note);
     }
 

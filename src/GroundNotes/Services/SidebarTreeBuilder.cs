@@ -6,9 +6,23 @@ public static class SidebarTreeBuilder
 {
     public static IReadOnlyList<SidebarTreeNode> Build(IEnumerable<NoteSummary> notes, SortOption sortOption)
     {
+        return Build(notes, sortOption, []);
+    }
+
+    public static IReadOnlyList<SidebarTreeNode> Build(
+        IEnumerable<NoteSummary> notes,
+        SortOption sortOption,
+        IEnumerable<string> explicitFolderPaths)
+    {
         ArgumentNullException.ThrowIfNull(notes);
+        ArgumentNullException.ThrowIfNull(explicitFolderPaths);
 
         var root = new MutableFolder(string.Empty);
+
+        foreach (var folderPath in explicitFolderPaths.Select(TryParsePath).OfType<TagPath>())
+        {
+            AddFolder(root, folderPath);
+        }
 
         foreach (var note in notes)
         {
@@ -32,6 +46,12 @@ public static class SidebarTreeBuilder
 
     private static void AddNote(MutableFolder root, TagPath path, NoteSummary note)
     {
+        var folder = AddFolder(root, path);
+        folder.Notes.Add(note);
+    }
+
+    private static MutableFolder AddFolder(MutableFolder root, TagPath path)
+    {
         var current = root;
 
         foreach (var segment in path.Segments)
@@ -49,7 +69,7 @@ public static class SidebarTreeBuilder
             current = child;
         }
 
-        current.Notes.Add(note);
+        return current;
     }
 
     private static IReadOnlyList<SidebarTreeNode> BuildChildren(

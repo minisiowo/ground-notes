@@ -1033,6 +1033,60 @@
     <Setter Property="BorderThickness" Value="1" />
   </Style>
 
+  <Style Selector="Border.sidebarNotesContainer.rootDragTarget">
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Border.sidebarRootDropTarget">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="BoxShadow" Value="0 4 12 0 #40000000" />
+  </Style>
+
+  <Style Selector="Border.sidebarRootDropTarget.dragTarget">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+
+  <Style Selector="Border.sidebarDragGhost">
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="BoxShadow" Value="0 4 12 0 #50000000" />
+    <Setter Property="Opacity" Value="0.94" />
+  </Style>
+
+  <Style Selector="TextBlock.sidebarDragGhostText">
+    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource FileListFontSize}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Border.sidebarFocusBar">
+    <Setter Property="Padding" Value="7,5" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="TextBlock.sidebarFocusText">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource FileListFontSize}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="Button.sidebarFocusClearButton">
+    <Setter Property="MinHeight" Value="22" />
+    <Setter Property="Padding" Value="6,2" />
+  </Style>
+
   <Style Selector="Button.sidebarTreeFolderRow">
     <Setter Property="MinHeight" Value="24" />
     <Setter Property="Padding" Value="4,2" />
@@ -1122,7 +1176,24 @@
     <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
   </Style>
 
+  <Style Selector="ListBoxItem:selected Border.sidebarTreeNoteRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
   <Style Selector="Border.fileRow.active">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Border.sidebarTreeNoteRow.bulkSelected:not(.active)">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Button.sidebarTreeFolderRow.dragTarget /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
     <Setter Property="BorderThickness" Value="1" />
