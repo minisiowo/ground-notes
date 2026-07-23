@@ -2130,6 +2130,7 @@ public partial class MainWindow : Window
         if (sender is Button { DataContext: SidebarTreeRowViewModel { TagPath: { } tagPath } } button
             && GetSidebarDragPaths(e.DataTransfer).Count > 0)
         {
+            SidebarNotesContainer.Classes.Set("rootDragTarget", false);
             e.DragEffects = DragDropEffects.Move;
             button.Classes.Set("dragTarget", true);
             UpdateSidebarDragGhost(e);
@@ -2171,17 +2172,11 @@ public partial class MainWindow : Window
         if (sender is Border border && GetSidebarDragPaths(e.DataTransfer).Count > 0)
         {
             UpdateSidebarDragGhost(e);
-            if (ReferenceEquals(border, SidebarRootDropTarget))
-            {
-                e.DragEffects = DragDropEffects.Move;
-                border.Classes.Set("dragTarget", true);
-                SetSidebarDragGhostTarget("Move to root");
-            }
-            else
-            {
-                e.DragEffects = DragDropEffects.None;
-                SetSidebarDragGhostTarget(null);
-            }
+            e.DragEffects = DragDropEffects.Move;
+            border.Classes.Set(
+                ReferenceEquals(border, SidebarRootDropTarget) ? "dragTarget" : "rootDragTarget",
+                true);
+            SetSidebarDragGhostTarget("Move to root");
             e.Handled = true;
             return;
         }
@@ -2191,11 +2186,28 @@ public partial class MainWindow : Window
 
     private void OnSidebarRootDragLeave(object? sender, DragEventArgs e)
     {
-        if (sender is Border border)
+        if (sender is not Border border)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(border, SidebarRootDropTarget))
         {
             border.Classes.Set("dragTarget", false);
-            SetSidebarDragGhostTarget(null);
+            return;
         }
+
+        var pointerPosition = e.GetPosition(border);
+        if (pointerPosition.X >= 0
+            && pointerPosition.X <= border.Bounds.Width
+            && pointerPosition.Y >= 0
+            && pointerPosition.Y <= border.Bounds.Height)
+        {
+            return;
+        }
+
+        border.Classes.Set("rootDragTarget", false);
+        SetSidebarDragGhostTarget(null);
     }
 
     private async void OnSidebarRootDrop(object? sender, DragEventArgs e)
@@ -2209,6 +2221,7 @@ public partial class MainWindow : Window
         }
 
         border.Classes.Set("dragTarget", false);
+        border.Classes.Set("rootDragTarget", false);
         e.DragEffects = DragDropEffects.Move;
         e.Handled = true;
         await vm.MoveSidebarNotesToRootAsync(paths);
@@ -2299,6 +2312,7 @@ public partial class MainWindow : Window
             button.Classes.Set("dragTarget", false);
         }
 
+        SidebarNotesContainer.Classes.Set("rootDragTarget", false);
         SidebarRootDropTarget.Classes.Set("dragTarget", false);
         SidebarRootDropTarget.IsVisible = false;
         _sidebarDragOverlay = null;

@@ -772,6 +772,32 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task MoveSidebarNotesToRootAsync_UsesDragPayloadInsteadOfCurrentSelection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9), ["work"]);
+        await WriteNoteAsync("beta.md", "beta", "body", new DateTime(2026, 3, 10), ["personal"]);
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        foreach (var folder in vm.VisibleSidebarRows.Where(row => row.IsFolder).ToList())
+        {
+            folder.ToggleExpandedCommand.Execute(null);
+        }
+        var alpha = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var beta = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alpha);
+        var payloadPaths = new[] { alpha.Note!.FilePath };
+        vm.SelectOnlySidebarNote(beta);
+
+        await vm.MoveSidebarNotesToRootAsync(payloadPaths);
+
+        var repository = new NotesRepository();
+        Assert.Empty((await repository.LoadNoteAsync(alpha.Note.FilePath))!.Tags);
+        Assert.Equal(["personal"], (await repository.LoadNoteAsync(beta.Note!.FilePath))!.Tags);
+    }
+
+    [Fact]
     public async Task DeleteSelectedSidebarNotesCommand_DeletesDistinctPhysicalFiles()
     {
         Directory.CreateDirectory(_tempRoot);

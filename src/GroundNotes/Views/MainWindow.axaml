@@ -127,13 +127,15 @@
                   BorderThickness="0"
                   Padding="0">
             <Grid RowDefinitions="*,Auto,Auto">
-              <Border Grid.Row="0"
+              <Border x:Name="SidebarNotesContainer"
+                      Grid.Row="0"
                       Classes="sidebarNotesContainer"
                       Classes.backgroundVisible="{Binding ShowSidebarListBackground}"
                       Classes.borderVisible="{Binding ShowSidebarListBorder}"
                       DragDrop.AllowDrop="True"
                       DragDrop.DragOver="OnSidebarRootDragOver"
-                      DragDrop.DragLeave="OnSidebarRootDragLeave">
+                      DragDrop.DragLeave="OnSidebarRootDragLeave"
+                      DragDrop.Drop="OnSidebarRootDrop">
                 <Border.ContextMenu>
                   <ContextMenu>
                     <MenuItem Header="New folder"
