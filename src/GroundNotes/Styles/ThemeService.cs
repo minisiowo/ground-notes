@@ -14,10 +14,7 @@ namespace GroundNotes.Styles;
 /// </summary>
 public static class ThemeService
 {
-    public static void ApplySidebarFont(FontFamily fontFamily)
-        => ApplySidebarFont(fontFamily, FontWeight.Normal, FontStyle.Normal);
-
-    public static void ApplySidebarFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
+    public static void ApplyUiFont(FontFamily fontFamily, FontWeight fontWeight, FontStyle fontStyle)
     {
         var app = Application.Current;
         if (app is null)
@@ -90,6 +87,17 @@ public static class ThemeService
         SetValue(app, ThemeKeys.AppFontSize, fontSize);
         SetValue(app, ThemeKeys.AppFontSizeSmall, Math.Max(9d, fontSize - 1d));
         SetValue(app, ThemeKeys.AppFontSizeLarge, fontSize + 2d);
+    }
+
+    public static void ApplyFileListFontSize(double fontSize)
+    {
+        var app = Application.Current;
+        if (app is null)
+        {
+            return;
+        }
+
+        SetValue(app, ThemeKeys.FileListFontSize, fontSize);
     }
 
     public static void ApplyEditorIndentSize(int indentSize)

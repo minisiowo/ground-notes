@@ -34,8 +34,9 @@ public partial class App : Application
     {
         _appearanceService.ApplyTheme(startup.Theme);
         _appearanceService.ApplyUiFontSize(startup.UiFontSize);
+        _appearanceService.ApplyFileListFontSize(startup.FileListFontSize);
+        _appearanceService.ApplyUiFont(startup.UiFontFamily, startup.UiFontVariant);
         _appearanceService.ApplyTerminalFont(startup.TerminalFontFamily, startup.TerminalFontVariant);
-        _appearanceService.ApplySidebarFont(startup.SidebarFontFamily, startup.SidebarFontVariant);
         _appearanceService.ApplyCodeFont(startup.CodeFontFamily, startup.CodeFontVariant);
     }
 
@@ -71,7 +72,8 @@ public partial class App : Application
                 defaultVariant,
                 defaultFont,
                 defaultVariant,
-                12);
+                12,
+                11);
         }
 
         ApplyStartupAppearance(startup);

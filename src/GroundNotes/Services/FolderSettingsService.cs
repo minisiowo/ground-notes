@@ -140,7 +140,8 @@ public sealed class FolderSettingsService : ISettingsService
                     record.WindowLayout.SidebarCalendarExpanded,
                     record.WindowLayout.EditorCanvasWidth,
                     record.WindowLayout.PaneSplitWeights,
-                    record.WindowLayout.MultiPaneSharedWidth),
+                    record.WindowLayout.MultiPaneSharedWidth,
+                    record.WindowLayout.SidebarExpandedTagPaths),
             new AiSettings(
                 record.OpenAiApiKey ?? string.Empty,
                 record.OpenAiModel ?? string.Empty,
@@ -148,7 +149,15 @@ public sealed class FolderSettingsService : ISettingsService
                 record.OpenAiProjectId ?? string.Empty,
                 record.OpenAiOrganizationId ?? string.Empty,
                 record.OpenAiReasoningEffort ?? string.Empty),
-            KeyboardShortcutSettings.Normalize(record.KeyboardShortcuts)));
+            KeyboardShortcutSettings.Normalize(record.KeyboardShortcuts),
+            record.SidebarFontSize,
+            record.ShowSidebarListBackground ?? true,
+            record.ShowSidebarListBorder ?? true,
+            record.FileListFontName,
+            record.FileListFontVariantName,
+            record.FileListFontSize,
+            record.UiFontName,
+            record.UiFontVariantName));
     }
 
     private static SettingsRecord MapToRecord(AppSettings settings)
@@ -164,6 +173,14 @@ public sealed class FolderSettingsService : ISettingsService
             FontVariantName = settings.FontVariantName,
             SidebarFontName = settings.SidebarFontName,
             SidebarFontVariantName = settings.SidebarFontVariantName,
+            SidebarFontSize = settings.SidebarFontSize,
+            ShowSidebarListBackground = settings.ShowSidebarListBackground,
+            ShowSidebarListBorder = settings.ShowSidebarListBorder,
+            FileListFontName = settings.FileListFontName,
+            FileListFontVariantName = settings.FileListFontVariantName,
+            FileListFontSize = settings.FileListFontSize,
+            UiFontName = settings.UiFontName,
+            UiFontVariantName = settings.UiFontVariantName,
             CodeFontName = settings.CodeFontName,
             CodeFontVariantName = settings.CodeFontVariantName,
             ThemeName = settings.ThemeName,
@@ -183,7 +200,8 @@ public sealed class FolderSettingsService : ISettingsService
                     SidebarCalendarExpanded = settings.WindowLayout.SidebarCalendarExpanded,
                     EditorCanvasWidth = settings.WindowLayout.EditorCanvasWidth,
                     PaneSplitWeights = settings.WindowLayout.PaneSplitWeights?.ToList(),
-                    MultiPaneSharedWidth = settings.WindowLayout.MultiPaneSharedWidth
+                    MultiPaneSharedWidth = settings.WindowLayout.MultiPaneSharedWidth,
+                    SidebarExpandedTagPaths = settings.WindowLayout.SidebarExpandedTagPaths?.ToList()
                 },
             OpenAiApiKey = settings.AiSettings.ApiKey,
             OpenAiModel = settings.AiSettings.DefaultModel,
@@ -260,6 +278,14 @@ public sealed class FolderSettingsService : ISettingsService
         public string? FontVariantName { get; set; }
         public string? SidebarFontName { get; set; }
         public string? SidebarFontVariantName { get; set; }
+        public double? SidebarFontSize { get; set; }
+        public bool? ShowSidebarListBackground { get; set; }
+        public bool? ShowSidebarListBorder { get; set; }
+        public string? FileListFontName { get; set; }
+        public string? FileListFontVariantName { get; set; }
+        public double? FileListFontSize { get; set; }
+        public string? UiFontName { get; set; }
+        public string? UiFontVariantName { get; set; }
         public string? CodeFontName { get; set; }
         public string? CodeFontVariantName { get; set; }
         public string? ThemeName { get; set; }
@@ -288,5 +314,6 @@ public sealed class FolderSettingsService : ISettingsService
         public double? EditorCanvasWidth { get; set; }
         public List<double>? PaneSplitWeights { get; set; }
         public double? MultiPaneSharedWidth { get; set; }
+        public List<string>? SidebarExpandedTagPaths { get; set; }
     }
 }

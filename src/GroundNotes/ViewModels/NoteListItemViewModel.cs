@@ -11,11 +11,27 @@ public sealed partial class NoteListItemViewModel : ViewModelBase
         RenameText = summary.DisplayName;
     }
 
-    public NoteSummary Summary { get; }
+    public NoteSummary Summary { get; private set; }
 
     public string FilePath => Summary.FilePath;
 
     public string DisplayName => Summary.DisplayName;
+
+    public void UpdateSummary(NoteSummary summary)
+    {
+        ArgumentNullException.ThrowIfNull(summary);
+
+        var displayNameChanged = !string.Equals(DisplayName, summary.DisplayName, StringComparison.Ordinal);
+        Summary = summary;
+        OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(FilePath));
+        OnPropertyChanged(nameof(DisplayName));
+
+        if (displayNameChanged && !IsRenaming)
+        {
+            RenameText = summary.DisplayName;
+        }
+    }
 
     [ObservableProperty]
     private bool _isRenaming;

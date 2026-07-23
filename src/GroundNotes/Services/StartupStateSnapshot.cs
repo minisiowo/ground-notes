@@ -8,10 +8,11 @@ public sealed record StartupStateSnapshot(
     WindowLayout? Layout,
     AppTheme Theme,
     IReadOnlyList<BundledFontFamilyOption> Fonts,
+    BundledFontFamilyOption UiFontFamily,
+    BundledFontVariantOption UiFontVariant,
     BundledFontFamilyOption TerminalFontFamily,
     BundledFontVariantOption TerminalFontVariant,
-    BundledFontFamilyOption SidebarFontFamily,
-    BundledFontVariantOption SidebarFontVariant,
     BundledFontFamilyOption CodeFontFamily,
     BundledFontVariantOption CodeFontVariant,
-    double UiFontSize);
+    double UiFontSize,
+    double FileListFontSize);

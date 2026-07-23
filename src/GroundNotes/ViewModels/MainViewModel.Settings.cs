@@ -32,14 +32,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ThemeNames,
             _allFonts,
             SelectedThemeName,
-            SelectedSidebarFontFamilyName,
-            SelectedSidebarFontVariantName,
+            SelectedUiFontFamilyName,
+            SelectedUiFontVariantName,
             SelectedFontFamilyName,
             SelectedFontVariantName,
             SelectedCodeFontFamilyName,
             SelectedCodeFontVariantName,
             EditorFontSize,
             UiFontSize,
+            FileListFontSize,
+            ShowSidebarListBackground,
+            ShowSidebarListBorder,
             EditorIndentSize,
             EditorLineHeightFactor,
             ShowScrollBars,
@@ -60,12 +63,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         ApplyThemeSelection(model.SelectedThemeName, persist: false);
 
-        var sidebarFontFamily = GetFontFamilyByDisplayName(model.SelectedSidebarFontFamilyName)
+        var uiFontFamily = GetFontFamilyByDisplayName(model.SelectedUiFontFamilyName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? _allFonts[0];
-        var sidebarVariant = ResolveFontVariant(sidebarFontFamily, model.SelectedSidebarFontVariantName)
-            ?? GetDefaultFontVariant(sidebarFontFamily);
-        ApplySidebarFontSelection(sidebarFontFamily, sidebarVariant, persist: false);
+        var uiFontVariant = ResolveFontVariant(uiFontFamily, model.SelectedUiFontVariantName)
+            ?? GetDefaultFontVariant(uiFontFamily);
+        ApplyUiFontSelection(uiFontFamily, uiFontVariant, persist: false);
 
         var fontFamily = GetFontFamilyByDisplayName(model.SelectedFontFamilyName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
@@ -92,6 +95,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             UiFontSize = persistedUiFontSize;
         }
+
+        var persistedFileListFontSize = ClampFileListFontSize(model.FileListFontSize);
+        if (!FileListFontSize.Equals(persistedFileListFontSize))
+        {
+            FileListFontSize = persistedFileListFontSize;
+        }
+
+        ShowSidebarListBackground = model.ShowSidebarListBackground;
+        ShowSidebarListBorder = model.ShowSidebarListBorder;
 
         var persistedEditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize);
         if (EditorIndentSize != persistedEditorIndentSize)
@@ -121,14 +133,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _ = PersistSettingsAsync(settings => settings with
         {
             ThemeName = model.SelectedThemeName,
-            SidebarFontName = sidebarFontFamily.Key,
-            SidebarFontVariantName = sidebarVariant.Key,
+            UiFontName = uiFontFamily.Key,
+            UiFontVariantName = uiFontVariant.Key,
             FontName = fontFamily.Key,
             FontVariantName = variant.Key,
             CodeFontName = codeFontFamily.Key,
             CodeFontVariantName = codeVariant.Key,
             EditorFontSize = persistedEditorFontSize,
             UiFontSize = persistedUiFontSize,
+            FileListFontSize = persistedFileListFontSize,
+            ShowSidebarListBackground = model.ShowSidebarListBackground,
+            ShowSidebarListBorder = model.ShowSidebarListBorder,
             EditorIndentSize = persistedEditorIndentSize,
             EditorLineHeightFactor = persistedEditorLineHeightFactor,
             ShowScrollBars = model.ShowScrollBars,

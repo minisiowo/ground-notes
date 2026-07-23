@@ -9,7 +9,8 @@ It is designed for people who want local notes first: no database, no proprietar
 - Works on a normal folder of note files.
 - Supports `.txt` and `.md` notes.
 - Stores note metadata in simple YAML-like frontmatter.
-- Lets you search, filter by tag, sort, rename, and edit notes quickly.
+- Organizes the sidebar into virtual folders generated from hierarchical tags such as `work/projects`, while keeping note files in the selected folder.
+- Lets you search, sort, rename, and edit notes quickly.
 - Includes markdown-aware editor styling for headings, lists, links, inline code, and fenced code blocks.
 - Supports markdown image previews using `![](path)|NN` syntax, including image paste directly into the notes folder `assets/` directory.
 - Watches the notes folder for external filesystem changes.

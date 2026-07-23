@@ -16,15 +16,22 @@ public sealed class AppAppearanceService : IAppAppearanceService
         ThemeService.ApplyUiFontSize(value);
     }
 
+    public void ApplyUiFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption variant)
+    {
+        ThemeService.ApplyUiFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
+    }
+
+    public void ApplyFileListFontSize(double value)
+    {
+        ThemeService.ApplyFileListFontSize(value);
+    }
+
     public void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption variant)
     {
         ThemeService.ApplyTerminalFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
     }
 
-    public void ApplySidebarFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption variant)
-    {
-        ThemeService.ApplySidebarFont(new FontFamily(fontFamily.ResourceUri), variant.FontWeight, variant.FontStyle);
-    }
+
 
     public void ApplyCodeFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption variant)
     {

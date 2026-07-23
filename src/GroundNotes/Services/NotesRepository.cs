@@ -125,16 +125,9 @@ public sealed class NotesRepository : INotesRepository
         return Task.CompletedTask;
     }
 
-    public IReadOnlyList<NoteSummary> QueryNotes(IEnumerable<NoteSummary> notes, string searchText, IReadOnlyList<string> selectedTags, bool matchAllSelectedTags, DateTime? selectedDate, SortOption sortOption)
+    public IReadOnlyList<NoteSummary> QueryNotes(IEnumerable<NoteSummary> notes, string searchText, DateTime? selectedDate, SortOption sortOption)
     {
         var query = notes;
-
-        if (selectedTags.Count > 0)
-        {
-            query = matchAllSelectedTags
-                ? query.Where(note => selectedTags.All(selectedTag => TagHierarchyHelper.MatchesSelection(note.Tags, selectedTag)))
-                : query.Where(note => selectedTags.Any(selectedTag => TagHierarchyHelper.MatchesSelection(note.Tags, selectedTag)));
-        }
 
         if (selectedDate is not null)
         {

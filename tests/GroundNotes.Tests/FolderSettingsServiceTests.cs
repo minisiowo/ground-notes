@@ -60,18 +60,48 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateSettingsAsync_RoundTripsSidebarFontThroughSettingsFile()
+    public async Task UpdateSettingsAsync_RoundTripsUiFontAndFileListSizeThroughSettingsFile()
     {
         await _service.UpdateSettingsAsync(settings => settings with
         {
-            SidebarFontName = "MonaspaceXenon",
-            SidebarFontVariantName = "Medium"
+            UiFontName = "MonaspaceXenon",
+            UiFontVariantName = "Medium",
+            FileListFontSize = 9
         });
 
         var settings = await _service.GetSettingsAsync();
 
-        Assert.Equal("MonaspaceXenon", settings.SidebarFontName);
-        Assert.Equal("Medium", settings.SidebarFontVariantName);
+        Assert.Equal("MonaspaceXenon", settings.UiFontName);
+        Assert.Equal("Medium", settings.UiFontVariantName);
+        Assert.Equal(9, settings.FileListFontSize);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_RoundTripsSidebarFontSizeThroughSettingsFile()
+    {
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            SidebarFontSize = 9
+        });
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal(9, settings.SidebarFontSize);
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_RoundTripsSidebarListAppearanceThroughSettingsFile()
+    {
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            ShowSidebarListBackground = false,
+            ShowSidebarListBorder = false
+        });
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.False(settings.ShowSidebarListBackground);
+        Assert.False(settings.ShowSidebarListBorder);
     }
 
     [Fact]
@@ -144,6 +174,8 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Null(settings.WindowLayout);
         Assert.Equal(AiSettings.Default, settings.AiSettings);
         Assert.True(settings.ShowScrollBars);
+        Assert.True(settings.ShowSidebarListBackground);
+        Assert.True(settings.ShowSidebarListBorder);
     }
 
     [Fact]
@@ -222,7 +254,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
             "Nord",
             true,
             true,
-            new WindowLayout(1200, 800, 50, 60, true, 320, false, true, 840),
+            new WindowLayout(1200, 800, 50, 60, true, 320, false, true, 840, null, null, ["luxoft", "luxoft/template"]),
             ai));
 
         var asyncSettings = await _service.GetSettingsAsync();
@@ -232,6 +264,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.True(syncSettings.ShowYamlFrontMatterInEditor);
         Assert.True(syncSettings.WindowLayout?.SidebarCalendarExpanded);
         Assert.Equal(840, syncSettings.WindowLayout?.EditorCanvasWidth);
+        Assert.Equal(["luxoft", "luxoft/template"], syncSettings.WindowLayout?.SidebarExpandedTagPaths);
     }
 
     [Fact]

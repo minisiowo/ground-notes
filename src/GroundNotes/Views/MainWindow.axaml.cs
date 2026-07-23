@@ -300,6 +300,7 @@ public partial class MainWindow : Window
         if (DataContext is MainViewModel viewModel)
         {
             viewModel.IsCalendarExpanded = layout.SidebarCalendarExpanded == true;
+            viewModel.RestoreSidebarTreeExpansion(layout.SidebarExpandedTagPaths);
         }
 
         if (layout.IsMaximized)
@@ -391,7 +392,8 @@ public partial class MainWindow : Window
             isCalendarExpanded,
             _editorCanvasPreferredWidth,
             _paneSplitWeights.Count == 2 ? _paneSplitWeights.ToList() : null,
-            _multiPaneEqualizedPaneWidth);
+            _multiPaneEqualizedPaneWidth,
+            vm?.ExpandedSidebarTagPaths);
     }
 
     private double? _lastNormalWidth;
@@ -1910,7 +1912,9 @@ public partial class MainWindow : Window
         var filePath = vm.ActiveSecondaryPane?.CurrentNote?.FilePath ?? vm.CurrentNote?.FilePath;
         var selectedItem = string.IsNullOrWhiteSpace(filePath)
             ? null
-            : vm.VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+            : vm.VisibleSidebarRows.FirstOrDefault(row =>
+                row.Note is not null
+                && string.Equals(row.Note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
         NotesListBox.SelectedItem = selectedItem;
     }
 
@@ -2005,7 +2009,7 @@ public partial class MainWindow : Window
 
     private async void OnNoteListItemPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Border { DataContext: NoteListItemViewModel noteItem } border
+        if (sender is not Border { DataContext: SidebarTreeRowViewModel { Note: { } noteItem } } border
             || DataContext is not MainViewModel vm)
         {
             return;
@@ -2034,6 +2038,71 @@ public partial class MainWindow : Window
 
         await vm.OpenNoteInSplitCommand.ExecuteAsync(noteItem);
         e.Handled = true;
+    }
+
+    private async void OnSidebarTreeKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (DataContext is not MainViewModel vm || vm.SelectedSidebarRow is not { } row)
+        {
+            return;
+        }
+
+        if (row.IsFolder && e.Key is Key.Enter or Key.Right or Key.Left)
+        {
+            if (e.Key == Key.Enter
+                || (e.Key == Key.Right && !row.IsExpanded)
+                || (e.Key == Key.Left && row.IsExpanded))
+            {
+                row.ToggleExpandedCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Left)
+            {
+                SelectSidebarParentRow(vm, row);
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (e.Key == Key.Left && row.IsNote)
+        {
+            SelectSidebarParentRow(vm, row);
+            e.Handled = true;
+            return;
+        }
+
+        if (!row.IsNote || row.Note is null || e.Key != Key.Enter)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))
+        {
+            await vm.OpenNoteInSplitCommand.ExecuteAsync(row.Note);
+            return;
+        }
+
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(row.Note);
+    }
+
+    private void SelectSidebarParentRow(MainViewModel vm, SidebarTreeRowViewModel row)
+    {
+        var index = vm.VisibleSidebarRows.IndexOf(row);
+        for (var candidateIndex = index - 1; candidateIndex >= 0; candidateIndex--)
+        {
+            var candidate = vm.VisibleSidebarRows[candidateIndex];
+            if (candidate.IsFolder && candidate.Depth == row.Depth - 1)
+            {
+                vm.SelectedSidebarRow = candidate;
+                NotesListBox.SelectedItem = candidate;
+                NotesListBox.ScrollIntoView(candidate);
+                return;
+            }
+        }
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -3339,7 +3408,9 @@ public partial class MainWindow : Window
 
     private async void OnRenameTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
-        if (DataContext is not MainViewModel vm || sender is not TextBox textBox || textBox.DataContext is not NoteListItemViewModel noteItem)
+        if (DataContext is not MainViewModel vm
+            || sender is not TextBox textBox
+            || GetSidebarNoteItem(textBox.DataContext) is not { } noteItem)
         {
             return;
         }
@@ -3360,12 +3431,24 @@ public partial class MainWindow : Window
 
     private async void OnRenameTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainViewModel vm || sender is not TextBox textBox || textBox.DataContext is not NoteListItemViewModel noteItem || !noteItem.IsRenaming)
+        if (DataContext is not MainViewModel vm
+            || sender is not TextBox textBox
+            || GetSidebarNoteItem(textBox.DataContext) is not { IsRenaming: true } noteItem)
         {
             return;
         }
 
         await vm.CommitRenameAsync(noteItem);
+    }
+
+    private static NoteListItemViewModel? GetSidebarNoteItem(object? dataContext)
+    {
+        return dataContext switch
+        {
+            NoteListItemViewModel note => note,
+            SidebarTreeRowViewModel row => row.Note,
+            _ => null
+        };
     }
 
     private async void OnTitleSuggestionsContextTextBoxKeyDown(object? sender, KeyEventArgs e)

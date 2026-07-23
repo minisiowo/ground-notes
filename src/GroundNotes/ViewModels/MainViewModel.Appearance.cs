@@ -25,7 +25,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
-    partial void OnSelectedSidebarFontFamilyNameChanged(string value)
+
+
+    partial void OnSelectedUiFontFamilyNameChanged(string value)
     {
         if (_isApplyingSelection)
         {
@@ -38,26 +40,26 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var variant = ResolveFontVariant(fontFamily, SelectedSidebarFontVariantName)
+        var variant = ResolveFontVariant(fontFamily, SelectedUiFontVariantName)
             ?? GetDefaultFontVariant(fontFamily);
-        ApplySidebarFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+        ApplyUiFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
     }
 
-    partial void OnSelectedSidebarFontVariantNameChanged(string value)
+    partial void OnSelectedUiFontVariantNameChanged(string value)
     {
         if (_isApplyingSelection)
         {
             return;
         }
 
-        var fontFamily = GetFontFamilyByDisplayName(SelectedSidebarFontFamilyName);
+        var fontFamily = GetFontFamilyByDisplayName(SelectedUiFontFamilyName);
         var variant = fontFamily is null ? null : ResolveFontVariant(fontFamily, value);
         if (fontFamily is null || variant is null)
         {
             return;
         }
 
-        ApplySidebarFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
+        ApplyUiFontSelection(fontFamily, variant, persist: true, updateFamilyName: false);
     }
 
     partial void OnSelectedFontFamilyNameChanged(string value)
@@ -190,16 +192,18 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         });
     }
 
-    private async Task PersistSidebarFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
+
+
+    private async Task PersistUiFontSelectionAsync(string fontFamilyKey, string fontVariantKey)
     {
         await PersistSettingsAsync(settings => settings with
         {
-            SidebarFontName = fontFamilyKey,
-            SidebarFontVariantName = fontVariantKey
+            UiFontName = fontFamilyKey,
+            UiFontVariantName = fontVariantKey
         });
     }
 
-    private void ApplySidebarFontSelection(
+    private void ApplyUiFontSelection(
         BundledFontFamilyOption fontFamily,
         BundledFontVariantOption variant,
         bool persist,
@@ -209,16 +213,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _isApplyingSelection = true;
         try
         {
-            SidebarFontVariantNames = fontFamily.StandardVariants.Select(v => v.DisplayName).ToList();
+            UiFontVariantNames = fontFamily.StandardVariants.Select(v => v.DisplayName).ToList();
 
             if (updateFamilyName)
             {
-                SelectedSidebarFontFamilyName = fontFamily.DisplayName;
+                SelectedUiFontFamilyName = fontFamily.DisplayName;
             }
 
             if (updateVariantName)
             {
-                SelectedSidebarFontVariantName = variant.DisplayName;
+                SelectedUiFontVariantName = variant.DisplayName;
             }
         }
         finally
@@ -226,11 +230,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _isApplyingSelection = false;
         }
 
-        _appearanceService.ApplySidebarFont(fontFamily, variant);
+        _appearanceService.ApplyUiFont(fontFamily, variant);
 
         if (persist)
         {
-            _ = PersistSidebarFontSelectionAsync(fontFamily.Key, variant.Key);
+            _ = PersistUiFontSelectionAsync(fontFamily.Key, variant.Key);
         }
     }
 
@@ -281,6 +285,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     partial void OnUiFontSizeChanged(double value)
     {
         _appearanceService.ApplyUiFontSize(value);
+    }
+
+    partial void OnFileListFontSizeChanged(double value)
+    {
+        _appearanceService.ApplyFileListFontSize(value);
     }
 
     partial void OnEditorIndentSizeChanged(int value)

@@ -9,6 +9,7 @@
     <FontFamily x:Key="SidebarFont">Segoe UI, Ubuntu, Cantarell, sans-serif</FontFamily>
     <FontWeight x:Key="SidebarFontWeight">Normal</FontWeight>
     <FontStyle x:Key="SidebarFontStyle">Normal</FontStyle>
+    <x:Double x:Key="FileListFontSize">11</x:Double>
     <FontFamily x:Key="CodeFont">Cascadia Code, Consolas, DejaVu Sans Mono, monospace</FontFamily>
     <FontWeight x:Key="CodeFontWeight">Normal</FontWeight>
     <FontStyle x:Key="CodeFontStyle">Normal</FontStyle>
@@ -135,45 +136,20 @@
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
   </Style>
 
-  <Style Selector="CheckBox.tagFilterMutedControl">
-    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
-  </Style>
 
-  <Style Selector="Button.tagFilterMutedControl">
+  <Style Selector="Button.sidebarMutedControl">
     <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
     <Setter Property="Padding" Value="4,2" />
     <Setter Property="MinHeight" Value="22" />
     <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
   </Style>
 
-  <Style Selector="Button.tagFilterMutedControl /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="Button.sidebarMutedControl /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
   </Style>
 
-  <Style Selector="Border.tagFilterBadge">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="1" />
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="Width" Value="16" />
-    <Setter Property="Height" Value="16" />
-    <Setter Property="HorizontalAlignment" Value="Center" />
-    <Setter Property="VerticalAlignment" Value="Center" />
-  </Style>
 
-  <Style Selector="TextBlock.tagFilterBadgeText">
-    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
-    <Setter Property="FontSize" Value="9" />
-    <Setter Property="Width" Value="16" />
-    <Setter Property="Height" Value="16" />
-    <Setter Property="HorizontalAlignment" Value="Center" />
-    <Setter Property="VerticalAlignment" Value="Center" />
-    <Setter Property="TextAlignment" Value="Center" />
-    <Setter Property="LineHeight" Value="16" />
-  </Style>
-
-  <Style Selector="TextBlock.tagFilterChevron">
+  <Style Selector="TextBlock.sidebarModuleChevron">
     <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
     <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
     <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
@@ -181,97 +157,6 @@
     <Setter Property="FontSize" Value="10" />
   </Style>
 
-  <Style Selector="ToggleButton.tagFilterChip">
-    <Setter Property="Padding" Value="6,1" />
-    <Setter Property="MinHeight" Value="18" />
-    <Setter Property="CornerRadius" Value="999" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
-    <Setter Property="FontSize" Value="10" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterChip /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
-    <Setter Property="BorderThickness" Value="1" />
-    <Setter Property="CornerRadius" Value="999" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterChip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterChip:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource SurfacePressedBrush}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterRow">
-    <Setter Property="Padding" Value="2,0" />
-    <Setter Property="MinHeight" Value="14" />
-    <Setter Property="FontSize" Value="9" />
-    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterRow /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="CornerRadius" Value="1" />
-    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#20FFFFFF" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterRow:checked /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#12FFFFFF" />
-  </Style>
-
-  <Style Selector="ToggleButton.tagFilterRow.tagFilterParent">
-    <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-  </Style>
-
-  <Style Selector="Button.tagFilterExpand">
-    <Setter Property="Padding" Value="0" />
-    <Setter Property="MinWidth" Value="14" />
-    <Setter Property="Width" Value="14" />
-    <Setter Property="MinHeight" Value="14" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
-    <Setter Property="FontFamily" Value="{DynamicResource SidebarFont}" />
-    <Setter Property="FontWeight" Value="Normal" />
-    <Setter Property="FontStyle" Value="Normal" />
-    <Setter Property="FontSize" Value="9" />
-    <Setter Property="HorizontalContentAlignment" Value="Center" />
-    <Setter Property="VerticalContentAlignment" Value="Center" />
-  </Style>
-
-  <Style Selector="Button.tagFilterExpand /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="Transparent" />
-    <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
-    <Setter Property="Padding" Value="0" />
-  </Style>
-
-  <Style Selector="Button.tagFilterExpand:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
-  </Style>
-
-  <Style Selector="TextBlock.tagFilterCountText">
-    <Setter Property="Foreground" Value="{DynamicResource PlaceholderTextBrush}" />
-    <Setter Property="FontSize" Value="9" />
-    <Setter Property="TextAlignment" Value="Right" />
-    <Setter Property="Margin" Value="0" />
-  </Style>
 
   <Style Selector="Button.titleBarButton">
     <Setter Property="Background" Value="{DynamicResource PaneBackgroundBrush}" />
@@ -1131,6 +1016,59 @@
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
   </Style>
 
+  <Style Selector="Border.sidebarNotesContainer">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="1" />
+    <Setter Property="Padding" Value="4" />
+  </Style>
+
+  <Style Selector="Border.sidebarNotesContainer.backgroundVisible">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+  </Style>
+
+  <Style Selector="Border.sidebarNotesContainer.borderVisible">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
+  <Style Selector="Button.sidebarTreeFolderRow">
+    <Setter Property="MinHeight" Value="24" />
+    <Setter Property="Padding" Value="4,2" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Button.sidebarTreeFolderRow /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Button.sidebarTreeFolderRow:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+  </Style>
+
+  <Style Selector="TextBlock.sidebarTreeChevron">
+    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="TextAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="TextBlock.sidebarTreeFolderText">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    <Setter Property="FontSize" Value="{DynamicResource FileListFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarTreeNoteRow">
+    <Setter Property="MinHeight" Value="24" />
+  </Style>
+
   <Style Selector="TextBlock.pickerMetaText">
     <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
     <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
@@ -1218,6 +1156,40 @@
 
   <Style Selector="ListBoxItem:selected TextBlock.pickerPreviewText">
     <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.sidebarSurface TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarSurface Button">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarSurface TextBox">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarSurface ComboBox">
+    <Setter Property="FontSize" Value="{DynamicResource AppFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarNotesContainer TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource FileListFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarNotesContainer Button">
+    <Setter Property="FontSize" Value="{DynamicResource FileListFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarNotesContainer TextBox">
+    <Setter Property="FontSize" Value="{DynamicResource FileListFontSize}" />
+  </Style>
+
+  <Style Selector="Border.sidebarTreeNoteRow TextBlock.fileRowText,
+                   Border.sidebarTreeNoteRow.active TextBlock.fileRowText,
+                   ListBoxItem:selected Border.sidebarTreeNoteRow TextBlock.fileRowText">
+    <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
   </Style>
 
   <!-- ══ ScrollBar ═══════════════════════════════════════════ -->

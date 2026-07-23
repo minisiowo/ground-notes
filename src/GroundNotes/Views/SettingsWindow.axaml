@@ -51,13 +51,103 @@
                 </Grid>
               </Border>
 
+
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Show scrollbars" />
+                    <TextBlock Classes="settingsDescription" Text="Lists and editors. When off, scroll with the mouse wheel or trackpad." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding ShowScrollBars}" />
+                </Grid>
+              </Border>
+            </StackPanel>
+
+            <!-- Interface Section -->
+            <StackPanel Spacing="4">
+              <TextBlock Classes="settingsHeader" Text="Interface" />
+
+
+
+
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="UI Font" />
+                    <TextBlock Classes="settingsDescription" Text="Font used by menus, controls, sidebar, and file names." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedUiFontFamilyName}" />
+                  <ComboBox Grid.Column="2" Width="140" Margin="8,0,0,0" ItemsSource="{Binding UiFontVariantNames}" SelectedItem="{Binding SelectedUiFontVariantName}" />
+                </Grid>
+              </Border>
+
               <Border Classes="settingsCard">
                 <Grid ColumnDefinitions="*, Auto">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="UI Font Size" />
-                    <TextBlock Classes="settingsDescription" Text="Scaling for menus and sidebar." />
+                    <TextBlock Classes="settingsDescription" Text="Text size used throughout the interface." />
                   </StackPanel>
                   <ComboBox Grid.Column="1" x:Name="UiFontSizeComboBox" Width="140" ItemsSource="{Binding UiFontSizes}" SelectedItem="{Binding SelectedUiFontSize}" />
+                </Grid>
+              </Border>
+            </StackPanel>
+
+            <!-- File List Section -->
+            <StackPanel Spacing="4">
+              <TextBlock Classes="settingsHeader" Text="File List" />
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="File List Font Size" />
+                    <TextBlock Classes="settingsDescription" Text="Text size used only in the file list." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding FileListFontSizes}" SelectedItem="{Binding SelectedFileListFontSize}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Sidebar List Background" />
+                    <TextBlock Classes="settingsDescription" Text="Use a theme-matched surface behind the notes list." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding ShowSidebarListBackground}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Sidebar List Border" />
+                    <TextBlock Classes="settingsDescription" Text="Draw a subtle border around the notes list." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding ShowSidebarListBorder}" />
+                </Grid>
+              </Border>
+
+            </StackPanel>
+
+            <!-- Editor Section -->
+            <StackPanel Spacing="4">
+              <TextBlock Classes="settingsHeader" Text="Editor" />
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Editor Font" />
+                    <TextBlock Classes="settingsDescription" Text="Font used by the main markdown editor." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1" x:Name="FontFamilyComboBox" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedFontFamilyName}" />
+                  <ComboBox Grid.Column="2" x:Name="FontVariantComboBox" Width="140" Margin="8,0,0,0" ItemsSource="{Binding FontVariantNames}" SelectedItem="{Binding SelectedFontVariantName}" />
                 </Grid>
               </Border>
 
@@ -65,7 +155,7 @@
                 <Grid ColumnDefinitions="*, Auto">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Editor Font Size" />
-                    <TextBlock Classes="settingsDescription" Text="Size for the markdown text editor." />
+                    <TextBlock Classes="settingsDescription" Text="Text size used by the main markdown editor." />
                   </StackPanel>
                   <ComboBox Grid.Column="1" x:Name="EditorFontSizeComboBox" Width="140" ItemsSource="{Binding EditorFontSizes}" SelectedItem="{Binding SelectedEditorFontSize}" />
                 </Grid>
@@ -90,45 +180,11 @@
                   <ComboBox Grid.Column="1" Width="140" ItemsSource="{Binding LineHeights}" SelectedItem="{Binding SelectedLineHeight}" />
                 </Grid>
               </Border>
-
-              <Border Classes="settingsCard">
-                <Grid ColumnDefinitions="*,Auto">
-                  <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Classes="settingsLabel" Text="Show scrollbars" />
-                    <TextBlock Classes="settingsDescription" Text="Lists and editors. When off, scroll with the mouse wheel or trackpad." />
-                  </StackPanel>
-                  <ToggleSwitch Grid.Column="1"
-                                VerticalAlignment="Center"
-                                IsChecked="{Binding ShowScrollBars}" />
-                </Grid>
-              </Border>
             </StackPanel>
 
-            <!-- Typography Section -->
+            <!-- Code Blocks Section -->
             <StackPanel Spacing="4">
-              <TextBlock Classes="settingsHeader" Text="Typography" />
-
-              <Border Classes="settingsCard">
-                <Grid ColumnDefinitions="*, Auto, Auto">
-                  <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Classes="settingsLabel" Text="Sidebar Font" />
-                    <TextBlock Classes="settingsDescription" Text="Font used in the notes list." />
-                  </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="SidebarFontFamilyComboBox" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedSidebarFontFamilyName}" />
-                  <ComboBox Grid.Column="2" x:Name="SidebarFontVariantComboBox" Width="140" Margin="8,0,0,0" ItemsSource="{Binding SidebarFontVariantNames}" SelectedItem="{Binding SelectedSidebarFontVariantName}" />
-                </Grid>
-              </Border>
-
-              <Border Classes="settingsCard">
-                <Grid ColumnDefinitions="*, Auto, Auto">
-                  <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Classes="settingsLabel" Text="Editor Font" />
-                    <TextBlock Classes="settingsDescription" Text="Main writing font." />
-                  </StackPanel>
-                  <ComboBox Grid.Column="1" x:Name="FontFamilyComboBox" Width="180" Margin="12,0,0,0" ItemsSource="{Binding FontFamilies}" SelectedItem="{Binding SelectedFontFamilyName}" />
-                  <ComboBox Grid.Column="2" x:Name="FontVariantComboBox" Width="140" Margin="8,0,0,0" ItemsSource="{Binding FontVariantNames}" SelectedItem="{Binding SelectedFontVariantName}" />
-                </Grid>
-              </Border>
+              <TextBlock Classes="settingsHeader" Text="Code Blocks" />
 
               <Border Classes="settingsCard">
                 <Grid ColumnDefinitions="*, Auto, Auto">

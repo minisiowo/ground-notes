@@ -22,6 +22,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         FontFamilies = model.FontFamilies.Select(font => font.DisplayName).ToList();
         EditorFontSizes = Enumerable.Range(10, 15).Select(static size => size.ToString()).ToList();
         UiFontSizes = Enumerable.Range(10, 11).Select(static size => size.ToString()).ToList();
+        FileListFontSizes = Enumerable.Range(8, 11).Select(static size => size.ToString()).ToList();
         IndentSizes = EditorDisplaySettings.SupportedIndentSizes
             .Select(static size => size.ToString(CultureInfo.InvariantCulture))
             .ToList();
@@ -56,14 +57,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _appliedKeyboardShortcuts = BuildAppliedKeyboardShortcutSettings();
 
         SelectedThemeName = model.SelectedThemeName;
-        SelectedSidebarFontFamilyName = model.SelectedSidebarFontFamilyName;
-        UpdateSidebarVariantNames(model.SelectedSidebarFontVariantName);
+        SelectedUiFontFamilyName = model.SelectedUiFontFamilyName;
+        UpdateUiVariantNames(model.SelectedUiFontVariantName);
         SelectedFontFamilyName = model.SelectedFontFamilyName;
         UpdateFontVariantNames(model.SelectedFontVariantName);
         SelectedCodeFontFamilyName = model.SelectedCodeFontFamilyName;
         UpdateCodeFontVariantNames(model.SelectedCodeFontVariantName);
         SelectedEditorFontSize = Math.Round(model.EditorFontSize).ToString("0");
         SelectedUiFontSize = Math.Round(model.UiFontSize).ToString("0");
+        SelectedFileListFontSize = Math.Round(model.FileListFontSize).ToString("0");
+        ShowSidebarListBackground = model.ShowSidebarListBackground;
+        ShowSidebarListBorder = model.ShowSidebarListBorder;
         SelectedIndentSize = EditorDisplaySettings.NormalizeIndentSize(model.EditorIndentSize).ToString(CultureInfo.InvariantCulture);
         SelectedLineHeight = EditorDisplaySettings.FormatLineHeight(model.EditorLineHeightFactor);
         ShowScrollBars = model.ShowScrollBars;
@@ -87,6 +91,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     public IReadOnlyList<string> UiFontSizes { get; }
 
+    public IReadOnlyList<string> FileListFontSizes { get; }
+
     public IReadOnlyList<string> IndentSizes { get; }
 
     public IReadOnlyList<string> LineHeights { get; }
@@ -104,14 +110,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     private string _selectedThemeName = string.Empty;
 
-    [ObservableProperty]
-    private string _selectedSidebarFontFamilyName = string.Empty;
+
 
     [ObservableProperty]
-    private string _selectedSidebarFontVariantName = string.Empty;
+    private string _selectedUiFontFamilyName = string.Empty;
 
     [ObservableProperty]
-    private IReadOnlyList<string> _sidebarFontVariantNames = [];
+    private string _selectedUiFontVariantName = string.Empty;
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _uiFontVariantNames = [];
 
     [ObservableProperty]
     private string _selectedFontFamilyName = string.Empty;
@@ -136,6 +144,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _selectedUiFontSize = "12";
+
+    [ObservableProperty]
+    private string _selectedFileListFontSize = "11";
+
+    [ObservableProperty]
+    private bool _showSidebarListBackground = true;
+
+    [ObservableProperty]
+    private bool _showSidebarListBorder = true;
 
     [ObservableProperty]
     private string _selectedIndentSize = EditorDisplaySettings.DefaultIndentSize.ToString(CultureInfo.InvariantCulture);
@@ -203,14 +220,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ThemeNames,
             _fontFamilies,
             SelectedThemeName,
-            SelectedSidebarFontFamilyName,
-            SelectedSidebarFontVariantName,
+            SelectedUiFontFamilyName,
+            SelectedUiFontVariantName,
             SelectedFontFamilyName,
             SelectedFontVariantName,
             SelectedCodeFontFamilyName,
             SelectedCodeFontVariantName,
             ParseSize(SelectedEditorFontSize, 12),
             ParseSize(SelectedUiFontSize, 12),
+            ParseSize(SelectedFileListFontSize, 11),
+            ShowSidebarListBackground,
+            ShowSidebarListBorder,
             ParseIndentSize(SelectedIndentSize),
             ParseLineHeight(SelectedLineHeight),
             ShowScrollBars,
@@ -227,13 +247,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     partial void OnSelectedThemeNameChanged(string value) => RaisePreviewRequested();
 
-    partial void OnSelectedSidebarFontFamilyNameChanged(string value)
+
+
+    partial void OnSelectedUiFontFamilyNameChanged(string value)
     {
-        UpdateSidebarVariantNames(null);
+        UpdateUiVariantNames(null);
         RaisePreviewRequested();
     }
 
-    partial void OnSelectedSidebarFontVariantNameChanged(string value) => RaisePreviewRequested();
+    partial void OnSelectedUiFontVariantNameChanged(string value) => RaisePreviewRequested();
 
     partial void OnSelectedFontFamilyNameChanged(string value)
     {
@@ -254,6 +276,12 @@ public sealed partial class SettingsViewModel : ViewModelBase
     partial void OnSelectedEditorFontSizeChanged(string value) => RaisePreviewRequested();
 
     partial void OnSelectedUiFontSizeChanged(string value) => RaisePreviewRequested();
+
+    partial void OnSelectedFileListFontSizeChanged(string value) => RaisePreviewRequested();
+
+    partial void OnShowSidebarListBackgroundChanged(bool value) => RaisePreviewRequested();
+
+    partial void OnShowSidebarListBorderChanged(bool value) => RaisePreviewRequested();
 
     partial void OnSelectedIndentSizeChanged(string value) => RaisePreviewRequested();
 
@@ -550,11 +578,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         return models;
     }
 
-    private void UpdateSidebarVariantNames(string? preferredVariant)
+
+
+    private void UpdateUiVariantNames(string? preferredVariant)
     {
-        var variants = GetVariants(SelectedSidebarFontFamilyName);
-        SidebarFontVariantNames = variants;
-        SelectedSidebarFontVariantName = ResolveVariantSelection(variants, preferredVariant ?? SelectedSidebarFontVariantName);
+        var variants = GetVariants(SelectedUiFontFamilyName);
+        UiFontVariantNames = variants;
+        SelectedUiFontVariantName = ResolveVariantSelection(variants, preferredVariant ?? SelectedUiFontVariantName);
     }
 
     private void UpdateFontVariantNames(string? preferredVariant)

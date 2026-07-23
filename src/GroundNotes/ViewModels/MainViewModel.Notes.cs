@@ -520,7 +520,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try
         {
             var currentItems = VisibleNotes.ToDictionary(note => note.FilePath, StringComparer.OrdinalIgnoreCase);
-            var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, SelectedTags, MatchAllSelectedTags, SelectedCalendarDate, SelectedSortOption);
+            var nextNotes = _notesRepository.QueryNotes(_allNotes, SearchText, SelectedCalendarDate, SelectedSortOption);
             var nextItems = nextNotes.Select(note =>
             {
                 if (!currentItems.TryGetValue(note.FilePath, out var existing))
@@ -528,11 +528,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     return new NoteListItemViewModel(note);
                 }
 
-                if (!string.Equals(existing.DisplayName, note.DisplayName, StringComparison.Ordinal))
-                {
-                    existing.RenameText = note.DisplayName;
-                }
-
+                existing.UpdateSummary(note);
                 return existing;
             });
 
@@ -595,117 +591,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshAvailableTags()
     {
-        var selectedTags = SelectedTags.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var tagCounts = _allNotes
-            .SelectMany(note => TagHierarchyHelper.ExpandWithAncestors(note.Tags)
-                .Distinct(StringComparer.OrdinalIgnoreCase))
-            .GroupBy(tag => tag, StringComparer.OrdinalIgnoreCase)
-            .Select(group => new
-            {
-                Tag = group.First(),
-                Count = group.Count()
-            })
-            .OrderByDescending(item => selectedTags.Contains(item.Tag))
-            .ThenByDescending(item => item.Count)
-            .ThenBy(item => item.Tag, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        AvailableTags = new ObservableCollection<string>(tagCounts.Select(item => item.Tag));
-        _allTagFilters = tagCounts
-            .Select(item => new TagFilterItemViewModel(item.Tag, item.Count, selectedTags.Contains(item.Tag), OnTagFilterSelectionChanged))
-            .ToList();
-        RefreshAvailableTagFiltersView();
-
-        OnPropertyChanged(nameof(SelectedTags));
-        OnPropertyChanged(nameof(SelectedTagFilters));
-        OnPropertyChanged(nameof(HasSelectedTagFilters));
-        OnPropertyChanged(nameof(ShowSelectedTagFilters));
-        OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
-        OnPropertyChanged(nameof(HasActiveTagFilter));
-        OnPropertyChanged(nameof(HasTagFilterSearchResults));
-        OnPropertyChanged(nameof(HasVisibleTagFilterTree));
-        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
-        OnPropertyChanged(nameof(TagFilterTriggerText));
-        OnPropertyChanged(nameof(TagFilterTriggerBadgeText));
-        OnPropertyChanged(nameof(ShowTagFilterTriggerBadge));
-    }
-
-    private void RefreshAvailableTagFiltersView()
-    {
-        var filteredTags = string.IsNullOrWhiteSpace(TagFilterSearchText)
-            ? _allTagFilters
-            : _allTagFilters
-                .Where(tag => tag.Tag.Contains(TagFilterSearchText, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-        AvailableTagFilters = new ObservableCollection<TagFilterItemViewModel>(filteredTags);
-        OnPropertyChanged(nameof(HasTagFilterSearchResults));
-        RefreshVisibleTagFilterTree();
-        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
-    }
-
-    private void RefreshVisibleTagFilterTree()
-    {
-        VisibleTagFilterTree = new ObservableCollection<TagFilterTreeItemViewModel>(BuildVisibleTagFilterTree());
-    }
-
-    private IReadOnlyList<TagFilterTreeItemViewModel> BuildVisibleTagFilterTree()
-    {
-        const string RootTag = "\0";
-
-        var searchText = TagFilterSearchText.Trim();
-        var hasSearchText = searchText.Length > 0;
-        var nodesByParent = _allTagFilters
-            .GroupBy(tag => TagHierarchyHelper.GetParentTag(tag.Tag) ?? RootTag, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(
-                group => group.Key,
-                group => group
-                    .OrderBy(tag => TagHierarchyHelper.GetLeafName(tag.Tag), StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
-                    .ToList(),
-                StringComparer.OrdinalIgnoreCase);
-
-        return BuildNodes(parentTag: RootTag, depth: 0);
-
-        List<TagFilterTreeItemViewModel> BuildNodes(string parentTag, int depth)
-        {
-            if (!nodesByParent.TryGetValue(parentTag, out var childFilters))
-            {
-                return [];
-            }
-
-            var visibleNodes = new List<TagFilterTreeItemViewModel>();
-            foreach (var childFilter in childFilters)
-            {
-                var childNodes = BuildNodes(childFilter.Tag, depth + 1);
-                var isDirectMatch = !hasSearchText || childFilter.Tag.Contains(searchText, StringComparison.OrdinalIgnoreCase);
-                if (!isDirectMatch && childNodes.Count == 0)
-                {
-                    continue;
-                }
-
-                var isExpanded = hasSearchText
-                    ? childNodes.Count > 0
-                    : _tagFilterExpansionStates.TryGetValue(childFilter.Tag, out var expanded)
-                        ? expanded
-                        : string.Equals(parentTag, RootTag, StringComparison.Ordinal);
-
-                visibleNodes.Add(new TagFilterTreeItemViewModel(
-                    childFilter,
-                    TagHierarchyHelper.GetLeafName(childFilter.Tag),
-                    childNodes,
-                    depth,
-                    isExpanded,
-                    OnTagFilterTreeExpansionChanged));
-            }
-
-            return visibleNodes;
-        }
-    }
-
-    private void OnTagFilterTreeExpansionChanged(string tag, bool isExpanded)
-    {
-        _tagFilterExpansionStates[tag] = isExpanded;
+        AvailableTags = new ObservableCollection<string>(_allNotes
+            .SelectMany(note => TagHierarchyHelper.ExpandWithAncestors(note.Tags))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase));
     }
 
     private void ReplaceSummary(string previousPath, NoteSummary summary)
@@ -1346,6 +1235,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         RefreshAvailableTags();
         RefreshVisibleNotes();
+        RefreshCalendarNoteDates();
         RefreshCalendarDays();
 
         if (refreshFallback)

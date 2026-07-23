@@ -80,18 +80,7 @@ internal static class TagHierarchyHelper
         return expanded;
     }
 
-    public static bool MatchesSelection(IEnumerable<string> noteTags, string selectedTag)
-    {
-        ArgumentNullException.ThrowIfNull(noteTags);
 
-        var normalizedSelectedTag = TryNormalize(selectedTag);
-        if (normalizedSelectedTag is null)
-        {
-            return false;
-        }
-
-        return ExpandWithAncestors(noteTags).Contains(normalizedSelectedTag, StringComparer.OrdinalIgnoreCase);
-    }
 
     public static string? GetParentTag(string tag)
     {

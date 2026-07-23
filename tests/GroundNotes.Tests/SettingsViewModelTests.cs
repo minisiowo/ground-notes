@@ -229,6 +229,26 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void BuildModel_ParsesUiAndFileListAppearanceSettings()
+    {
+        var vm = new SettingsViewModel(CreateModel())
+        {
+            SelectedFileListFontSize = "10",
+            ShowSidebarListBackground = false,
+            ShowSidebarListBorder = true
+        };
+
+        var model = vm.BuildModel();
+
+        Assert.Equal(10, model.FileListFontSize);
+        Assert.Equal("Beta Sans", model.SelectedUiFontFamilyName);
+        Assert.Equal("Bold", model.SelectedUiFontVariantName);
+        Assert.False(model.ShowSidebarListBackground);
+        Assert.True(model.ShowSidebarListBorder);
+        Assert.Equal(Enumerable.Range(8, 11).Select(size => size.ToString()), vm.FileListFontSizes);
+    }
+
+    [Fact]
     public void BuildModel_ParsesIndentSizeAndLineHeight()
     {
         var vm = new SettingsViewModel(CreateModel())
@@ -263,14 +283,17 @@ public sealed class SettingsViewModelTests
                     ])
             ],
             "Dark",
-            "Alpha Mono",
-            "Regular",
+            "Beta Sans",
+            "Bold",
             "Alpha Mono",
             "Regular",
             "Alpha Mono",
             "Regular",
             12,
             12,
+            9,
+            true,
+            true,
             4,
             1.15,
             true,

@@ -8,6 +8,9 @@ public sealed class StartupStateService : IStartupStateService
     private const double DefaultUiFontSize = 12;
     private const double MinUiFontSize = 10;
     private const double MaxUiFontSize = 20;
+    private const double DefaultFileListFontSize = 11;
+    private const double MinFileListFontSize = 8;
+    private const double MaxFileListFontSize = 18;
 
     private readonly ISettingsService _settingsService;
     private readonly IFontCatalogService _fontCatalogService;
@@ -24,10 +27,18 @@ public sealed class StartupStateService : IStartupStateService
         var fonts = _fontCatalogService.LoadBundledFonts();
         var theme = ResolveTheme(settings.ThemeName) ?? AppTheme.Dark;
         var uiFontSize = Math.Clamp(settings.UiFontSize ?? DefaultUiFontSize, MinUiFontSize, MaxUiFontSize);
+        var fileListFontSize = Math.Clamp(
+            settings.FileListFontSize ?? settings.SidebarFontSize ?? DefaultFileListFontSize,
+            MinFileListFontSize,
+            MaxFileListFontSize);
 
         var defaultFontFamily = ResolveFontFamilyByKey(fonts, FontCatalogService.DefaultFontKey) ?? fonts[0];
+        var uiFontFamily = ResolveFontFamilyByKey(fonts, settings.UiFontName)
+            ?? ResolveFontFamilyByKey(fonts, settings.SidebarFontName)
+            ?? defaultFontFamily;
+        var uiFontVariantKey = settings.UiFontVariantName
+            ?? (settings.UiFontName is null ? settings.SidebarFontVariantName : null);
         var terminalFontFamily = ResolveFontFamilyByKey(fonts, settings.FontName) ?? defaultFontFamily;
-        var sidebarFontFamily = ResolveFontFamilyByKey(fonts, settings.SidebarFontName) ?? defaultFontFamily;
         var codeDefaultFamily = ResolveFontFamilyByKey(fonts, FontCatalogService.DefaultCodeFontKey)
             ?? ResolveFontFamilyByKey(fonts, FontCatalogService.DefaultFontKey)
             ?? fonts[0];
@@ -38,13 +49,14 @@ public sealed class StartupStateService : IStartupStateService
             settings.WindowLayout,
             theme,
             fonts,
+            uiFontFamily,
+            ResolveFontVariant(uiFontFamily, uiFontVariantKey),
             terminalFontFamily,
             ResolveFontVariant(terminalFontFamily, settings.FontVariantName),
-            sidebarFontFamily,
-            ResolveFontVariant(sidebarFontFamily, settings.SidebarFontVariantName),
             codeFontFamily,
             ResolveFontVariant(codeFontFamily, settings.CodeFontVariantName),
-            uiFontSize);
+            uiFontSize,
+            fileListFontSize);
     }
 
     private static BundledFontFamilyOption? ResolveFontFamilyByKey(IReadOnlyList<BundledFontFamilyOption> fonts, string? key)

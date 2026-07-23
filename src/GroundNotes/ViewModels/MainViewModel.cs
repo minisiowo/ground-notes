@@ -18,6 +18,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private const double DefaultUiFontSize = 12;
     private const double MinUiFontSize = 10;
     private const double MaxUiFontSize = 20;
+    private const double DefaultFileListFontSize = 11;
+    private const double MinFileListFontSize = 8;
+    private const double MaxFileListFontSize = 18;
     private const int DefaultEditorIndentSize = EditorDisplaySettings.DefaultIndentSize;
     private const double DefaultEditorLineHeightFactor = EditorDisplaySettings.DefaultLineHeightFactor;
     private const int NotePickerResultLimitValue = 10;
@@ -40,7 +43,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly INoteSearchService _noteSearchService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private HashSet<DateTime> _calendarNoteDates = [];
-    private readonly Dictionary<string, bool> _tagFilterExpansionStates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, bool> _sidebarTreeExpansionStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Guid _mutationOriginId = Guid.NewGuid();
     private IReadOnlyList<AppTheme> _allThemes = AppTheme.BuiltInThemes;
     private IReadOnlyList<BundledFontFamilyOption> _allFonts =
@@ -57,10 +60,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _isSyncingSidebarSelectionFromActivePane;
     private bool _hasInvalidYamlFrontMatter;
     private DateTimeOffset _suppressWatcherUntil = DateTimeOffset.MinValue;
-    private List<TagFilterItemViewModel> _allTagFilters = [];
 
     [ObservableProperty]
     private ObservableCollection<NoteListItemViewModel> _visibleNotes = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasVisibleSidebarRows))]
+    private ObservableCollection<SidebarTreeRowViewModel> _visibleSidebarRows = [];
+
+    [ObservableProperty]
+    private SidebarTreeRowViewModel? _selectedSidebarRow;
 
     [ObservableProperty]
     private NoteSummary? _selectedNoteSummary;
@@ -103,26 +112,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private ObservableCollection<string> _availableTags = [];
-
-    [ObservableProperty]
-    private ObservableCollection<TagFilterItemViewModel> _availableTagFilters = [];
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasVisibleTagFilterTree))]
-    private ObservableCollection<TagFilterTreeItemViewModel> _visibleTagFilterTree = [];
-
-    [ObservableProperty]
-    private string _tagFilterSearchText = string.Empty;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TagFilterModeText))]
-    private bool _matchAllSelectedTags;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TagFilterPanelMaxHeight))]
-    [NotifyPropertyChangedFor(nameof(TagFilterPanelOpacity))]
-    [NotifyPropertyChangedFor(nameof(TagFilterTriggerText))]
-    private bool _isTagFilterExpanded;
 
     [ObservableProperty]
     private string _notesFolder = string.Empty;
@@ -172,6 +161,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private double _uiFontSize = DefaultUiFontSize;
 
     [ObservableProperty]
+    private double _fileListFontSize = DefaultFileListFontSize;
+
+    [ObservableProperty]
+    private bool _showSidebarListBackground = true;
+
+    [ObservableProperty]
+    private bool _showSidebarListBorder = true;
+
+    [ObservableProperty]
     private int _editorIndentSize = DefaultEditorIndentSize;
 
     [ObservableProperty]
@@ -183,14 +181,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private IReadOnlyList<string> _themeNames = AppTheme.BuiltInThemes.Select(t => t.Name).ToList();
 
-    [ObservableProperty]
-    private string _selectedSidebarFontFamilyName = "Iosevka Slab";
+
 
     [ObservableProperty]
-    private string _selectedSidebarFontVariantName = FontCatalogService.DefaultVariantKey;
+    private string _selectedUiFontFamilyName = "Iosevka Slab";
 
     [ObservableProperty]
-    private IReadOnlyList<string> _sidebarFontVariantNames = [FontCatalogService.DefaultVariantKey];
+    private string _selectedUiFontVariantName = FontCatalogService.DefaultVariantKey;
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _uiFontVariantNames = [FontCatalogService.DefaultVariantKey];
 
     [ObservableProperty]
     private string _selectedFontFamilyName = "Iosevka Slab";
@@ -497,6 +497,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
             SelectedNoteSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
             SelectedVisibleNote = VisibleNotes.FirstOrDefault(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+            SelectedSidebarRow = FindPreferredNoteRow(filePath);
         }
         finally
         {
@@ -513,6 +514,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             note.IsActive = !string.IsNullOrWhiteSpace(filePath)
                 && string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase);
             note.IsOpen = openFilePaths.Contains(note.FilePath);
+        }
+
+        if (_sidebarTree.Count > 0)
+        {
+            RefreshVisibleSidebarRows();
         }
     }
 
@@ -569,61 +575,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnSearchTextChanged(string value) => RefreshVisibleNotes();
 
-    partial void OnTagFilterSearchTextChanged(string value)
-    {
-        OnPropertyChanged(nameof(ShowSelectedTagFilters));
-        OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
-        OnPropertyChanged(nameof(HasTagFilterSearchResults));
-        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
-        RefreshAvailableTagFiltersView();
-    }
-
-    partial void OnMatchAllSelectedTagsChanged(bool value)
-    {
-        OnPropertyChanged(nameof(HasActiveTagFilter));
-        OnPropertyChanged(nameof(TagFilterTriggerText));
-        RefreshVisibleNotes();
-    }
-
-    public bool HasActiveTagFilter => SelectedTags.Count > 0;
-
-    public IReadOnlyList<TagFilterItemViewModel> SelectedTagFilters => _allTagFilters
-        .Where(tag => tag.IsSelected)
-        .OrderByDescending(tag => tag.NoteCount)
-        .ThenBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
-        .ToList();
-
-    public bool HasSelectedTagFilters => SelectedTagFilters.Count > 0;
-
-    public bool ShowSelectedTagFilters => HasSelectedTagFilters && string.IsNullOrWhiteSpace(TagFilterSearchText);
-
-    public bool ShowEmptySelectedTagHint => !HasSelectedTagFilters && string.IsNullOrWhiteSpace(TagFilterSearchText);
-
-    public bool HasTagFilterSearchResults => !string.IsNullOrWhiteSpace(TagFilterSearchText) && AvailableTagFilters.Count > 0;
-
-    public bool HasVisibleTagFilterTree => VisibleTagFilterTree.Count > 0;
-
-    public bool ShowEmptyTagFilterSearchHint => !string.IsNullOrWhiteSpace(TagFilterSearchText) && !HasVisibleTagFilterTree;
-
-    public IReadOnlyList<string> SelectedTags => _allTagFilters
-        .Where(tag => tag.IsSelected)
-        .Select(tag => tag.Tag)
-        .ToList();
-
-    public string TagFilterModeText => MatchAllSelectedTags ? "All" : "Any";
-
-    public double TagFilterPanelMaxHeight => IsTagFilterExpanded ? 248 : 0;
-
-    public double TagFilterPanelOpacity => IsTagFilterExpanded ? 1 : 0;
-
-    public string TagFilterTriggerText => "Tags";
-
-    public string TagFilterTriggerBadgeText => SelectedTags.Count > 0 ? SelectedTags.Count.ToString() : string.Empty;
-
-    public bool ShowTagFilterTriggerBadge => SelectedTags.Count > 0;
-
-    public string TagFilterTriggerChevron => IsTagFilterExpanded ? "v" : ">";
-
     partial void OnSelectedSortOptionChanged(SortOption value) => RefreshVisibleNotes();
 
     partial void OnDisplayedCalendarMonthChanged(DateTime value)
@@ -651,13 +602,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return date.ToString("MMM d", CultureInfo.CurrentCulture);
     }
 
-    partial void OnIsTagFilterExpandedChanged(bool value)
-    {
-        OnPropertyChanged(nameof(TagFilterPanelMaxHeight));
-        OnPropertyChanged(nameof(TagFilterPanelOpacity));
-        OnPropertyChanged(nameof(TagFilterTriggerText));
-        OnPropertyChanged(nameof(TagFilterTriggerChevron));
-    }
+
 
     partial void OnNotePickerQueryChanged(string value)
     {
@@ -698,6 +643,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(HasNotes));
         UpdateActiveVisibleNote(GetActiveSidebarFilePath());
+        RefreshSidebarTree();
     }
 
     partial void OnSecondaryPanesChanged(ObservableCollection<EditorPaneViewModel> value)
@@ -1165,12 +1111,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SidebarCollapsed = !SidebarCollapsed;
     }
 
-    [RelayCommand]
-    private void ClearTagFilter()
-    {
-        TagFilterSearchText = string.Empty;
-        SetSelectedTags([]);
-    }
+
 
     internal void UpdateTagSuggestions(int caretIndex)
     {
@@ -1293,53 +1234,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         await CommitEditorTagsAsync();
     }
 
-    private void SetSelectedTags(IReadOnlyList<string> tags)
-    {
-        var selectedTags = tags.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        _isApplyingSelection = true;
-        try
-        {
-            foreach (var tagFilter in _allTagFilters)
-            {
-                tagFilter.IsSelected = selectedTags.Contains(tagFilter.Tag);
-            }
-        }
-        finally
-        {
-            _isApplyingSelection = false;
-        }
-
-        OnTagFilterSelectionChanged();
-    }
-
-    private void OnTagFilterSelectionChanged()
-    {
-        if (_isApplyingSelection)
-        {
-            return;
-        }
-
-        _allTagFilters = _allTagFilters
-            .OrderByDescending(tag => tag.IsSelected)
-            .ThenByDescending(tag => tag.NoteCount)
-            .ThenBy(tag => tag.Tag, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        RefreshAvailableTagFiltersView();
-
-        OnPropertyChanged(nameof(HasActiveTagFilter));
-        OnPropertyChanged(nameof(SelectedTags));
-        OnPropertyChanged(nameof(SelectedTagFilters));
-        OnPropertyChanged(nameof(HasSelectedTagFilters));
-        OnPropertyChanged(nameof(ShowSelectedTagFilters));
-        OnPropertyChanged(nameof(ShowEmptySelectedTagHint));
-        OnPropertyChanged(nameof(HasTagFilterSearchResults));
-        OnPropertyChanged(nameof(ShowEmptyTagFilterSearchHint));
-        OnPropertyChanged(nameof(TagFilterTriggerText));
-        OnPropertyChanged(nameof(TagFilterTriggerBadgeText));
-        OnPropertyChanged(nameof(ShowTagFilterTriggerBadge));
-        RefreshVisibleNotes();
-    }
 
     [RelayCommand]
     private async Task ReloadAsync()
@@ -1460,6 +1355,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var settings = await _settingsService.GetSettingsAsync();
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
         UiFontSize = ClampUiFontSize(settings.UiFontSize ?? DefaultUiFontSize);
+        FileListFontSize = ClampFileListFontSize(settings.FileListFontSize ?? settings.SidebarFontSize ?? DefaultFileListFontSize);
+        ShowSidebarListBackground = settings.ShowSidebarListBackground;
+        ShowSidebarListBorder = settings.ShowSidebarListBorder;
         EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize);
         EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor);
         ShowYamlFrontMatterInEditor = settings.ShowYamlFrontMatterInEditor;
@@ -1503,12 +1401,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ?? GetDefaultFontVariant(initialFont);
         ApplyFontSelection(initialFont, initialVariant, persist: false);
 
-        var initialSidebarFont = FontResolutionHelper.FindByKey(_allFonts, settings.SidebarFontName)
+        var initialUiFont = FontResolutionHelper.FindByKey(_allFonts, settings.UiFontName)
+            ?? FontResolutionHelper.FindByKey(_allFonts, settings.SidebarFontName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultFontKey)
             ?? initialFont;
-        var initialSidebarVariant = ResolveFontVariant(initialSidebarFont, settings.SidebarFontVariantName ?? string.Empty)
-            ?? GetDefaultFontVariant(initialSidebarFont);
-        ApplySidebarFontSelection(initialSidebarFont, initialSidebarVariant, persist: false);
+        var initialUiVariantKey = settings.UiFontVariantName
+            ?? (settings.UiFontName is null ? settings.SidebarFontVariantName : null);
+        var initialUiVariant = ResolveFontVariant(initialUiFont, initialUiVariantKey ?? string.Empty)
+            ?? GetDefaultFontVariant(initialUiFont);
+        ApplyUiFontSelection(initialUiFont, initialUiVariant, persist: false);
 
         var initialCodeFont = FontResolutionHelper.FindByKey(_allFonts, settings.CodeFontName)
             ?? FontResolutionHelper.FindByKey(_allFonts, FontCatalogService.DefaultCodeFontKey)
@@ -1543,6 +1444,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         Directory.CreateDirectory(folderPath);
+        if (!string.IsNullOrWhiteSpace(NotesFolder)
+            && !string.Equals(NotesFolder, folderPath, StringComparison.OrdinalIgnoreCase))
+        {
+            _sidebarTreeExpansionStates.Clear();
+        }
         SelectedCalendarDate = null;
         DisplayedCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         NotesFolder = folderPath;
@@ -1603,6 +1509,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private static double ClampUiFontSize(double fontSize)
     {
         return Math.Clamp(fontSize, MinUiFontSize, MaxUiFontSize);
+    }
+
+    private static double ClampFileListFontSize(double fontSize)
+    {
+        return Math.Clamp(fontSize, MinFileListFontSize, MaxFileListFontSize);
     }
     public void Dispose()
     {

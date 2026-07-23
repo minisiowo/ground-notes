@@ -450,220 +450,60 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
-    public async Task TagFilters_SelectingMultipleTags_MatchesAnyByDefault()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("ops.md", "ops", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["ops"]);
-        await WriteNoteAsync("deploy.md", "deploy", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["deploy"]);
-        await WriteNoteAsync("both.md", "both", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["ops", "deploy"]);
-
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
-        using var vm = await CreateViewModelAsync(dialogService: dialogService);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
-
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ops", StringComparison.Ordinal)).IsSelected = true;
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "deploy", StringComparison.Ordinal)).IsSelected = true;
-
-        Assert.Equal(new[] { "both", "deploy", "ops" }, vm.VisibleNotes.Select(note => note.DisplayName).OrderBy(name => name, StringComparer.Ordinal).ToArray());
-        Assert.True(vm.HasActiveTagFilter);
-    }
-
-    [Fact]
-    public async Task TagFilters_CanRequireAllSelectedTags()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("ops.md", "ops", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["ops"]);
-        await WriteNoteAsync("deploy.md", "deploy", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["deploy"]);
-        await WriteNoteAsync("both.md", "both", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["ops", "deploy"]);
-
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
-        using var vm = await CreateViewModelAsync(dialogService: dialogService);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
-
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ops", StringComparison.Ordinal)).IsSelected = true;
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "deploy", StringComparison.Ordinal)).IsSelected = true;
-        vm.MatchAllSelectedTags = true;
-
-        Assert.Equal(new[] { "both" }, vm.VisibleNotes.Select(note => note.DisplayName).ToArray());
-    }
-
-    [Fact]
-    public async Task ClearTagFilterCommand_ClearsSelectedTags()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("ops.md", "ops", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["ops"]);
-        await WriteNoteAsync("deploy.md", "deploy", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["deploy"]);
-
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
-        using var vm = await CreateViewModelAsync(dialogService: dialogService);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
-
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ops", StringComparison.Ordinal)).IsSelected = true;
-        Assert.True(vm.HasActiveTagFilter);
-
-        vm.ClearTagFilterCommand.Execute(null);
-
-        Assert.False(vm.HasActiveTagFilter);
-        Assert.All(vm.AvailableTagFilters, tag => Assert.False(tag.IsSelected));
-        Assert.Equal(2, vm.VisibleNotes.Count);
-    }
-
-    [Fact]
-    public async Task TagFilterSearchText_FiltersVisibleTagOptions_WithoutClearingSelection()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("ops.md", "ops", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["ops"]);
-        await WriteNoteAsync("deploy.md", "deploy", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["deploy"]);
-        await WriteNoteAsync("design.md", "design", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["design"]);
-
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
-        using var vm = await CreateViewModelAsync(dialogService: dialogService);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
-
-        Assert.False(vm.HasTagFilterSearchResults);
-
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "deploy", StringComparison.Ordinal)).IsSelected = true;
-        vm.TagFilterSearchText = "de";
-
-        Assert.Equal(new[] { "deploy", "design" }, vm.AvailableTagFilters.Select(tag => tag.Tag).ToArray());
-        Assert.Contains(vm.SelectedTags, tag => string.Equals(tag, "deploy", StringComparison.Ordinal));
-        Assert.True(vm.HasTagFilterSearchResults);
-    }
-
-    [Fact]
-    public async Task TagFilterSearchText_RemainsActiveAfterSelectingMatchingTag()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("luxoft.md", "luxoft", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
-        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["ai/template"]);
-        await WriteNoteAsync("other.md", "other", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["other"]);
-
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
-        using var vm = await CreateViewModelAsync(dialogService: dialogService);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
-
-        vm.TagFilterSearchText = "template";
-
-        Assert.Equal(new[] { "ai/template", "luxoft/template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
-
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft/template", StringComparison.Ordinal)).IsSelected = true;
-
-        Assert.Equal("template", vm.TagFilterSearchText);
-        Assert.Equal(new[] { "ai/template", "luxoft/template" }, vm.AvailableTagFilters.Select(tag => tag.Tag).OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
-        Assert.Equal(new[] { "luxoft/template" }, vm.SelectedTags.ToArray());
-
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "ai/template", StringComparison.Ordinal)).IsSelected = true;
-
-        Assert.Equal(new[] { "ai/template", "luxoft/template" }, vm.SelectedTags.OrderBy(tag => tag, StringComparer.Ordinal).ToArray());
-    }
-
-    [Fact]
-    public async Task TagFilters_IncludeImplicitParentTagsAndCounts()
+    public async Task SidebarTree_GroupsNotesUnderNestedTagFolders()
     {
         Directory.CreateDirectory(_tempRoot);
         await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
         await WriteNoteAsync("jql.md", "jql", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["luxoft/jql"]);
+        await WriteNoteAsync("root.md", "root", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0));
 
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
         using var vm = await CreateViewModelAsync(dialogService: dialogService);
         await vm.ChooseFolderCommand.ExecuteAsync(null);
 
-        var parent = vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft", StringComparison.Ordinal));
+        Assert.Equal(new[] { "luxoft", "root" }, vm.VisibleSidebarRows.Select(row => row.Label).ToArray());
 
-        Assert.Equal(2, parent.NoteCount);
-        Assert.Contains(vm.AvailableTagFilters, tag => string.Equals(tag.Tag, "luxoft/template", StringComparison.Ordinal));
-        Assert.Contains(vm.AvailableTagFilters, tag => string.Equals(tag.Tag, "luxoft/jql", StringComparison.Ordinal));
+        var luxoft = vm.VisibleSidebarRows.First();
+        luxoft.ToggleExpandedCommand.Execute(null);
+
+        Assert.Equal(new[] { "luxoft", "jql", "template", "root" }, vm.VisibleSidebarRows.Select(row => row.Label).ToArray());
+        Assert.Equal(new[] { 0, 1, 1, 0 }, vm.VisibleSidebarRows.Select(row => row.Depth).ToArray());
+
+        vm.VisibleSidebarRows.Single(row => row.Label == "template").ToggleExpandedCommand.Execute(null);
+        Assert.Contains(vm.VisibleSidebarRows, row => row.Note?.DisplayName == "template" && row.Depth == 2);
     }
 
     [Fact]
-    public async Task TagFilters_ParentSelectionMatchesNestedTags()
+    public async Task SidebarTree_SearchAutomaticallyExpandsMatchingBranches()
     {
         Directory.CreateDirectory(_tempRoot);
         await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
         await WriteNoteAsync("other.md", "other", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["other"]);
 
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
         using var vm = await CreateViewModelAsync(dialogService: dialogService);
         await vm.ChooseFolderCommand.ExecuteAsync(null);
 
-        vm.AvailableTagFilters.First(tag => string.Equals(tag.Tag, "luxoft", StringComparison.Ordinal)).IsSelected = true;
+        vm.SearchText = "template";
 
-        var match = Assert.Single(vm.VisibleNotes);
-        Assert.Equal("template", match.DisplayName);
+        Assert.Equal(new[] { "luxoft", "template", "template" }, vm.VisibleSidebarRows.Select(row => row.Label).ToArray());
+        Assert.True(vm.VisibleSidebarRows[0].IsFolder);
+        Assert.True(vm.VisibleSidebarRows[1].IsFolder);
+        Assert.True(vm.VisibleSidebarRows[2].IsNote);
     }
 
     [Fact]
-    public async Task TagFilterTree_GroupsNestedTagsUnderParents()
+    public async Task SidebarTree_KeepsTagCatalogForEditorSuggestions()
     {
         Directory.CreateDirectory(_tempRoot);
         await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
-        await WriteNoteAsync("jql.md", "jql", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["luxoft/jql"]);
-        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["ai/template"]);
 
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
         using var vm = await CreateViewModelAsync(dialogService: dialogService);
         await vm.ChooseFolderCommand.ExecuteAsync(null);
 
-        Assert.Equal(new[] { "ai", "luxoft" }, vm.VisibleTagFilterTree.Select(node => node.Tag).ToArray());
-
-        var luxoft = vm.VisibleTagFilterTree.Single(node => string.Equals(node.Tag, "luxoft", StringComparison.Ordinal));
-        Assert.Equal(2, luxoft.NoteCount);
-        Assert.Equal(new[] { "luxoft/jql", "luxoft/template" }, luxoft.Children.Select(child => child.Tag).ToArray());
-    }
-
-    [Fact]
-    public async Task TagFilterTree_SearchShowsMatchingBranchesWithAncestors()
-    {
-        Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("template.md", "template", "body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
-        await WriteNoteAsync("jql.md", "jql", "body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0), tags: ["luxoft/jql"]);
-        await WriteNoteAsync("ai.md", "ai", "body", createdAt: new DateTime(2026, 3, 11, 7, 33, 0), tags: ["ai/template"]);
-
-        var dialogService = new FakeWorkspaceDialogService
-        {
-            FolderToPick = _tempRoot
-        };
-
-        using var vm = await CreateViewModelAsync(dialogService: dialogService);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
-
-        vm.TagFilterSearchText = "template";
-
-        Assert.Equal(new[] { "ai", "luxoft" }, vm.VisibleTagFilterTree.Select(node => node.Tag).ToArray());
-        Assert.All(vm.VisibleTagFilterTree, node => Assert.True(node.IsExpanded));
-        Assert.Equal(new[] { "ai/template", "luxoft/template" }, FlattenTagTree(vm.VisibleTagFilterTree).Where(tag => tag.Contains('/', StringComparison.Ordinal)).ToArray());
+        Assert.Contains("luxoft", vm.AvailableTags);
+        Assert.Contains("luxoft/template", vm.AvailableTags);
     }
 
     [Fact]
@@ -692,6 +532,9 @@ public sealed class MainViewModelTests : IDisposable
         await vm.ConfirmEditorTagsCommand.ExecuteAsync(null);
 
         Assert.Equal(new[] { "alpha", "beta" }, vm.CurrentNote.Tags);
+        Assert.Equal(
+            new[] { "alpha", "beta" },
+            vm.VisibleSidebarRows.Where(row => row.IsFolder).Select(row => row.Label).ToArray());
         var afterCommit = await File.ReadAllTextAsync(Path.Combine(_tempRoot, "note.md"));
         Assert.Contains("beta", afterCommit, StringComparison.Ordinal);
     }
@@ -818,7 +661,7 @@ public sealed class MainViewModelTests : IDisposable
     public async Task SelectCalendarDayCommand_FiltersByCreatedDate_AndSecondClickClearsFilter()
     {
         Directory.CreateDirectory(_tempRoot);
-        await WriteNoteAsync("march-9.md", "march-9", "release planning", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("march-9.md", "march-9", "release planning", createdAt: new DateTime(2026, 3, 9, 7, 33, 0), tags: ["luxoft/template"]);
         await WriteNoteAsync("march-10.md", "march-10", "postmortem", createdAt: new DateTime(2026, 3, 10, 9, 15, 0));
 
         var dialogService = new FakeWorkspaceDialogService
@@ -836,6 +679,7 @@ public sealed class MainViewModelTests : IDisposable
 
         Assert.Equal(new DateTime(2026, 3, 9), vm.SelectedCalendarDate);
         Assert.Equal("march-9", Assert.Single(vm.VisibleNotes).DisplayName);
+        Assert.Equal(new[] { "luxoft", "template", "march-9" }, vm.VisibleSidebarRows.Select(row => row.Label).ToArray());
 
         vm.SelectCalendarDayCommand.Execute(march9);
 
@@ -943,7 +787,7 @@ public sealed class MainViewModelTests : IDisposable
             ["Default"],
             new FakeFontCatalogService().LoadBundledFonts(),
             "Default",
-            "Iosevka Slab",
+            "JetBrains Mono",
             FontCatalogService.DefaultVariantKey,
             "Iosevka Slab",
             FontCatalogService.DefaultVariantKey,
@@ -951,6 +795,9 @@ public sealed class MainViewModelTests : IDisposable
             FontCatalogService.DefaultVariantKey,
             12,
             12,
+            10,
+            false,
+            true,
             2,
             1.3,
             true,
@@ -967,6 +814,10 @@ public sealed class MainViewModelTests : IDisposable
         vm.ApplySettingsLive(model);
 
         Assert.Equal(callsBefore + 1, appearanceService.ApplyCodeFontCallCount);
+        Assert.Equal(10, appearanceService.LastFileListFontSize);
+        Assert.Equal("JetBrains Mono", appearanceService.LastUiFontFamilyName);
+        Assert.False(vm.ShowSidebarListBackground);
+        Assert.True(vm.ShowSidebarListBorder);
         Assert.Equal("JetBrains Mono", appearanceService.LastCodeFontFamilyName);
         Assert.Equal(FontCatalogService.DefaultVariantKey, appearanceService.LastCodeFontVariantName);
         Assert.Equal(2, editorLayoutState.CurrentSettings.IndentationSize);
@@ -1153,18 +1004,7 @@ public sealed class MainViewModelTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(_tempRoot, fileName), content);
     }
 
-    private static IReadOnlyList<string> FlattenTagTree(IEnumerable<TagFilterTreeItemViewModel> nodes)
-    {
-        var flattened = new List<string>();
 
-        foreach (var node in nodes)
-        {
-            flattened.Add(node.Tag);
-            flattened.AddRange(FlattenTagTree(node.Children));
-        }
-
-        return flattened;
-    }
 
     public void Dispose()
     {
@@ -1276,6 +1116,10 @@ public sealed class MainViewModelTests : IDisposable
 
         public string? LastCodeFontVariantName { get; private set; }
 
+        public double? LastFileListFontSize { get; private set; }
+
+        public string? LastUiFontFamilyName { get; private set; }
+
         public void ApplyTheme(GroundNotes.Styles.AppTheme theme)
         {
         }
@@ -1284,13 +1128,23 @@ public sealed class MainViewModelTests : IDisposable
         {
         }
 
+        public void ApplyUiFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
+        {
+            LastUiFontFamilyName = fontFamily.DisplayName;
+        }
+
+        public void ApplyFileListFontSize(double fontSize)
+        {
+            LastFileListFontSize = fontSize;
+        }
+
         public void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
         {
         }
 
-        public void ApplySidebarFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
-        {
-        }
+
+
+
 
         public void ApplyCodeFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant)
         {

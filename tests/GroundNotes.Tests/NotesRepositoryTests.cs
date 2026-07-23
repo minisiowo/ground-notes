@@ -254,7 +254,7 @@ public sealed class NotesRepositoryTests : IDisposable
     }
 
     [Fact]
-    public void QueryNotes_UsesPickerStyleMatchingWithTagFilter()
+    public void QueryNotes_UsesPickerStyleMatchingWithTagMetadata()
     {
         var notes = new[]
         {
@@ -276,119 +276,9 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "deploy prod", ["prod"], false, null, SortOption.Title);
+        var queried = _repository.QueryNotes(notes, "deploy prod", null, SortOption.Title);
 
         Assert.Equal(new[] { "deploy-checklist", "incident-log" }, queried.Select(note => note.Title).ToArray());
-    }
-
-    [Fact]
-    public void QueryNotes_MatchesAnySelectedTagByDefault()
-    {
-        var notes = new[]
-        {
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
-                Title = "alpha",
-                Tags = ["ops"]
-            },
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "beta.txt"),
-                Title = "beta",
-                Tags = ["deploy"]
-            },
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "gamma.txt"),
-                Title = "gamma",
-                Tags = ["ops", "deploy"]
-            }
-        };
-
-        var queried = _repository.QueryNotes(notes, string.Empty, ["ops", "deploy"], false, null, SortOption.Title);
-
-        Assert.Equal(new[] { "alpha", "beta", "gamma" }, queried.Select(note => note.Title).ToArray());
-    }
-
-    [Fact]
-    public void QueryNotes_ParentTagMatchesDescendants()
-    {
-        var notes = new[]
-        {
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
-                Title = "alpha",
-                Tags = ["luxoft/template"]
-            },
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "beta.txt"),
-                Title = "beta",
-                Tags = ["other/template"]
-            }
-        };
-
-        var queried = _repository.QueryNotes(notes, string.Empty, ["luxoft"], false, null, SortOption.Title);
-
-        var match = Assert.Single(queried);
-        Assert.Equal("alpha", match.Title);
-    }
-
-    [Fact]
-    public void QueryNotes_ChildSelectionMatchesDescendantBranchOnly()
-    {
-        var notes = new[]
-        {
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
-                Title = "alpha",
-                Tags = ["luxoft/template/api"]
-            },
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "beta.txt"),
-                Title = "beta",
-                Tags = ["luxoft/jql"]
-            }
-        };
-
-        var queried = _repository.QueryNotes(notes, string.Empty, ["luxoft/template"], false, null, SortOption.Title);
-
-        var match = Assert.Single(queried);
-        Assert.Equal("alpha", match.Title);
-    }
-
-    [Fact]
-    public void QueryNotes_CanRequireAllSelectedTags()
-    {
-        var notes = new[]
-        {
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "alpha.txt"),
-                Title = "alpha",
-                Tags = ["ops"]
-            },
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "beta.txt"),
-                Title = "beta",
-                Tags = ["deploy"]
-            },
-            new NoteSummary
-            {
-                FilePath = Path.Combine(_tempRoot, "gamma.txt"),
-                Title = "gamma",
-                Tags = ["ops", "deploy"]
-            }
-        };
-
-        var queried = _repository.QueryNotes(notes, string.Empty, ["ops", "deploy"], true, null, SortOption.Title);
-
-        Assert.Equal(new[] { "gamma" }, queried.Select(note => note.Title).ToArray());
     }
 
     [Fact]
@@ -412,7 +302,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "deploy", [], false, null, SortOption.Title);
+        var queried = _repository.QueryNotes(notes, "deploy", null, SortOption.Title);
 
         Assert.Equal(new[] { "deploy-beta", "deploy-zeta" }, queried.Select(note => note.Title).ToArray());
     }
@@ -442,7 +332,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "roadmap", [], false, null, SortOption.LastModified);
+        var queried = _repository.QueryNotes(notes, "roadmap", null, SortOption.LastModified);
 
         Assert.Equal(new[] { "roadmap", "weekly-roadmap-notes", "project-roadmap" }, queried.Select(note => note.Title).ToArray());
     }
@@ -468,7 +358,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, string.Empty, [], false, null, SortOption.Title);
+        var queried = _repository.QueryNotes(notes, string.Empty, null, SortOption.Title);
 
         Assert.Equal(new[] { "Alpha", "Zulu" }, queried.Select(note => note.Title).ToArray());
     }
@@ -487,7 +377,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, "roadmap", [], false, null, SortOption.LastModified);
+        var queried = _repository.QueryNotes(notes, "roadmap", null, SortOption.LastModified);
 
         Assert.Empty(queried);
     }
@@ -513,7 +403,7 @@ public sealed class NotesRepositoryTests : IDisposable
             }
         };
 
-        var queried = _repository.QueryNotes(notes, string.Empty, [], false, new DateTime(2026, 3, 9, 23, 59, 0), SortOption.Title);
+        var queried = _repository.QueryNotes(notes, string.Empty, new DateTime(2026, 3, 9, 23, 59, 0), SortOption.Title);
 
         var match = Assert.Single(queried);
         Assert.Equal("morning", match.Title);

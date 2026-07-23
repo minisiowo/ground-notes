@@ -52,6 +52,7 @@ public static class ThemeKeys
     public const string SidebarFont = "SidebarFont";
     public const string SidebarFontWeight = "SidebarFontWeight";
     public const string SidebarFontStyle = "SidebarFontStyle";
+    public const string FileListFontSize = "FileListFontSize";
     public const string CodeFont = "CodeFont";
     public const string CodeFontWeight = "CodeFontWeight";
     public const string CodeFontStyle = "CodeFontStyle";

@@ -9,9 +9,11 @@ public interface IAppAppearanceService
 
     void ApplyUiFontSize(double fontSize);
 
-    void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
+    void ApplyUiFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
 
-    void ApplySidebarFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
+    void ApplyFileListFontSize(double fontSize);
+
+    void ApplyTerminalFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
 
     void ApplyCodeFont(BundledFontFamilyOption fontFamily, BundledFontVariantOption fontVariant);
 
