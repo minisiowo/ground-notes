@@ -1,52 +1,28 @@
-# Project Agent Guide
+# GroundNotes Agent Guide
 
-## Project Purpose
-GroundNotes is a local-first desktop notes app for plain-text folders. It edits `.md` and `.txt` notes directly, preserves frontmatter metadata, renders markdown/editor enhancements, watches the filesystem, and includes prompt-action plus chat-based AI workflows.
+## Scope And Toolchain
+- `GroundNotes.sln` contains the Avalonia desktop app, its xUnit tests, and the in-repo AvaloniaEdit fork; the app references the fork as a project, not a NuGet package.
+- Use .NET SDK `10.0.103` (`global.json` allows later feature bands; `mise.toml` pins the exact SDK). There is no separate lint, formatter, codegen, or CI workflow in this repo.
+- Read the nearest scoped guide before editing: `src/GroundNotes/AGENTS.md`, `tests/GroundNotes.Tests/AGENTS.md`, or `extern/AvaloniaEdit/AGENTS.md`.
 
-## Stack and Entry Points
-- .NET 10 SDK pinned by `global.json` and `mise.toml` (`10.0.103`, roll forward latest feature).
-- Avalonia UI 11 desktop app in `src/GroundNotes`.
-- Forked AvaloniaEdit editor in `extern/AvaloniaEdit`.
-- xUnit tests in `tests/GroundNotes.Tests`.
-- Shared C# settings in `Directory.Build.props`: nullable enabled, implicit usings enabled, latest language version.
-
-## Agent Guide Network
-- `src/GroundNotes/AGENTS.md`: app architecture, MVVM boundaries, editor/image-preview hazards.
-- `tests/GroundNotes.Tests/AGENTS.md`: test harness patterns, fakes, Avalonia test setup.
-- `extern/AvaloniaEdit/AGENTS.md`: fork-specific hazards and validation.
-- Follow the nearest nested guide in addition to this root guide.
-
-## Build, Test, and Run
+## Commands
 - Restore: `dotnet restore GroundNotes.sln`.
-- Build all projects: `dotnet build GroundNotes.sln`.
-- Build the app: `dotnet build src/GroundNotes/GroundNotes.csproj`.
-- Build the editor fork when it changes: `dotnet build extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj`.
-- Run tests: `dotnet test GroundNotes.sln` or target `tests/GroundNotes.Tests/GroundNotes.Tests.csproj` with `--filter` for focused loops.
-- Run the app only when a graphical desktop session is available: `dotnet run --project src/GroundNotes`.
-- For Windows try-out/deployment from WSL after changes are ready: `bash scripts/publish-and-install-wsl.sh`.
+- Full verification: `dotnet build GroundNotes.sln` then `dotnet test GroundNotes.sln`.
+- App-only build: `dotnet build src/GroundNotes/GroundNotes.csproj`.
+- Focus one test class: `dotnet test tests/GroundNotes.Tests/GroundNotes.Tests.csproj --filter "FullyQualifiedName~ClassName"`; use `--no-build` only after building the latest changes.
+- Run only in a graphical desktop session: `dotnet run --project src/GroundNotes`; headless sessions should build and test instead.
+- If `original.pdb` is locked, stop the running `dotnet`/GroundNotes process; after a successful build, `dotnet run --project src/GroundNotes --no-build` avoids rebuilding the fork.
 
-## Repository Practices
-- Keep edits small, architecture-aligned, and easy to review.
-- Read nearby code before changing it and preserve existing patterns over broad refactors.
-- Add or update focused tests for behavior changes.
-- Prefer build/test validation in headless environments rather than launching the GUI.
-- Do not commit secrets, tokens, machine-local credentials, or generated build outputs.
-- Do not touch unrelated working-tree changes.
+## Architecture And Data
+- `src/GroundNotes/App.axaml.cs` is the manual composition root; there is no DI container. Business/persistence logic belongs in services and view models, while views/controllers own Avalonia and editor wiring.
+- Preserve the `MainViewModel.*.cs` partial split and keep prompt-action AI services separate from conversational chat services.
+- Notes are top-level `.md`/`.txt` files in a user-selected folder, not database records. Save operations may rename or migrate files; preserve unknown frontmatter content, requested timestamps, search/list ordering, and filename collision behavior.
+- Settings, including the OpenAI API key, are persisted outside the repo at `<LocalApplicationData>/GroundNotes/settings.json`; tests must inject temporary settings/directories and must never use a real notes folder or network call.
+- Markdown image syntax `![](path)|NN` is persisted text. Previews and code-block indentation are visual-only layers; do not insert placeholder document content to implement them.
 
-## Coding Conventions
-- Use file-scoped namespaces and 4-space indentation.
-- Order `using` directives as `System.*`, third-party namespaces, then `GroundNotes.*`.
-- Prefer `sealed` concrete classes, guard clauses, explicit boundary null checks, and cohesive methods.
-- Use `var` when the right-hand type is obvious; otherwise use explicit types.
-- Use `StringComparison.Ordinal` or `StringComparison.OrdinalIgnoreCase` for string/path comparisons.
-- Respect nullable contracts and avoid the null-forgiving operator unless there is no practical alternative.
+## AvaloniaEdit Fork
+- Read `extern/AvaloniaEdit/README-ground-notes.md` before fork changes. The local wrapped-line indentation and positioning patches couple layout, caret placement, hit testing, inline objects, and visual-column mapping.
+- Validate fork changes with `dotnet build extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj`, the app/solution build, and focused markdown/editor tests.
 
-## Product and Data Invariants
-- Preserve support for `.md` and `.txt` notes, frontmatter compatibility, filename sanitization, deterministic parsing, search/list ordering, save behavior, and persisted local settings/layout data.
-- Keep business logic in services/view models and UI-only wiring in Avalonia views/controllers.
-- Keep prompt-action AI services separate from conversational chat services.
-- Treat markdown image preview syntax `![](path)|NN` as persisted text with render-only preview behavior layered on top.
-
-## Ignored and Generated Areas
-- Avoid `bin/`, `obj/`, `TestResults/`, `artifacts/`, `publish/`, `out/`, IDE settings, and environment files.
-- Generated or third-party fork changes need local justification and focused validation.
+## Publish Scripts
+- The `scripts/publish-and-install-*` helpers delete `src/GroundNotes/bin` and `obj`, publish self-contained binaries, then replace the platform install directory (`~/.local/opt/GroundNotes` or `C:\Apps\GroundNotes`). Run them only when installation is intended.

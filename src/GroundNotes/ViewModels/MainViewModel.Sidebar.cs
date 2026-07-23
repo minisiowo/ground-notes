@@ -20,11 +20,28 @@ public partial class MainViewModel
         var noteItems = VisibleNotes.ToDictionary(item => item.FilePath, StringComparer.OrdinalIgnoreCase);
         var activeFilePath = GetActiveSidebarFilePath();
         var forceExpand = !string.IsNullOrWhiteSpace(SearchText) || SelectedCalendarDate is not null;
+        var selectedOccurrence = SelectedSidebarRow?.OccurrencePath;
 
         AddRows(_sidebarTree, depth: 0, parentOccurrencePath: string.Empty);
-        VisibleSidebarRows = new ObservableCollection<SidebarTreeRowViewModel>(rows);
 
-        var selectedOccurrence = SelectedSidebarRow?.OccurrencePath;
+        if (rows.Count == VisibleSidebarRows.Count
+            && rows.Select(row => row.OccurrencePath).SequenceEqual(
+                VisibleSidebarRows.Select(row => row.OccurrencePath),
+                StringComparer.Ordinal))
+        {
+            for (var i = 0; i < rows.Count; i++)
+            {
+                VisibleSidebarRows[i].IsExpanded = rows[i].IsExpanded;
+            }
+
+            SelectedSidebarRow = selectedOccurrence is null
+                ? FindPreferredNoteRow(activeFilePath)
+                : VisibleSidebarRows.FirstOrDefault(row => string.Equals(row.OccurrencePath, selectedOccurrence, StringComparison.Ordinal))
+                  ?? FindPreferredNoteRow(activeFilePath);
+            return;
+        }
+
+        VisibleSidebarRows = new ObservableCollection<SidebarTreeRowViewModel>(rows);
         SelectedSidebarRow = selectedOccurrence is null
             ? FindPreferredNoteRow(activeFilePath)
             : VisibleSidebarRows.FirstOrDefault(row => string.Equals(row.OccurrencePath, selectedOccurrence, StringComparison.Ordinal))

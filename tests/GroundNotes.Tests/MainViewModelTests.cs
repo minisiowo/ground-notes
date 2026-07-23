@@ -474,6 +474,30 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenSidebarNoteCommand_WhenTreeStructureIsUnchanged_PreservesRowInstances()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var rows = vm.VisibleSidebarRows;
+        var rowInstances = rows.ToArray();
+
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "alpha"));
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(vm.VisibleNotes.First(note => note.DisplayName == "beta"));
+
+        Assert.Same(rows, vm.VisibleSidebarRows);
+        Assert.Equal(rowInstances.Length, vm.VisibleSidebarRows.Count);
+        for (var i = 0; i < rowInstances.Length; i++)
+        {
+            Assert.Same(rowInstances[i], vm.VisibleSidebarRows[i]);
+        }
+    }
+
+    [Fact]
     public async Task SidebarTree_SearchAutomaticallyExpandsMatchingBranches()
     {
         Directory.CreateDirectory(_tempRoot);
