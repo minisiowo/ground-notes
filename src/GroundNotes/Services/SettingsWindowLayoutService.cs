@@ -29,7 +29,6 @@ public sealed class SettingsWindowLayoutService : IWindowLayoutService
 
     public void SaveWindowLayoutSync(WindowLayout layout)
     {
-        var settings = _settingsService.GetSettingsSync() with { WindowLayout = layout };
-        _settingsService.SaveSettingsSync(settings);
+        _settingsService.UpdateSettingsSync(settings => settings with { WindowLayout = layout });
     }
 }

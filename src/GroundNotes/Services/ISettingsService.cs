@@ -12,6 +12,8 @@ public interface ISettingsService
 
     Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default);
 
+    void UpdateSettingsSync(Func<AppSettings, AppSettings> update);
+
     Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default);
 
     Task<AiSettings> GetAiSettingsAsync(CancellationToken cancellationToken = default);
@@ -42,7 +44,9 @@ public sealed record AppSettings(
     string? FileListFontVariantName = null,
     double? FileListFontSize = null,
     string? UiFontName = null,
-    string? UiFontVariantName = null);
+    string? UiFontVariantName = null,
+    NoteWindowLayout? StandardNoteWindowLayout = null,
+    NoteWindowLayout? ZenNoteWindowLayout = null);
 
 public sealed record WindowLayout(
     double Width,

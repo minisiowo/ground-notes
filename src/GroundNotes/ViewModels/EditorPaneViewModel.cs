@@ -59,6 +59,8 @@ public sealed partial class EditorPaneViewModel : ViewModelBase, IDisposable
 
     public CancellationTokenSource? SaveCts { get; set; }
 
+    public long EditVersion { get; set; }
+
     public bool ShowTitleWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorTitle);
 
     public bool ShowTagsWatermark => HasSelectedFolder && string.IsNullOrWhiteSpace(EditorTags);

@@ -342,6 +342,10 @@ public sealed class ChatViewModelTests
 
         public Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+        public void UpdateSettingsSync(Func<AppSettings, AppSettings> update)
+        {
+        }
+
         public Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 

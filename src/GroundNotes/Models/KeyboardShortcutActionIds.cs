@@ -6,6 +6,7 @@ public static class KeyboardShortcutActionIds
     public const string ShowShortcuts = "app.show-shortcuts";
     public const string ToggleYaml = "app.toggle-yaml";
     public const string ToggleSidebar = "app.toggle-sidebar";
+    public const string ToggleZenMode = "app.toggle-zen-mode";
     public const string ReloadNotes = "notes.reload";
     public const string NewNote = "notes.new";
     public const string OpenNotePicker = "notes.open-picker";

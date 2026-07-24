@@ -56,6 +56,37 @@ public sealed class MainWindowShortcutTests
 
     [Theory]
     [InlineData(Key.Enter, KeyModifiers.Control, true)]
+    [InlineData(Key.Enter, KeyModifiers.Meta, true)]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    [InlineData(Key.Enter, KeyModifiers.Meta | KeyModifiers.Shift, false)]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Meta, false)]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Alt, false)]
+    [InlineData(Key.Enter, KeyModifiers.None, false)]
+    [InlineData(Key.Space, KeyModifiers.Control, false)]
+    public void IsOpenNoteInNewWindowGesture_MatchesExactModifiers(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsOpenNoteInNewWindowGesture(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Shift, true)]
+    [InlineData(Key.Enter, KeyModifiers.Meta | KeyModifiers.Shift, true)]
+    [InlineData(Key.Enter, KeyModifiers.Control, false)]
+    [InlineData(Key.Enter, KeyModifiers.Meta, false)]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Meta | KeyModifiers.Shift, false)]
+    [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift, false)]
+    [InlineData(Key.Space, KeyModifiers.Control | KeyModifiers.Shift, false)]
+    public void IsOpenNoteInZenWindowGesture_MatchesExactModifiers(Key key, KeyModifiers modifiers, bool expected)
+    {
+        var result = MainWindow.IsOpenNoteInZenWindowGesture(key, modifiers);
+
+        Assert.Equal(expected, result);
+    }
+
+    [Theory]
+    [InlineData(Key.Enter, KeyModifiers.Control, true)]
     [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Shift, false)]
     [InlineData(Key.Enter, KeyModifiers.Control | KeyModifiers.Alt, false)]
     [InlineData(Key.Enter, KeyModifiers.None, false)]

@@ -85,6 +85,18 @@
     <Setter Property="Padding" Value="0" />
   </Style>
 
+  <Style Selector="Grid.editorMetadata">
+    <Setter Property="IsVisible" Value="{Binding ShowStructuredMetadataEditors}" />
+  </Style>
+
+  <Style Selector="Window.zenMode Grid.editorMetadata">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+
+  <Style Selector="Window.zenMode Border.editorSurface">
+    <Setter Property="CornerRadius" Value="0" />
+  </Style>
+
   <Style Selector="Border.toolPopupSurface">
     <Setter Property="ClipToBounds" Value="True" />
     <Setter Property="VerticalAlignment" Value="Top" />
@@ -1311,6 +1323,10 @@
   </Style>
   <Style Selector="Border.sidebarResizeStripe">
     <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="Border.editorResizeHandle Border.sidebarResizeStripe">
+    <Setter Property="Height" Value="32" />
+    <Setter Property="VerticalAlignment" Value="Top" />
   </Style>
   <Style Selector="Border.sidebarResizeHandle.hover-intent Border.sidebarResizeStripe">
     <Setter Property="Background" Value="{DynamicResource SelectionBorderBrush}" />

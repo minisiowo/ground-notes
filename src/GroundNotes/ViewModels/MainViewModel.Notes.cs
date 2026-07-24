@@ -13,10 +13,19 @@ namespace GroundNotes.ViewModels;
 
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
+    private const string NoteConflictStatus = "This note changed on disk while you had local edits. Reselect it to reload.";
+
     public async Task CommitRenameAsync(NoteListItemViewModel? noteItem)
     {
         if (noteItem is null || !noteItem.IsRenaming || !HasSelectedFolder)
         {
+            return;
+        }
+
+        if (IsNoteConflicted(noteItem.FilePath))
+        {
+            StatusMessage = "Resolve the note conflict before renaming it.";
+            CancelRename(noteItem);
             return;
         }
 
@@ -27,11 +36,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        CancelScheduledSave();
-
+        EditorPaneViewModel? openPane = null;
         NoteDocument? document;
         if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, noteItem.FilePath, StringComparison.OrdinalIgnoreCase))
         {
+            CancelScheduledSave();
             if (!UpdateCurrentNoteFromEditor())
             {
                 CancelRename(noteItem);
@@ -39,6 +48,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             }
 
             document = CurrentNote;
+        }
+        else if ((openPane = FindPaneByFilePath(noteItem.FilePath))?.CurrentNote is not null)
+        {
+            CancelPaneScheduledSave(openPane);
+            if (!UpdatePaneNoteFromEditor(openPane))
+            {
+                CancelRename(noteItem);
+                return;
+            }
+
+            document = openPane.CurrentNote;
         }
         else
         {
@@ -53,13 +73,33 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         SuppressWatcher();
-        document.Title = newName;
+        var editVersion = openPane?.EditVersion ?? _primaryEditVersion;
+        var snapshot = CloneForPersistence(document);
+        snapshot.Title = newName;
         NoteDocument renamed;
-        using (BeginMutationScope())
+        try
         {
-            renamed = await _noteMutationService.SaveAsync(NotesFolder, document, CancellationToken.None);
+            using (BeginMutationScope())
+            {
+                renamed = await _noteMutationService.SaveAsync(NotesFolder, snapshot, CancellationToken.None);
+            }
+        }
+        catch (NoteSaveConflictException)
+        {
+            MarkNoteConflict(noteItem.FilePath);
+            CancelRename(noteItem);
+            return;
         }
         CancelRename(noteItem);
+        if ((openPane is null && ReferenceEquals(document, CurrentNote) && _primaryEditVersion != editVersion)
+            || (openPane is not null && openPane.EditVersion != editVersion))
+        {
+            MergeSavedPersistenceState(openPane?.CurrentNote ?? CurrentNote, snapshot, renamed);
+            StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
+            return;
+        }
+
+        ApplySavedDocumentToOpenPanes(noteItem.FilePath, renamed);
         StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
     }
 
@@ -107,17 +147,21 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             : _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase));
         if (CurrentNote is not null && matchingSummary is null)
         {
-            ClearEditor();
-            StatusMessage = "The current note was removed.";
+            if (HasUnsavedChanges)
+            {
+                MarkCurrentNoteConflict();
+            }
+            else
+            {
+                ClearEditor();
+                StatusMessage = "The current note was removed.";
+            }
         }
-
-        if (CurrentNote is not null && HasUnsavedChanges)
+        else if (CurrentNote is not null && HasUnsavedChanges)
         {
-            HasConflict = true;
-            StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+            MarkCurrentNoteConflict();
         }
-
-        if (CurrentNote is not null && matchingSummary is not null)
+        else if (CurrentNote is not null && matchingSummary is not null)
         {
             var reloaded = await _notesRepository.LoadNoteAsync(matchingSummary.FilePath);
             if (reloaded is not null)
@@ -137,16 +181,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var secondarySummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, pane.CurrentNote.FilePath, StringComparison.OrdinalIgnoreCase));
             if (secondarySummary is null)
             {
-                ClearPane(pane);
-                UnsubscribePane(pane);
-                SecondaryPanes.Remove(pane);
+                if (pane.HasUnsavedChanges)
+                {
+                    MarkPaneConflict(pane);
+                }
+                else
+                {
+                    ClearPane(pane);
+                    UnsubscribePane(pane);
+                    SecondaryPanes.Remove(pane);
+                }
                 continue;
             }
 
             if (pane.HasUnsavedChanges)
             {
-                pane.HasConflict = true;
-                StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+                MarkPaneConflict(pane);
                 continue;
             }
 
@@ -158,8 +208,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
     }
 
+    public Task OpenNoteAsync(string filePath, bool focusEditorWhenReady = true)
+    {
+        return OpenNoteInActivePaneAsync(filePath, focusEditorWhenReady);
+    }
+
     private async Task OpenNoteInActivePaneAsync(string filePath, bool focusEditorWhenReady)
     {
+        if (!IsNotePathInNotesFolder(NotesFolder, filePath))
+        {
+            StatusMessage = "The note is outside the current notes folder.";
+            return;
+        }
+
         var existingPane = FindPaneByFilePath(filePath);
         if (existingPane is not null && !ReferenceEquals(existingPane, ActiveSecondaryPane))
         {
@@ -206,6 +267,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         await LoadPaneNoteAsync(ActiveSecondaryPane, filePath, activateAfterLoad: focusEditorWhenReady);
+    }
+
+    private void ApplySavedDocumentToOpenPanes(string previousPath, NoteDocument saved)
+    {
+        if (CurrentNote is not null
+            && (string.Equals(CurrentNote.FilePath, previousPath, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(CurrentNote.FilePath, saved.FilePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            ApplyDocumentToEditor(saved);
+            SelectSummaryByPath(saved.FilePath);
+        }
+
+        foreach (var pane in SecondaryPanes.Where(pane => pane.CurrentNote is not null
+                                                          && (string.Equals(pane.CurrentNote.FilePath, previousPath, StringComparison.OrdinalIgnoreCase)
+                                                              || string.Equals(pane.CurrentNote.FilePath, saved.FilePath, StringComparison.OrdinalIgnoreCase))))
+        {
+            ApplyDocumentToPane(pane, saved);
+        }
     }
 
     private void ApplyDocumentToEditor(NoteDocument note)
@@ -340,6 +419,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return false;
         }
 
+        _primaryEditVersion++;
         if (ShowYamlFrontMatterInEditor)
         {
             var hadInvalidYamlFrontMatter = _hasInvalidYamlFrontMatter;
@@ -347,7 +427,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 _hasInvalidYamlFrontMatter = true;
                 HasUnsavedChanges = true;
-                HasConflict = false;
                 StatusMessage = errorMessage;
                 return false;
             }
@@ -379,7 +458,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         HasUnsavedChanges = true;
-        HasConflict = false;
         return true;
     }
 
@@ -400,6 +478,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not save note: {ex.Message}";
         }
     }
 
@@ -444,6 +526,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (HasConflict)
+        {
+            StatusMessage = NoteConflictStatus;
+            return;
+        }
+
         if (_hasInvalidYamlFrontMatter)
         {
             StatusMessage = "Invalid YAML frontmatter. Fix it before saving.";
@@ -453,32 +541,97 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         if (ShouldDeleteEmptyAutoCreatedNote(CurrentNote))
         {
             SuppressWatcher();
-            await _notesRepository.DeleteNoteIfExistsAsync(CurrentNote.FilePath, cancellationToken);
-            RemoveSummary(CurrentNote.FilePath);
-            RefreshCalendarNoteDates();
-            RefreshCalendarDays();
-            RefreshAvailableTags();
-            RefreshVisibleNotes();
-            ClearEditor();
+            using (BeginMutationScope())
+            {
+                await _noteMutationService.DeleteIfExistsAsync(CurrentNote.FilePath, cancellationToken);
+            }
             StatusMessage = "Empty draft discarded.";
             return;
         }
 
-        var saved = await PersistNoteAsync(CurrentNote, cancellationToken);
+        var editVersion = _primaryEditVersion;
+        var snapshot = CloneForPersistence(CurrentNote);
+        NoteDocument saved;
+        try
+        {
+            saved = await PersistNoteAsync(snapshot, cancellationToken);
+        }
+        catch (NoteSaveConflictException)
+        {
+            MarkCurrentNoteConflict();
+            return;
+        }
+
+        if (!IsSamePersistedNote(CurrentNote, snapshot, saved))
+        {
+            return;
+        }
+
+        if (_primaryEditVersion != editVersion)
+        {
+            MergeSavedPersistenceState(CurrentNote, snapshot, saved);
+            HasUnsavedChanges = true;
+            return;
+        }
+
         CurrentNote = saved;
         HasUnsavedChanges = false;
         LastSavedText = FormatLastSavedText(saved.UpdatedAt);
     }
 
+    private static NoteDocument CloneForPersistence(NoteDocument document)
+    {
+        return document with { Tags = [.. document.Tags] };
+    }
+
+    private static bool IsSamePersistedNote(
+        NoteDocument? current,
+        NoteDocument snapshot,
+        NoteDocument saved)
+    {
+        return current is not null
+               && (string.Equals(current.FilePath, snapshot.FilePath, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(current.FilePath, saved.FilePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void MergeSavedPersistenceState(
+        NoteDocument? current,
+        NoteDocument snapshot,
+        NoteDocument saved)
+    {
+        if (current is null
+            || (!string.Equals(current.FilePath, snapshot.FilePath, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(current.FilePath, saved.FilePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        current.Id = saved.Id;
+        current.FilePath = saved.FilePath;
+        current.OriginalTitle = saved.OriginalTitle;
+        current.UpdatedAt = saved.UpdatedAt;
+        current.SourceContentHash = saved.SourceContentHash;
+        if (string.Equals(current.Title, snapshot.Title, StringComparison.Ordinal))
+        {
+            current.Title = saved.Title;
+        }
+    }
+
     private async Task<NoteDocument> PersistNoteAsync(NoteDocument document, CancellationToken cancellationToken)
     {
+        var notesFolder = NotesFolder;
+        if (!IsNotePathInNotesFolder(notesFolder, document.FilePath))
+        {
+            throw new InvalidOperationException("The note is outside the current notes folder.");
+        }
+
         await _notePersistenceLock.WaitAsync(cancellationToken);
         try
         {
             SuppressWatcher();
             using (BeginMutationScope())
             {
-                return await _noteMutationService.SaveAsync(NotesFolder, document, cancellationToken);
+                return await _noteMutationService.SaveAsync(notesFolder, document, cancellationToken);
             }
         }
         finally
@@ -890,6 +1043,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         pane.CurrentNote.Tags = committedTags;
+        pane.EditVersion++;
         pane.HasUnsavedChanges = true;
         await SavePaneNoteAsync(pane, CancellationToken.None);
     }
@@ -901,6 +1055,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return false;
         }
 
+        pane.EditVersion++;
         if (ShowYamlFrontMatterInEditor)
         {
             var hadInvalidYamlFrontMatter = pane.HasInvalidYamlFrontMatter;
@@ -908,7 +1063,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 pane.HasInvalidYamlFrontMatter = true;
                 pane.HasUnsavedChanges = true;
-                pane.HasConflict = false;
                 StatusMessage = errorMessage;
                 return false;
             }
@@ -942,7 +1096,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         pane.HasUnsavedChanges = true;
-        pane.HasConflict = false;
         return true;
     }
 
@@ -964,6 +1117,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
         }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not save note: {ex.Message}";
+        }
     }
 
     private async Task SavePaneNoteAsync(EditorPaneViewModel pane, CancellationToken cancellationToken)
@@ -973,13 +1130,43 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (pane.HasConflict)
+        {
+            StatusMessage = NoteConflictStatus;
+            return;
+        }
+
         if (pane.HasInvalidYamlFrontMatter)
         {
             StatusMessage = "Invalid YAML frontmatter. Fix it before saving.";
             return;
         }
 
-        var saved = await PersistNoteAsync(pane.CurrentNote, cancellationToken);
+        var editVersion = pane.EditVersion;
+        var snapshot = CloneForPersistence(pane.CurrentNote);
+        NoteDocument saved;
+        try
+        {
+            saved = await PersistNoteAsync(snapshot, cancellationToken);
+        }
+        catch (NoteSaveConflictException)
+        {
+            MarkPaneConflict(pane);
+            return;
+        }
+
+        if (!IsSamePersistedNote(pane.CurrentNote, snapshot, saved))
+        {
+            return;
+        }
+
+        if (pane.EditVersion != editVersion)
+        {
+            MergeSavedPersistenceState(pane.CurrentNote, snapshot, saved);
+            pane.HasUnsavedChanges = true;
+            return;
+        }
+
         pane.CurrentNote = saved;
         pane.HasUnsavedChanges = false;
         pane.LastSavedText = FormatLastSavedText(saved.UpdatedAt);
@@ -992,10 +1179,80 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         pane.SaveCts = null;
     }
 
+    public async Task<bool> PrepareToCloseAsync()
+    {
+        if (HasConflict || SecondaryPanes.Any(pane => pane.HasConflict))
+        {
+            CancelScheduledSave();
+            foreach (var pane in SecondaryPanes)
+            {
+                CancelPaneScheduledSave(pane);
+            }
+
+            StatusMessage = "Resolve note conflicts before closing this window.";
+            return false;
+        }
+
+        if (!await CanLeaveCurrentEditorStateAsync())
+        {
+            return false;
+        }
+
+        await FlushPendingSaveAsync();
+        if (HasUnsavedChanges)
+        {
+            return false;
+        }
+
+        foreach (var pane in SecondaryPanes.ToList())
+        {
+            if (!await CanLeavePaneStateAsync(pane))
+            {
+                return false;
+            }
+
+            if (pane.CurrentNote is not null && pane.HasUnsavedChanges)
+            {
+                CancelPaneScheduledSave(pane);
+                await SavePaneNoteAsync(pane, CancellationToken.None);
+            }
+
+            if (pane.HasUnsavedChanges)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private async Task<bool> CanLeavePaneStateAsync(EditorPaneViewModel pane, string? nextFilePath = null)
     {
+        if (pane.HasConflict && pane.CurrentNote is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(nextFilePath)
+                && string.Equals(pane.CurrentNote.FilePath, nextFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            StatusMessage = "Resolve the note conflict before switching notes.";
+            return false;
+        }
+
         if (!pane.HasInvalidYamlFrontMatter || pane.CurrentNote is null)
         {
+            if (pane.CurrentNote is not null && pane.HasUnsavedChanges)
+            {
+                CancelPaneScheduledSave(pane);
+                await SavePaneNoteAsync(pane, CancellationToken.None);
+                if (pane.HasUnsavedChanges)
+                {
+                    StatusMessage = "Could not save the current note before switching.";
+                    return false;
+                }
+            }
+
             return true;
         }
 
@@ -1025,8 +1282,32 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private async Task<bool> CanLeaveCurrentEditorStateAsync(string? nextFilePath = null)
     {
+        if (HasConflict && CurrentNote is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(nextFilePath)
+                && string.Equals(CurrentNote.FilePath, nextFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            RestoreSelectionAfterBlockedLeave();
+            StatusMessage = "Resolve the note conflict before switching notes.";
+            return false;
+        }
+
         if (!_hasInvalidYamlFrontMatter || CurrentNote is null)
         {
+            if (CurrentNote is not null && HasUnsavedChanges)
+            {
+                await FlushPendingSaveAsync();
+                if (HasUnsavedChanges)
+                {
+                    RestoreSelectionAfterBlockedLeave();
+                    StatusMessage = "Could not save the current note before switching.";
+                    return false;
+                }
+            }
+
             return true;
         }
 
@@ -1099,14 +1380,17 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (!HasSelectedFolder)
+        if (!HasSelectedFolder || !AreSameNotesFolder(NotesFolder, e.FolderPath))
         {
             return;
         }
 
         if (e.Kind == NoteMutationKind.Deleted)
         {
-            ApplyDeletedNote(e.PreviousPath, refreshCollections: true);
+            ApplyDeletedNote(
+                e.PreviousPath,
+                refreshCollections: true,
+                preserveUnsavedOpenNotes: e.OriginId != _mutationOriginId);
             return;
         }
 
@@ -1119,6 +1403,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         RefreshCalendarDays();
         RefreshAvailableTags();
         RefreshVisibleNotes();
+
+        if (e.OriginId == _mutationOriginId)
+        {
+            return;
+        }
 
         if (CurrentNote is null && SecondaryPanes.All(pane => pane.CurrentNote is null))
         {
@@ -1138,27 +1427,104 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (touchesCurrentNote && HasUnsavedChanges && e.OriginId != _mutationOriginId)
+        if (touchesCurrentNote && HasUnsavedChanges)
         {
-            HasConflict = true;
-            StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+            MarkCurrentNoteConflict();
         }
 
-        foreach (var pane in touchesSecondaryPanes.Where(pane => pane.HasUnsavedChanges && e.OriginId != _mutationOriginId))
+        foreach (var pane in touchesSecondaryPanes.Where(pane => pane.HasUnsavedChanges))
         {
-            pane.HasConflict = true;
-            StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+            MarkPaneConflict(pane);
         }
 
-        if (touchesCurrentNote && !(HasUnsavedChanges && e.OriginId != _mutationOriginId))
+        if (touchesCurrentNote && !HasUnsavedChanges)
         {
             ApplyDocumentToEditor(e.Document);
             SelectSummaryByPath(e.Document.FilePath);
         }
 
-        foreach (var pane in touchesSecondaryPanes.Where(pane => !(pane.HasUnsavedChanges && e.OriginId != _mutationOriginId)))
+        foreach (var pane in touchesSecondaryPanes.Where(pane => !pane.HasUnsavedChanges))
         {
             ApplyDocumentToPane(pane, e.Document);
+        }
+    }
+
+    private bool IsNoteConflicted(string filePath)
+    {
+        return (CurrentNote is not null
+                && HasConflict
+                && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+               || SecondaryPanes.Any(pane => pane.CurrentNote is not null
+                                             && pane.HasConflict
+                                             && string.Equals(pane.CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void MarkNoteConflict(string filePath)
+    {
+        StatusMessage = NoteConflictStatus;
+        if (CurrentNote is not null
+            && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+        {
+            MarkCurrentNoteConflict();
+        }
+
+        foreach (var pane in SecondaryPanes.Where(pane => pane.CurrentNote is not null
+                                                          && string.Equals(pane.CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+        {
+            MarkPaneConflict(pane);
+        }
+    }
+
+    private void MarkCurrentNoteConflict()
+    {
+        CancelScheduledSave();
+        HasConflict = true;
+        StatusMessage = NoteConflictStatus;
+    }
+
+    private void MarkPaneConflict(EditorPaneViewModel pane)
+    {
+        CancelPaneScheduledSave(pane);
+        pane.HasConflict = true;
+        StatusMessage = NoteConflictStatus;
+    }
+
+    internal static bool IsNotePathInNotesFolder(string? notesFolder, string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            return AreSameNotesFolder(notesFolder, Path.GetDirectoryName(Path.GetFullPath(filePath)));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
+    internal static bool AreSameNotesFolder(string? first, string? second)
+    {
+        if (string.IsNullOrWhiteSpace(first) || string.IsNullOrWhiteSpace(second))
+        {
+            return false;
+        }
+
+        try
+        {
+            var firstFullPath = Path.GetFullPath(first).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var secondFullPath = Path.GetFullPath(second).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            return string.Equals(firstFullPath, secondFullPath, comparison);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
         }
     }
 
@@ -1206,7 +1572,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
                     break;
                 }
                 case NoteFileChangeKind.Deleted:
-                    ApplyDeletedNote(change.Path, refreshCollections: false);
+                    ApplyDeletedNote(change.Path, refreshCollections: false, preserveUnsavedOpenNotes: true);
                     touchedCurrentNote |= string.Equals(currentPath, change.Path, StringComparison.OrdinalIgnoreCase);
                     foreach (var pane in SecondaryPanes.Where(pane => pane.CurrentNote is not null && string.Equals(pane.CurrentNote.FilePath, change.Path, StringComparison.OrdinalIgnoreCase)))
                     {
@@ -1267,13 +1633,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var matchingSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, reloadedCurrentPath, StringComparison.OrdinalIgnoreCase));
             if (matchingSummary is null)
             {
-                ClearEditor();
-                StatusMessage = "The current note was removed.";
+                if (HasUnsavedChanges)
+                {
+                    MarkCurrentNoteConflict();
+                }
+                else
+                {
+                    ClearEditor();
+                    StatusMessage = "The current note was removed.";
+                }
             }
             else if (HasUnsavedChanges)
             {
-                HasConflict = true;
-                StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+                MarkCurrentNoteConflict();
             }
             else
             {
@@ -1299,14 +1671,20 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             var matchingSummary = _allNotes.FirstOrDefault(note => string.Equals(note.FilePath, reloadedPath, StringComparison.OrdinalIgnoreCase));
             if (matchingSummary is null)
             {
-                ClearPane(pane);
-                UnsubscribePane(pane);
-                SecondaryPanes.Remove(pane);
+                if (pane.HasUnsavedChanges)
+                {
+                    MarkPaneConflict(pane);
+                }
+                else
+                {
+                    ClearPane(pane);
+                    UnsubscribePane(pane);
+                    SecondaryPanes.Remove(pane);
+                }
             }
             else if (pane.HasUnsavedChanges)
             {
-                pane.HasConflict = true;
-                StatusMessage = "This note changed on disk while you had local edits. Reselect it to reload.";
+                MarkPaneConflict(pane);
             }
             else
             {
@@ -1325,7 +1703,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         return note is null ? null : BuildSummary(note);
     }
 
-    private void ApplyDeletedNote(string filePath, bool refreshCollections)
+    private void ApplyDeletedNote(
+        string filePath,
+        bool refreshCollections,
+        bool preserveUnsavedOpenNotes)
     {
         _selectedSidebarFilePaths.Remove(filePath);
         RemoveSummary(filePath);
@@ -1339,11 +1720,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var deletedOpenNote = CurrentNote is not null && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase);
         if (deletedOpenNote)
         {
-            ClearEditor();
+            if (preserveUnsavedOpenNotes && HasUnsavedChanges)
+            {
+                MarkCurrentNoteConflict();
+            }
+            else
+            {
+                ClearEditor();
+            }
         }
 
         foreach (var pane in SecondaryPanes.Where(pane => pane.CurrentNote is not null && string.Equals(pane.CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase)).ToList())
         {
+            if (preserveUnsavedOpenNotes && pane.HasUnsavedChanges)
+            {
+                MarkPaneConflict(pane);
+                continue;
+            }
+
             ClearPane(pane);
             UnsubscribePane(pane);
             SecondaryPanes.Remove(pane);

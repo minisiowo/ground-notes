@@ -76,6 +76,7 @@ public partial class MainWindow : Window
     private bool _isResizingSharedPaneWidth;
     private bool _isSidebarLayoutRefreshQueued;
     private Bitmap? _clipboardImageBitmap;
+    private bool _windowResourcesDisposed;
 
     public MainWindow()
     {
@@ -169,40 +170,36 @@ public partial class MainWindow : Window
             }
         };
 
-        Closing += (_, e) =>
+        Closing += async (_, e) =>
         {
-            if (DataContext is MainViewModel vm)
+            if (!_closeApproved)
             {
-                vm.PropertyChanged -= OnViewModelPropertyChanged;
-                vm.FocusEditorRequested -= OnFocusEditorRequested;
-                vm.SecondaryPanes.CollectionChanged -= OnSecondaryPanesCollectionChanged;
-                foreach (var pane in vm.SecondaryPanes)
+                e.Cancel = true;
+                await RequestCloseAsync();
+                return;
+            }
+
+            try
+            {
+                if (IsStandaloneWindow)
                 {
-                    pane.PropertyChanged -= OnSecondaryPaneViewModelPropertyChanged;
+                    SaveStandaloneNoteWindowLayout();
+                }
+                else
+                {
+                    SaveWindowLayout();
                 }
             }
-
-            if (_editorLayoutState is not null)
+            catch (Exception ex)
             {
-                _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
+                if (DataContext is MainViewModel viewModel)
+                {
+                    viewModel.StatusMessage = $"Could not save window layout: {ex.Message}";
+                }
             }
-
-            EditorTagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
-            EditorTagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
-            EditorTagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
-            DetachWorkspaceBringIntoViewSuppression(EditorTextEditor);
-            DetachWorkspaceBringIntoViewSuppression(EditorTextEditor.TextArea);
-            DetachWorkspaceBringIntoViewSuppression(EditorTitleTextBox);
-            DetachWorkspaceBringIntoViewSuppression(EditorTagsTextBox);
-            EditorTextEditor.GotFocus -= OnPrimaryEditorGotFocus;
-            _resizeHandleHoverTimer.Stop();
-            _resizeHandleHoverTimer.Tick -= OnResizeHandleHoverTimerTick;
-            _clipboardImageBitmap?.Dispose();
-            _clipboardImageBitmap = null;
-            _editorHost.Dispose();
-            DisposeSecondaryEditorHosts();
-            SaveWindowLayout();
         };
+
+        Closed += (_, _) => DisposeWindowResources();
 
         PositionChanged += (_, e) =>
         {
@@ -219,6 +216,12 @@ public partial class MainWindow : Window
 
         SizeChanged += (_, _) =>
         {
+            if (WindowState == WindowState.Normal && Bounds.Width > 0 && Bounds.Height > 0)
+            {
+                _lastNormalWidth = Bounds.Width;
+                _lastNormalHeight = Bounds.Height;
+            }
+
             _slashCommandPopup.SchedulePositionUpdate();
             _titleSuggestionsPopup.ScheduleRefresh();
             _tagSuggestionsPopup.ScheduleRefresh();
@@ -226,6 +229,67 @@ public partial class MainWindow : Window
             UpdateSplitEditorAvailability();
         };
 
+    }
+
+    internal void DisposeBeforeShow()
+    {
+        _closeApproved = true;
+        try
+        {
+            Close();
+        }
+        finally
+        {
+            DisposeWindowResources();
+        }
+    }
+
+    private void DisposeWindowResources()
+    {
+        if (_windowResourcesDisposed)
+        {
+            return;
+        }
+
+        _windowResourcesDisposed = true;
+        if (DataContext is MainViewModel viewModel)
+        {
+            viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            viewModel.FocusEditorRequested -= OnFocusEditorRequested;
+            viewModel.SecondaryPanes.CollectionChanged -= OnSecondaryPanesCollectionChanged;
+            foreach (var pane in viewModel.SecondaryPanes)
+            {
+                pane.PropertyChanged -= OnSecondaryPaneViewModelPropertyChanged;
+            }
+
+            viewModel.Dispose();
+        }
+
+        if (_editorLayoutState is not null)
+        {
+            _editorLayoutState.SettingsChanged -= OnEditorLayoutSettingsChanged;
+            _editorLayoutState = null;
+        }
+
+        EditorTagsTextBox.PropertyChanged -= OnEditorTagsTextBoxPropertyChanged;
+        EditorTagsTextBox.GotFocus -= OnEditorTagsTextBoxGotFocus;
+        EditorTagsTextBox.LostFocus -= OnEditorTagsTextBoxLostFocus;
+        DetachWorkspaceBringIntoViewSuppression(EditorTextEditor);
+        DetachWorkspaceBringIntoViewSuppression(EditorTextEditor.TextArea);
+        DetachWorkspaceBringIntoViewSuppression(EditorTitleTextBox);
+        DetachWorkspaceBringIntoViewSuppression(EditorTagsTextBox);
+        EditorTextEditor.GotFocus -= OnPrimaryEditorGotFocus;
+        _resizeHandleHoverTimer.Stop();
+        _resizeHandleHoverTimer.Tick -= OnResizeHandleHoverTimerTick;
+        _clipboardImageBitmap?.Dispose();
+        _clipboardImageBitmap = null;
+        _editorHost.Dispose();
+        DisposeSecondaryEditorHosts();
+    }
+
+    private void SetTitleBarVisible(bool isVisible)
+    {
+        TitleBarBorder.IsVisible = isVisible;
     }
 
     public void SetWindowLayoutService(IWindowLayoutService windowLayoutService)
@@ -244,7 +308,7 @@ public partial class MainWindow : Window
         _editorLayoutState.SettingsChanged += OnEditorLayoutSettingsChanged;
     }
 
-    public async Task CompleteStartupInitializationAsync()
+    public async Task CompleteStartupInitializationAsync(bool revealWindow = true)
     {
         await _openedTaskSource.Task;
 
@@ -269,7 +333,10 @@ public partial class MainWindow : Window
             UpdateEditorCanvasWidth();
         }, DispatcherPriority.Render);
 
-        Opacity = 1;
+        if (revealWindow)
+        {
+            Opacity = 1;
+        }
     }
 
     public void ApplyInitialWindowLayout(WindowLayout layout, bool isOnScreen)
@@ -386,9 +453,7 @@ public partial class MainWindow : Window
 
         var vm = DataContext as MainViewModel;
         var sidebarCollapsed = vm?.SidebarCollapsed ?? false;
-        var sidebarWidth = sidebarCollapsed
-            ? _sidebarWidthBeforeCollapse
-            : SidebarCol.Width.Value;
+        var sidebarWidth = GetSidebarWidthForLayout(vm);
 
         var isCalendarExpanded = vm?.IsCalendarExpanded ?? false;
         return new WindowLayout(
@@ -423,6 +488,7 @@ public partial class MainWindow : Window
     private static readonly TimeSpan ResizeHandleHoverDelay = TimeSpan.FromMilliseconds(150);
     private const double EditorCanvasMinWidth = 520;
     private const double EditorCanvasResetThreshold = 12;
+    private const double EditorResizeStripeHeight = 32;
     private const double TwoPaneMinWidth = 440;
     private const double MultiPaneMinWidth = 360;
     private const double EqualFitSafetyGap = 1;
@@ -443,6 +509,7 @@ public partial class MainWindow : Window
 
     private void OnResizeHandlePointerEntered(object? sender, PointerEventArgs e)
     {
+        UpdateEditorResizeStripePosition(sender, e);
         if (sender is not Control control || control.Classes.Contains("active"))
         {
             return;
@@ -515,7 +582,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (DataContext is MainViewModel vm && vm.HasSecondaryPane)
+        if (DataContext is MainViewModel vm && vm.HasSecondaryPane && !_isZenMode)
         {
             var paneIndex = GetPaneResizeIndex(control, vm);
             var resizeDirection = GetResizeDirection(control);
@@ -562,6 +629,7 @@ public partial class MainWindow : Window
 
     private void OnEditorResizeHandlePointerMoved(object? sender, PointerEventArgs e)
     {
+        UpdateEditorResizeStripePosition(sender, e);
         if (_isResizingMultiPane)
         {
             if (_multiPaneResizePaneIndex < 0 || _multiPaneResizeDistributableWidth <= 0)
@@ -601,8 +669,16 @@ public partial class MainWindow : Window
         var delta = currentPosition.X - _editorCanvasResizeStartPoint.X;
         var requestedWidth = _editorCanvasResizeStartWidth + ((delta * _editorCanvasResizeDirection) * 2);
 
-        _editorCanvasPreferredWidth = NormalizeDraggedEditorCanvasWidth(requestedWidth, availableWidth);
-        _multiPaneEqualizedPaneWidth = null;
+        if (_isZenMode)
+        {
+            _zenEditorCanvasPreferredWidth = NormalizeDraggedEditorCanvasWidth(requestedWidth, availableWidth);
+        }
+        else
+        {
+            _editorCanvasPreferredWidth = NormalizeDraggedEditorCanvasWidth(requestedWidth, availableWidth);
+            _multiPaneEqualizedPaneWidth = null;
+        }
+
         UpdateEditorCanvasWidth();
         e.Handled = true;
     }
@@ -748,10 +824,33 @@ public partial class MainWindow : Window
         control.Classes.Set("hover-intent", isActive);
     }
 
+    private static void UpdateEditorResizeStripePosition(object? sender, PointerEventArgs e)
+    {
+        if (sender is not Border { Child: Border stripe } handle
+            || !handle.Classes.Contains("editorResizeHandle"))
+        {
+            return;
+        }
+
+        var top = CalculateEditorResizeStripeTop(
+            e.GetPosition(handle).Y,
+            handle.Bounds.Height,
+            EditorResizeStripeHeight);
+        stripe.Margin = new Thickness(stripe.Margin.Left, top, stripe.Margin.Right, stripe.Margin.Bottom);
+    }
+
+    internal static double CalculateEditorResizeStripeTop(
+        double pointerY,
+        double handleHeight,
+        double stripeHeight)
+    {
+        var maxTop = Math.Max(0, handleHeight - stripeHeight);
+        return Math.Clamp(pointerY - (stripeHeight / 2), 0, maxTop);
+    }
+
     private void OnEditorPanelSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         UpdateEditorCanvasWidth();
-        UpdateWorkspacePresentation();
         UpdateSplitEditorAvailability();
     }
 
@@ -768,6 +867,11 @@ public partial class MainWindow : Window
     private void UpdateEditorCanvasWidth()
     {
         UpdateWorkspacePresentation();
+        if (TryUpdateZenEditorCanvasWidth())
+        {
+            return;
+        }
+
         var effectiveWidth = GetEffectiveEditorCanvasWidth();
         if (effectiveWidth <= 0)
         {
@@ -787,6 +891,11 @@ public partial class MainWindow : Window
     private void UpdateWorkspacePresentation()
     {
         if (DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        if (TryUpdateZenWorkspacePresentation(vm))
         {
             return;
         }
@@ -1198,6 +1307,11 @@ public partial class MainWindow : Window
             return 0;
         }
 
+        if (_isZenMode)
+        {
+            return CalculateZenEditorWidth(availableWidth, _zenEditorCanvasPreferredWidth);
+        }
+
         if (DataContext is MainViewModel vm && vm.HasSecondaryPane)
         {
             return availableWidth;
@@ -1210,6 +1324,11 @@ public partial class MainWindow : Window
 
     private double GetAvailableEditorCanvasWidth()
     {
+        if (_isZenMode)
+        {
+            return CalculateZenPaneWidth(Bounds.Width, WorkspaceHost.Margin);
+        }
+
         return Math.Max(0, EditorPanel.Bounds.Width);
     }
 
@@ -1429,7 +1548,6 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == nameof(MainViewModel.HasSecondaryPane))
         {
-            UpdateWorkspacePresentation();
             UpdateEditorCanvasWidth();
             UpdateSplitEditorAvailability();
             UpdateActiveEditorBindings();
@@ -1440,11 +1558,17 @@ public partial class MainWindow : Window
         {
             SyncSidebarSelectionFromActivePane(vm);
             UpdateActiveEditorBindings();
+            UpdateEditorCanvasWidth();
             return;
         }
 
         if (e.PropertyName != nameof(MainViewModel.SidebarCollapsed))
             return;
+
+        if (_isZenMode)
+        {
+            return;
+        }
 
         AnimateSidebar(vm.SidebarCollapsed);
         UpdateWorkspacePresentation();
@@ -1487,9 +1611,8 @@ public partial class MainWindow : Window
             }
         }
 
-        UpdateWorkspacePresentation();
         UpdateEditorCanvasWidth();
-        }
+    }
 
     private void UpdatePaneSplitWeightsForCollectionChange(MainViewModel vm, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
@@ -1605,8 +1728,9 @@ public partial class MainWindow : Window
     {
         _sidebarAnimationCts?.Cancel();
         _sidebarAnimationCts?.Dispose();
-        _sidebarAnimationCts = new CancellationTokenSource();
-        var cancellationToken = _sidebarAnimationCts.Token;
+        var animationCts = new CancellationTokenSource();
+        _sidebarAnimationCts = animationCts;
+        var cancellationToken = animationCts.Token;
 
         var startWidth = SidebarCol.Width.Value;
         var targetWidth = collapse ? 0 : Math.Max(_sidebarWidthBeforeCollapse, SidebarMinWidth);
@@ -1638,7 +1762,6 @@ public partial class MainWindow : Window
                 SidebarCol.Width = new GridLength(Lerp(startWidth, targetWidth, eased), GridUnitType.Pixel);
                 SidebarBorder.Opacity = Lerp(startOpacity, targetOpacity, eased);
                 UpdateWorkspaceHostMargin();
-                UpdateWorkspacePresentation();
                 UpdateEditorCanvasWidth();
 
                 if (progress >= 1)
@@ -1653,11 +1776,18 @@ public partial class MainWindow : Window
         {
             return;
         }
+        finally
+        {
+            if (ReferenceEquals(_sidebarAnimationCts, animationCts))
+            {
+                _sidebarAnimationCts = null;
+                animationCts.Dispose();
+            }
+        }
 
         SidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
         SidebarBorder.Opacity = targetOpacity;
         UpdateWorkspaceHostMargin();
-        UpdateWorkspacePresentation();
         UpdateEditorCanvasWidth();
         SidebarCol.MinWidth = collapse ? 0 : SidebarMinWidth;
         SplitterCol.Width = new GridLength(collapse ? 0 : SidebarSplitterWidth, GridUnitType.Pixel);
@@ -1686,7 +1816,6 @@ public partial class MainWindow : Window
             {
                 _isSidebarLayoutRefreshQueued = false;
                 UpdateWorkspaceHostMargin();
-                UpdateWorkspacePresentation();
                 UpdateEditorCanvasWidth();
             }, DispatcherPriority.Background);
         }, DispatcherPriority.Render);
@@ -3101,6 +3230,21 @@ public partial class MainWindow : Window
 
         SyncSecondaryEditorText(pane);
         UpdateActiveEditorBindings();
+        if (_isZenMode && DataContext is MainViewModel { ActiveSecondaryPane: { } activePane }
+            && ReferenceEquals(activePane, pane))
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_isZenMode
+                    && DataContext is MainViewModel { ActiveSecondaryPane: { } currentActivePane }
+                    && ReferenceEquals(currentActivePane, pane)
+                    && _secondaryEditorControls.TryGetValue(pane.Id, out var currentEditor)
+                    && ReferenceEquals(currentEditor, editor))
+                {
+                    editor.Focus();
+                }
+            }, DispatcherPriority.Render);
+        }
     }
 
     private void OnSecondaryEditorDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
@@ -3237,11 +3381,8 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleSidebar, e.Key, e.KeyModifiers)
-                && vm.ToggleSidebarCommand.CanExecute(null))
+            if (TryHandleWorkspacePresentationShortcut(vm, e))
             {
-                e.Handled = true;
-                vm.ToggleSidebarCommand.Execute(null);
                 return;
             }
 
@@ -3284,7 +3425,14 @@ public partial class MainWindow : Window
             if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ClosePane, e.Key, e.KeyModifiers))
             {
                 e.Handled = true;
-                await vm.CloseActivePaneAsync();
+                if (IsStandaloneWindow)
+                {
+                    await RequestCloseAsync();
+                }
+                else
+                {
+                    await vm.CloseActivePaneAsync();
+                }
                 return;
             }
         }
@@ -3345,14 +3493,24 @@ public partial class MainWindow : Window
         (modifiers == KeyModifiers.Control || modifiers == KeyModifiers.Meta)
         && (key == Key.D0 || key == Key.NumPad0);
 
-    private void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
+    private async void OnNotePickerSearchTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
         if (DataContext is not MainViewModel vm)
         {
             return;
         }
 
-        if (e.Key == Key.Down)
+        if (IsOpenNoteInZenWindowGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            await OpenSelectedPickerNoteInWindowAsync(vm, NoteWindowMode.Zen);
+        }
+        else if (IsOpenNoteInNewWindowGesture(e.Key, e.KeyModifiers))
+        {
+            e.Handled = true;
+            await OpenSelectedPickerNoteInWindowAsync(vm, NoteWindowMode.Standard);
+        }
+        else if (e.Key == Key.Down)
         {
             e.Handled = true;
             vm.MoveNotePickerSelectionCommand.Execute(1);
@@ -3519,12 +3677,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (vm is not null
-            && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleSidebar, e.Key, e.KeyModifiers)
-            && vm.ToggleSidebarCommand.CanExecute(null))
+        if (vm is not null && TryHandleWorkspacePresentationShortcut(vm, e))
         {
-            e.Handled = true;
-            vm.ToggleSidebarCommand.Execute(null);
             return;
         }
 
@@ -3687,11 +3841,27 @@ public partial class MainWindow : Window
             isUnindent));
     }
 
-    private void OnWindowPointerMoved(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerMoved(e);
+    private void OnWindowPointerMoved(object? sender, PointerEventArgs e)
+    {
+        _windowChrome.OnWindowPointerMoved(e);
+        UpdateZenWindowMoveCursor(e);
+    }
 
     private void OnWindowPointerExited(object? sender, PointerEventArgs e) => _windowChrome.OnWindowPointerExited();
 
-    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e) => _windowChrome.OnWindowPointerPressed(e);
+    private void OnWindowPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _windowChrome.OnWindowPointerPressed(e);
+        if (e.Handled || !_isZenMode)
+        {
+            return;
+        }
+
+        if (IsZenWindowDragGesture(Bounds.Size, e.GetPosition(this), e.KeyModifiers))
+        {
+            _windowChrome.OnWindowDragPointerPressed(e);
+        }
+    }
 
     /// <summary>
     /// Returns <c>true</c> when the pointer event originates from an interactive

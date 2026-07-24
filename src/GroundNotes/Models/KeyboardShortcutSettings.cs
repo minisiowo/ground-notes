@@ -51,8 +51,18 @@ public sealed record KeyboardShortcutSettings(
         var bindings = new Dictionary<string, List<KeyboardShortcutBinding>>(StringComparer.Ordinal);
         foreach (var definition in KeyboardShortcutCatalog.Definitions)
         {
-            bindings[definition.Id] = configuredBindings.TryGetValue(definition.Id, out var configured)
-                ? KeyboardShortcutCatalog.NormalizeBindings(configured).ToList()
+            if (configuredBindings.TryGetValue(definition.Id, out var configured))
+            {
+                bindings[definition.Id] = KeyboardShortcutCatalog.NormalizeBindings(configured).ToList();
+                continue;
+            }
+
+            bindings[definition.Id] = definition.Id == KeyboardShortcutActionIds.ToggleZenMode
+                                      && KeyboardShortcutCatalog.HasConfiguredConflict(
+                                          definition,
+                                          definition.DefaultBindings,
+                                          configuredBindings)
+                ? []
                 : definition.DefaultBindings.ToList();
         }
 

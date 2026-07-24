@@ -15,7 +15,8 @@ public sealed class SettingsWindowLayoutServiceTests
 
         service.SaveWindowLayoutSync(layout);
 
-        Assert.True(settingsService.SaveSettingsSyncCalled);
+        Assert.True(settingsService.UpdateSettingsSyncCalled);
+        Assert.False(settingsService.SaveSettingsSyncCalled);
         Assert.False(settingsService.SaveSettingsAsyncCalled);
         Assert.Equal(layout, settingsService.Settings.WindowLayout);
     }
@@ -42,6 +43,8 @@ public sealed class SettingsWindowLayoutServiceTests
 
         public bool SaveSettingsSyncCalled { get; private set; }
 
+        public bool UpdateSettingsSyncCalled { get; private set; }
+
         public bool SaveSettingsAsyncCalled { get; private set; }
 
         public AppSettings GetSettingsSync() => Settings;
@@ -62,6 +65,12 @@ public sealed class SettingsWindowLayoutServiceTests
             SaveSettingsAsyncCalled = true;
             Settings = settings;
             return Task.CompletedTask;
+        }
+
+        public void UpdateSettingsSync(Func<AppSettings, AppSettings> update)
+        {
+            UpdateSettingsSyncCalled = true;
+            Settings = update(Settings);
         }
 
         public Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default)

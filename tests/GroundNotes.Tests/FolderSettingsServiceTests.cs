@@ -366,7 +366,9 @@ public sealed class FolderSettingsServiceTests : IDisposable
             true,
             true,
             new WindowLayout(1200, 800, 50, 60, true, 320, false, true, 840, null, null, ["luxoft", "luxoft/template"]),
-            ai));
+            ai,
+            StandardNoteWindowLayout: new NoteWindowLayout(820, 720),
+            ZenNoteWindowLayout: new NoteWindowLayout(680, 760)));
 
         var asyncSettings = await _service.GetSettingsAsync();
         var syncSettings = _service.GetSettingsSync();
@@ -376,6 +378,67 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.True(syncSettings.WindowLayout?.SidebarCalendarExpanded);
         Assert.Equal(840, syncSettings.WindowLayout?.EditorCanvasWidth);
         Assert.Equal(["luxoft", "luxoft/template"], syncSettings.WindowLayout?.SidebarExpandedTagPaths);
+        Assert.Equal(new NoteWindowLayout(820, 720), syncSettings.StandardNoteWindowLayout);
+        Assert.Equal(new NoteWindowLayout(680, 760), syncSettings.ZenNoteWindowLayout);
+    }
+
+    [Fact]
+    public void SettingsNoteWindowLayoutService_SavesModesIndependently()
+    {
+        var layoutService = new SettingsNoteWindowLayoutService(_service);
+
+        layoutService.SaveLayout(NoteWindowMode.Standard, new NoteWindowLayout(840, 700));
+        layoutService.SaveLayout(NoteWindowMode.Zen, new NoteWindowLayout(640, 780));
+
+        Assert.Equal(new NoteWindowLayout(840, 700), layoutService.GetLayout(NoteWindowMode.Standard));
+        Assert.Equal(new NoteWindowLayout(640, 780), layoutService.GetLayout(NoteWindowMode.Zen));
+    }
+
+    [Fact]
+    public void UpdateSettingsSync_UpdatesLatestSettingsUnderSingleOperation()
+    {
+        _service.SaveSettingsSync(_service.GetSettingsSync() with
+        {
+            NotesFolder = "notes",
+            ThemeName = "Nord"
+        });
+
+        _service.UpdateSettingsSync(settings => settings with
+        {
+            StandardNoteWindowLayout = new NoteWindowLayout(840, 700)
+        });
+        var settings = _service.GetSettingsSync();
+
+        Assert.Equal("notes", settings.NotesFolder);
+        Assert.Equal("Nord", settings.ThemeName);
+        Assert.Equal(new NoteWindowLayout(840, 700), settings.StandardNoteWindowLayout);
+    }
+
+    [Theory]
+    [InlineData("{\"themeName\":\"Nord\",\"standardNoteWindowLayout\":{\"height\":700}}")]
+    [InlineData("{\"themeName\":\"Nord\",\"standardNoteWindowLayout\":{\"width\":840}}")]
+    [InlineData("{\"themeName\":\"Nord\",\"standardNoteWindowLayout\":{\"width\":0,\"height\":700}}")]
+    [InlineData("{\"themeName\":\"Nord\",\"standardNoteWindowLayout\":{\"width\":840,\"height\":-1}}")]
+    public async Task GetSettingsAsync_IgnoresIncompleteNoteWindowLayoutWithoutLosingOtherSettings(string json)
+    {
+        await File.WriteAllTextAsync(_settingsFilePath, json);
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal("Nord", settings.ThemeName);
+        Assert.Null(settings.StandardNoteWindowLayout);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_ClampsOversizedNoteWindowLayout()
+    {
+        await File.WriteAllTextAsync(
+            _settingsFilePath,
+            "{\"standardNoteWindowLayout\":{\"width\":50000,\"height\":40000}}");
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal(new NoteWindowLayout(10000, 10000), settings.StandardNoteWindowLayout);
     }
 
     [Fact]
@@ -404,6 +467,30 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Null(settings.WindowLayout);
         Assert.Equal(AiSettings.Default, settings.AiSettings);
         Assert.True(settings.ShowScrollBars);
+    }
+
+    [Fact]
+    public void UpdateSettingsSync_DoesNotOverwriteInvalidSettingsFile()
+    {
+        const string invalidJson = "not json {";
+        File.WriteAllText(_settingsFilePath, invalidJson);
+
+        Assert.Throws<JsonException>(() =>
+            _service.UpdateSettingsSync(settings => settings with { ThemeName = "Nord" }));
+
+        Assert.Equal(invalidJson, File.ReadAllText(_settingsFilePath));
+    }
+
+    [Fact]
+    public async Task UpdateSettingsAsync_DoesNotOverwriteInvalidSettingsFile()
+    {
+        const string invalidJson = "not json {";
+        await File.WriteAllTextAsync(_settingsFilePath, invalidJson);
+
+        await Assert.ThrowsAsync<JsonException>(() =>
+            _service.UpdateSettingsAsync(settings => settings with { ThemeName = "Nord" }));
+
+        Assert.Equal(invalidJson, await File.ReadAllTextAsync(_settingsFilePath));
     }
 
     public void Dispose()

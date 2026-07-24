@@ -56,6 +56,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             [new BundledFontVariantOption(FontCatalogService.DefaultVariantKey, FontCatalogService.DefaultVariantKey, FontWeight.Normal, FontStyle.Normal)])
     ];
     private CancellationTokenSource? _saveCts;
+    private long _primaryEditVersion;
     private readonly SemaphoreSlim _notePersistenceLock = new(1, 1);
     private Task? _initializationTask;
     private bool _isApplyingSelection;
@@ -378,8 +379,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     };
 
     public string NotePickerFooterHint => IsNotePickerTruncated
-        ? "Refine search to narrow more notes."
-        : "Type to filter. Enter opens. Up and Down move. Esc closes.";
+        ? "Refine search. Ctrl/Cmd+Enter opens a window; add Shift for ZEN."
+        : "Enter opens here. Ctrl/Cmd+Enter opens a window; add Shift for ZEN. Esc closes.";
 
     public bool ShowFolderPrompt => !HasSelectedFolder;
 
@@ -1229,6 +1230,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ClearTransientStatusOnEdit();
         DismissTitleSuggestions(clearContext: false);
         CurrentNote.Tags = committedTags;
+        _primaryEditVersion++;
         HasUnsavedChanges = true;
         await SaveCurrentNoteAsync(CancellationToken.None);
     }
@@ -1360,10 +1362,16 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public Task InitializeAsync()
     {
-        return _initializationTask ??= InitializeAsyncCore();
+        return _initializationTask ??= InitializeAsyncCore(folderOverride: null, persistFolderSelection: true);
     }
 
-    private async Task InitializeAsyncCore()
+    public Task InitializeForFolderAsync(string folderPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folderPath);
+        return _initializationTask ??= InitializeAsyncCore(folderPath, persistFolderSelection: false);
+    }
+
+    private async Task InitializeAsyncCore(string? folderOverride, bool persistFolderSelection)
     {
         var settings = await _settingsService.GetSettingsAsync();
         EditorFontSize = ClampEditorFontSize(settings.EditorFontSize ?? DefaultEditorFontSize);
@@ -1431,29 +1439,24 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             ?? GetDefaultFontVariant(initialCodeFont);
         ApplyCodeFontSelection(initialCodeFont, initialCodeVariant, persist: false);
 
-        if (!string.IsNullOrWhiteSpace(settings.NotesFolder))
+        var initialFolder = string.IsNullOrWhiteSpace(folderOverride)
+            ? settings.NotesFolder
+            : folderOverride;
+        if (!string.IsNullOrWhiteSpace(initialFolder))
         {
             StatusMessage = "Loading notes...";
-            await SetFolderAsync(settings.NotesFolder, focusEditorWhenReady: true);
+            await SetFolderAsync(initialFolder, focusEditorWhenReady: true, persistFolderSelection);
         }
     }
 
-    private async Task SetFolderAsync(string folderPath, bool focusEditorWhenReady = false)
+    private async Task SetFolderAsync(
+        string folderPath,
+        bool focusEditorWhenReady = false,
+        bool persistFolderSelection = true)
     {
-        if (!await CanLeaveCurrentEditorStateAsync())
+        if (!await PrepareToCloseAsync())
         {
             return;
-        }
-
-        if (SecondaryPanes.Any())
-        {
-            foreach (var pane in SecondaryPanes.ToList())
-            {
-                if (!await CanLeavePaneStateAsync(pane))
-                {
-                    return;
-                }
-            }
         }
 
         Directory.CreateDirectory(folderPath);
@@ -1467,7 +1470,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SelectedCalendarDate = null;
         DisplayedCalendarMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
         NotesFolder = folderPath;
-        await PersistSettingsAsync(settings => settings with { NotesFolder = folderPath });
+        if (persistFolderSelection)
+        {
+            await PersistSettingsAsync(settings => settings with { NotesFolder = folderPath });
+        }
         _fileWatcherService.Watch(folderPath);
         ClearEditor();
         foreach (var pane in SecondaryPanes.ToList())

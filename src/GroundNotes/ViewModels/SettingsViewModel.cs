@@ -422,7 +422,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         foreach (var entry in entries.Where(entry => !invalidBindings.Contains(entry.ViewModel)))
         {
             var fixedConflict = fixedShortcuts.FirstOrDefault(fixedShortcut =>
-                ScopesOverlap(entry.Action.Scope, fixedShortcut.Scope)
+                KeyboardShortcutCatalog.ScopesOverlap(entry.Action.Scope, fixedShortcut.Scope)
                 && string.Equals(entry.Display, fixedShortcut.Display, StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrEmpty(fixedConflict.Display))
             {
@@ -438,7 +438,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 var second = entries[otherIndex];
                 if (invalidBindings.Contains(first.ViewModel)
                     || invalidBindings.Contains(second.ViewModel)
-                    || !ScopesOverlap(first.Action.Scope, second.Action.Scope)
+                    || !KeyboardShortcutCatalog.ScopesOverlap(first.Action.Scope, second.Action.Scope)
                     || !string.Equals(first.Display, second.Display, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
@@ -485,6 +485,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
                || action.Id is KeyboardShortcutActionIds.DeleteNote
                    or KeyboardShortcutActionIds.ToggleYaml
                    or KeyboardShortcutActionIds.ToggleSidebar
+                   or KeyboardShortcutActionIds.ToggleZenMode
                    or KeyboardShortcutActionIds.ShowShortcuts;
     }
 
@@ -515,16 +516,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         ];
     }
 
-    private static bool ScopesOverlap(KeyboardShortcutScope first, KeyboardShortcutScope second)
-    {
-        if (first == second || first == KeyboardShortcutScope.Global || second == KeyboardShortcutScope.Global)
-        {
-            return true;
-        }
 
-        return (first == KeyboardShortcutScope.MainWindow && second == KeyboardShortcutScope.Editor)
-               || (first == KeyboardShortcutScope.Editor && second == KeyboardShortcutScope.MainWindow);
-    }
 
     private static bool IsPrintableKey(string key)
     {

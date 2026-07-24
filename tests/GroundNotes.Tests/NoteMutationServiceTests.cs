@@ -24,6 +24,7 @@ public sealed class NoteMutationServiceTests : IDisposable
         Assert.NotNull(captured);
         Assert.Equal(NoteMutationKind.Saved, captured.Kind);
         Assert.NotNull(captured.Document);
+        Assert.Equal(_temp.Root, captured.FolderPath);
     }
 
     [Fact]
@@ -40,6 +41,7 @@ public sealed class NoteMutationServiceTests : IDisposable
 
         Assert.NotNull(captured);
         Assert.Equal(NoteMutationKind.Deleted, captured.Kind);
+        Assert.Equal(_temp.Root, captured.FolderPath);
     }
 
     [Fact]
@@ -76,6 +78,29 @@ public sealed class NoteMutationServiceTests : IDisposable
 
         Assert.NotNull(captured);
         Assert.Null(captured.OriginId);
+    }
+
+    [Fact]
+    public async Task SaveAsync_RejectsDocumentLoadedBeforeAnotherSave()
+    {
+        Directory.CreateDirectory(_temp.Root);
+        var service = new NoteMutationService(_repository);
+        var original = _repository.CreateDraftNote(_temp.Root, DateTimeOffset.Now);
+        original.Body = "original";
+        var persisted = await _repository.SaveNoteAsync(_temp.Root, original);
+        var first = await _repository.LoadNoteAsync(persisted.FilePath);
+        var stale = await _repository.LoadNoteAsync(persisted.FilePath);
+        Assert.NotNull(first);
+        Assert.NotNull(stale);
+        first.Body = "first save";
+        stale.Body = "stale save";
+        await Task.Delay(20);
+
+        await service.SaveAsync(_temp.Root, first, preserveTimestamp: true);
+
+        await Assert.ThrowsAsync<NoteSaveConflictException>(() => service.SaveAsync(_temp.Root, stale));
+        var reloaded = await _repository.LoadNoteAsync(persisted.FilePath);
+        Assert.Equal("first save", reloaded?.Body);
     }
 
     [Fact]

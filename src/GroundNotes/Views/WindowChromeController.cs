@@ -106,18 +106,29 @@ public sealed class WindowChromeController
 
     public void OnTitleBarPointerPressed(PointerPressedEventArgs e)
     {
-        if (!e.GetCurrentPoint(_window).Properties.IsLeftButtonPressed)
+        if (_options.IsInteractiveControl?.Invoke(e) == true)
         {
             return;
         }
 
-        if (_options.IsInteractiveControl?.Invoke(e) == true)
+        BeginMoveDrag(e);
+    }
+
+    public void OnWindowDragPointerPressed(PointerPressedEventArgs e)
+    {
+        BeginMoveDrag(e);
+    }
+
+    private void BeginMoveDrag(PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(_window).Properties.IsLeftButtonPressed)
         {
             return;
         }
 
         try
         {
+            e.Handled = true;
             _window.BeginMoveDrag(e);
         }
         catch (InvalidOperationException)

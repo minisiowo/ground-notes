@@ -96,6 +96,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (IsNoteConflicted(note.FilePath))
+        {
+            StatusMessage = "Resolve the note conflict before applying a title.";
+            return;
+        }
+
         if (!TryUpdateActiveNoteFromEditor())
         {
             return;
@@ -115,18 +121,58 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         CancelActiveNoteSave();
-        note.Title = normalizedSuggestion;
+        var activePane = ActiveSecondaryPane;
+        var editVersion = activePane?.EditVersion ?? _primaryEditVersion;
+        var snapshot = CloneForPersistence(note);
+        snapshot.Title = normalizedSuggestion;
 
         NoteDocument renamed;
         SuppressWatcher();
-        using (BeginMutationScope())
+        try
         {
-            renamed = await _noteMutationService.SaveAsync(NotesFolder, note, CancellationToken.None);
+            using (BeginMutationScope())
+            {
+                renamed = await _noteMutationService.SaveAsync(NotesFolder, snapshot, CancellationToken.None);
+            }
+        }
+        catch (NoteSaveConflictException)
+        {
+            MarkNoteConflict(note.FilePath);
+            return;
+        }
+
+        var targetNote = activePane?.CurrentNote ?? CurrentNote;
+        if (!IsSamePersistedNote(targetNote, snapshot, renamed))
+        {
+            DismissTitleSuggestions(clearContext: true);
+            return;
+        }
+
+        if ((activePane is null && _primaryEditVersion != editVersion)
+            || (activePane is not null && activePane.EditVersion != editVersion))
+        {
+            MergeSavedPersistenceState(targetNote, snapshot, renamed);
+            DismissTitleSuggestions(clearContext: true);
+            return;
         }
 
         DismissTitleSuggestions(clearContext: true);
-        ApplyDocumentToActivePane(renamed);
-        SelectSummaryByPath(renamed.FilePath);
+        if (activePane is null)
+        {
+            ApplyDocumentToEditor(renamed);
+            if (IsPrimaryPaneActive)
+            {
+                SelectSummaryByPath(renamed.FilePath);
+            }
+        }
+        else
+        {
+            ApplyDocumentToPane(activePane, renamed);
+            if (ReferenceEquals(ActiveSecondaryPane, activePane))
+            {
+                SelectSummaryByPath(renamed.FilePath);
+            }
+        }
         StatusMessage = $"Renamed to {Path.GetFileNameWithoutExtension(renamed.FilePath)}";
     }
 

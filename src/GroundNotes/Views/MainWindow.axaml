@@ -30,6 +30,7 @@
   </Window.Resources>
   <Grid RowDefinitions="Auto,*">
     <Border Grid.Row="0"
+            x:Name="TitleBarBorder"
             Classes="titleBarSurface"
             BorderThickness="0,0,0,1"
             PointerPressed="OnTitleBarPointerPressed"
@@ -226,6 +227,12 @@
                              <MenuItem Header="Open to right"
                                        Command="{Binding #RootWindow.DataContext.OpenNoteInSplitCommand}"
                                        CommandParameter="{Binding Note}" />
+                             <MenuItem Header="Open in new window"
+                                       Click="OnOpenSidebarNoteInNewWindowClick"
+                                       CommandParameter="{Binding Note.FilePath}" />
+                             <MenuItem Header="Open in ZEN window"
+                                       Click="OnOpenSidebarNoteInZenWindowClick"
+                                       CommandParameter="{Binding Note.FilePath}" />
                              <MenuItem Header="Add selected to folder..."
                                        Command="{Binding #RootWindow.DataContext.AddSelectedNotesToTagFolderCommand}" />
                              <MenuItem Header="Move selected to root"
@@ -454,9 +461,9 @@
                         RowDefinitions="Auto,*">
                     <Grid Grid.Row="0"
                           x:Name="TitleTagsGrid"
+                          Classes="editorMetadata"
                           ColumnDefinitions="3*,*"
                           Margin="0,0,0,10"
-                          IsVisible="{Binding ShowStructuredMetadataEditors}"
                           IsEnabled="{Binding HasSelectedFolder}">
                       <Grid x:Name="TitleSuggestionsAnchor"
                             ColumnDefinitions="*,Auto">
@@ -736,7 +743,7 @@
 
                     <Border x:Name="RightEditorResizeHandle"
                             Grid.RowSpan="2"
-                            Classes="sidebarResizeHandle"
+                            Classes="sidebarResizeHandle editorResizeHandle"
                             Tag="Right"
                             Width="12"
                             Margin="0"
@@ -752,7 +759,7 @@
                               Width="1"
                               HorizontalAlignment="Right" />
                     </Border>
-                    <Border Classes="sidebarResizeHandle"
+                    <Border Classes="sidebarResizeHandle editorResizeHandle"
                             Grid.RowSpan="2"
                             Tag="Left"
                             Width="12"
@@ -790,9 +797,9 @@
                     <Border Classes="editorPaneContentHost">
                       <Grid RowDefinitions="Auto,*">
                         <Grid Grid.Row="0"
+                              Classes="editorMetadata"
                               ColumnDefinitions="3*,*"
-                              Margin="0,0,0,10"
-                              IsVisible="{Binding ShowStructuredMetadataEditors}">
+                              Margin="0,0,0,10">
                           <Grid x:Name="SecondaryTitleAnchor"
                                  ColumnDefinitions="*,Auto">
                             <TextBox Classes="editorFont"
@@ -878,7 +885,7 @@
                                        TextWrapping="Wrap" />
                           </Grid>
                         </Border>
-                        <Border Classes="sidebarResizeHandle"
+                        <Border Classes="sidebarResizeHandle editorResizeHandle"
                                 Grid.RowSpan="2"
                                 Tag="Right"
                                 Width="12"
@@ -895,7 +902,7 @@
                                   Width="1"
                                   HorizontalAlignment="Right" />
                         </Border>
-                        <Border Classes="sidebarResizeHandle"
+                        <Border Classes="sidebarResizeHandle editorResizeHandle"
                                 Grid.RowSpan="2"
                                 Tag="Left"
                                 Width="12"
@@ -971,6 +978,16 @@
                               HorizontalAlignment="Stretch"
                               Padding="8,6"
                               BorderThickness="1">
+                        <Border.ContextMenu>
+                          <ContextMenu>
+                            <MenuItem Header="Open in new window"
+                                      Click="OnOpenPickerNoteInNewWindowClick"
+                                      CommandParameter="{Binding FilePath}" />
+                            <MenuItem Header="Open in ZEN window"
+                                      Click="OnOpenPickerNoteInZenWindowClick"
+                                      CommandParameter="{Binding FilePath}" />
+                          </ContextMenu>
+                        </Border.ContextMenu>
                         <Grid RowDefinitions="Auto,Auto,Auto">
                           <TextBlock Classes="fileRowText"
                                      Text="{Binding DisplayName}"

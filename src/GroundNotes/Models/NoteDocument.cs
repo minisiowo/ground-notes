@@ -21,4 +21,6 @@ public sealed record NoteDocument
     public DateTime UpdatedAt { get; set; }
 
     public bool IsAutoCreated { get; init; }
+
+    public string? SourceContentHash { get; set; }
 }

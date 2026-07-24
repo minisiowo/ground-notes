@@ -351,6 +351,214 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenNoteAsync_LoadsRequestedFileIntoPrimaryPane()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "body beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        await vm.OpenNoteAsync(Path.Combine(_tempRoot, "beta.md"));
+
+        Assert.Equal("beta", vm.CurrentNote?.Title);
+        Assert.Equal("body beta", vm.EditorBody);
+        Assert.True(vm.IsPrimaryPaneActive);
+    }
+
+    [Fact]
+    public async Task OpenNoteAsync_FlushesPendingEditBeforeSwitchingNotes()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "original alpha", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "original beta", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var alphaPath = Path.Combine(_tempRoot, "alpha.md");
+        await vm.OpenNoteAsync(alphaPath);
+        vm.EditorBody = "edited alpha";
+
+        await vm.OpenNoteAsync(Path.Combine(_tempRoot, "beta.md"));
+        var savedAlpha = await new NotesRepository().LoadNoteAsync(alphaPath);
+
+        Assert.Equal("edited alpha", savedAlpha?.Body);
+        Assert.Equal("beta", vm.CurrentNote?.Title);
+        Assert.Equal("original beta", vm.EditorBody);
+    }
+
+    [Fact]
+    public async Task PrepareToCloseAsync_FlushesPendingEditorSave()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "original", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.OpenNoteAsync(Path.Combine(_tempRoot, "alpha.md"));
+        vm.EditorBody = "saved before close";
+
+        var canClose = await vm.PrepareToCloseAsync();
+        var saved = await new NotesRepository().LoadNoteAsync(Path.Combine(_tempRoot, "alpha.md"));
+
+        Assert.True(canClose);
+        Assert.Equal("saved before close", saved?.Body);
+        Assert.False(vm.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public async Task InitializeForFolderAsync_SavesOnlyInsideExplicitWorkspace()
+    {
+        var folderA = Path.Combine(_tempRoot, "workspace-a");
+        var folderB = Path.Combine(_tempRoot, "workspace-b");
+        Directory.CreateDirectory(folderA);
+        Directory.CreateDirectory(folderB);
+        var notePath = Path.Combine(folderA, "alpha.md");
+        await File.WriteAllTextAsync(notePath, "original");
+        var settingsService = new FakeSettingsService();
+        await settingsService.UpdateSettingsAsync(settings => settings with { NotesFolder = folderB });
+
+        using var vm = await CreateViewModelAsync(
+            settingsService: settingsService,
+            folderOverride: folderA);
+        await vm.OpenNoteAsync(notePath);
+        vm.EditorBody = "saved in workspace A";
+
+        Assert.True(await vm.PrepareToCloseAsync());
+        var saved = await new NotesRepository().LoadNoteAsync(notePath);
+
+        Assert.True(MainViewModel.AreSameNotesFolder(folderA, vm.NotesFolder));
+        Assert.True(MainViewModel.AreSameNotesFolder(folderB, settingsService.GetSettingsSync().NotesFolder));
+        Assert.Equal("saved in workspace A", saved?.Body);
+        Assert.False(File.Exists(Path.Combine(folderB, "alpha.md")));
+    }
+
+    [Fact]
+    public async Task ChooseFolderCommand_FlushesCurrentWorkspaceBeforeSwitching()
+    {
+        var folderA = Path.Combine(_tempRoot, "workspace-a");
+        var folderB = Path.Combine(_tempRoot, "workspace-b");
+        Directory.CreateDirectory(folderA);
+        Directory.CreateDirectory(folderB);
+        var notePath = Path.Combine(folderA, "alpha.md");
+        await File.WriteAllTextAsync(notePath, "original");
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = folderA };
+
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.OpenNoteAsync(notePath);
+        vm.EditorBody = "saved before switching";
+        dialogService.FolderToPick = folderB;
+
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var saved = await new NotesRepository().LoadNoteAsync(notePath);
+
+        Assert.Equal("saved before switching", saved?.Body);
+        Assert.True(MainViewModel.AreSameNotesFolder(folderB, vm.NotesFolder));
+        Assert.False(File.Exists(Path.Combine(folderB, "alpha.md")));
+    }
+
+    [Fact]
+    public async Task OpenNoteAsync_RejectsFileOutsideCurrentWorkspace()
+    {
+        var folderA = Path.Combine(_tempRoot, "workspace-a");
+        var folderB = Path.Combine(_tempRoot, "workspace-b");
+        Directory.CreateDirectory(folderA);
+        Directory.CreateDirectory(folderB);
+        var externalNotePath = Path.Combine(folderB, "external.md");
+        await File.WriteAllTextAsync(externalNotePath, "external");
+
+        using var vm = await CreateViewModelAsync(folderOverride: folderA);
+
+        await vm.OpenNoteAsync(externalNotePath);
+
+        Assert.Null(vm.CurrentNote);
+        Assert.Contains("outside", vm.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ForeignSave_WithPendingLocalEdit_BlocksAutosaveAndClose()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "shared.md");
+        await File.WriteAllTextAsync(notePath, "original");
+        var repository = new NotesRepository();
+        var mutationService = new NoteMutationService(repository);
+
+        using var first = await CreateViewModelAsync(
+            repository: repository,
+            noteMutationService: mutationService,
+            folderOverride: _tempRoot);
+        using var second = await CreateViewModelAsync(
+            repository: repository,
+            noteMutationService: mutationService,
+            folderOverride: _tempRoot);
+        await first.OpenNoteAsync(notePath);
+        await second.OpenNoteAsync(notePath);
+        second.EditorBody = "pending edit from second window";
+        first.EditorBody = "saved by first window";
+
+        Assert.True(await first.PrepareToCloseAsync());
+        await WaitForConditionAsync(() => second.HasConflict);
+        await Task.Delay(600);
+        var saved = await repository.LoadNoteAsync(notePath);
+
+        Assert.Equal("saved by first window", saved?.Body);
+        Assert.True(second.HasUnsavedChanges);
+        Assert.False(await second.PrepareToCloseAsync());
+        Assert.Contains("conflict", second.StatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SaveCompletion_DoesNotReplaceEditorChangesMadeWhileSaveWasRunning()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        var notePath = Path.Combine(_tempRoot, "alpha.md");
+        await File.WriteAllTextAsync(notePath, "original");
+        var repository = new BlockingSaveNotesRepository(new NotesRepository());
+        var mutationService = new NoteMutationService(repository);
+
+        using var vm = await CreateViewModelAsync(
+            repository: repository,
+            noteMutationService: mutationService,
+            folderOverride: _tempRoot);
+        await vm.OpenNoteAsync(notePath);
+        repository.BlockNextSave();
+        vm.EditorBody = "first edit";
+        await repository.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        vm.EditorBody = "newer edit";
+        repository.ReleaseSave();
+        await Task.Delay(1200);
+        var saved = await repository.LoadNoteAsync(notePath);
+
+        Assert.Equal("newer edit", vm.EditorBody);
+        Assert.Equal("newer edit", vm.CurrentNote?.Body);
+        Assert.Equal("newer edit", saved?.Body);
+        Assert.False(vm.HasUnsavedChanges);
+        Assert.False(vm.HasConflict);
+    }
+
+    [Fact]
+    public void AreSameNotesFolder_NormalizesPathsAndRejectsDifferentFolders()
+    {
+        var nested = Path.Combine(_tempRoot, "nested");
+
+        Assert.True(MainViewModel.AreSameNotesFolder(_tempRoot, _tempRoot + Path.DirectorySeparatorChar));
+        Assert.False(MainViewModel.AreSameNotesFolder(_tempRoot, nested));
+
+        var upperCaseFolder = Path.Combine(_tempRoot, "CaseSensitive");
+        var lowerCaseFolder = Path.Combine(_tempRoot, "casesensitive");
+        Assert.Equal(
+            OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(),
+            MainViewModel.AreSameNotesFolder(upperCaseFolder, lowerCaseFolder));
+    }
+
+    [Fact]
     public async Task ActivatePane_UpdatesSidebarSelectionWithoutReloadingAnotherPane()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -1333,7 +1541,10 @@ public sealed class MainViewModelTests : IDisposable
         FakeAppAppearanceService? appearanceService = null,
         FakeEditorLayoutState? editorLayoutState = null,
         FakeSettingsService? settingsService = null,
-        FakeAiTitleSuggestionService? aiTitleSuggestionService = null)
+        FakeAiTitleSuggestionService? aiTitleSuggestionService = null,
+        INotesRepository? repository = null,
+        INoteMutationService? noteMutationService = null,
+        string? folderOverride = null)
     {
         dialogService ??= new FakeWorkspaceDialogService();
         chatViewModelFactory ??= new FakeChatViewModelFactory();
@@ -1342,9 +1553,9 @@ public sealed class MainViewModelTests : IDisposable
         settingsService ??= new FakeSettingsService();
         aiTitleSuggestionService ??= new FakeAiTitleSuggestionService();
 
-        var repository = new NotesRepository();
+        repository ??= new NotesRepository();
         var fileWatcherService = new FakeFileWatcherService();
-        var noteMutationService = new NoteMutationService(repository);
+        noteMutationService ??= new NoteMutationService(repository);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
         var vm = new MainViewModel(
             repository,
@@ -1365,7 +1576,14 @@ public sealed class MainViewModelTests : IDisposable
             noteSearchServiceFactory,
             new TagFolderCatalogService());
 
-        await vm.InitializeAsync();
+        if (string.IsNullOrWhiteSpace(folderOverride))
+        {
+            await vm.InitializeAsync();
+        }
+        else
+        {
+            await vm.InitializeForFolderAsync(folderOverride);
+        }
         return vm;
     }
 
@@ -1595,6 +1813,77 @@ public sealed class MainViewModelTests : IDisposable
         }
     }
 
+    private sealed class BlockingSaveNotesRepository : INotesRepository
+    {
+        private readonly INotesRepository _inner;
+        private TaskCompletionSource _releaseSave = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _blockNextSave;
+
+        public BlockingSaveNotesRepository(INotesRepository inner)
+        {
+            _inner = inner;
+        }
+
+        public TaskCompletionSource SaveStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void BlockNextSave()
+        {
+            _blockNextSave = true;
+            _releaseSave = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+
+        public void ReleaseSave() => _releaseSave.TrySetResult();
+
+        public Task<IReadOnlyList<NoteSummary>> LoadSummariesAsync(string folderPath, CancellationToken cancellationToken = default)
+            => _inner.LoadSummariesAsync(folderPath, cancellationToken);
+
+        public Task<NoteDocument?> LoadNoteAsync(string filePath, CancellationToken cancellationToken = default)
+            => _inner.LoadNoteAsync(filePath, cancellationToken);
+
+        public NoteDocument CreateDraftNote(string folderPath, DateTimeOffset timestamp)
+            => _inner.CreateDraftNote(folderPath, timestamp);
+
+        public async Task<NoteDocument> SaveNoteAsync(
+            string folderPath,
+            NoteDocument document,
+            CancellationToken cancellationToken = default,
+            bool preserveTimestamp = false)
+        {
+            if (_blockNextSave)
+            {
+                _blockNextSave = false;
+                SaveStarted.TrySetResult();
+                await _releaseSave.Task;
+                cancellationToken = CancellationToken.None;
+            }
+
+            return await _inner.SaveNoteAsync(folderPath, document, cancellationToken, preserveTimestamp);
+        }
+
+        public Task<NoteDocument> RenameNoteAsync(
+            string folderPath,
+            NoteDocument document,
+            string newTitle,
+            CancellationToken cancellationToken = default)
+            => _inner.RenameNoteAsync(folderPath, document, newTitle, cancellationToken);
+
+        public Task DeleteNoteIfExistsAsync(string filePath, CancellationToken cancellationToken = default)
+            => _inner.DeleteNoteIfExistsAsync(filePath, cancellationToken);
+
+        public IReadOnlyList<NoteSummary> QueryNotes(
+            IEnumerable<NoteSummary> notes,
+            string searchText,
+            DateTime? selectedDate,
+            SortOption sortOption)
+            => _inner.QueryNotes(notes, searchText, selectedDate, sortOption);
+
+        public IReadOnlyList<NoteSummary> QueryNotesForPicker(
+            IEnumerable<NoteSummary> notes,
+            string searchText,
+            int maxResults)
+            => _inner.QueryNotesForPicker(notes, searchText, maxResults);
+    }
+
     private sealed class FakeFileWatcherService : IFileWatcherService
     {
 #pragma warning disable CS0067
@@ -1738,6 +2027,11 @@ public sealed class MainViewModelTests : IDisposable
         {
             _settings = settings;
             return Task.CompletedTask;
+        }
+
+        public void UpdateSettingsSync(Func<AppSettings, AppSettings> update)
+        {
+            _settings = update(_settings);
         }
 
         public Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default)

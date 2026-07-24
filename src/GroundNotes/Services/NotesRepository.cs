@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using System.Text;
 using GroundNotes.Models;
 
@@ -104,6 +105,7 @@ public sealed class NotesRepository : INotesRepository
 
         var serialized = Serialize(persisted);
         await File.WriteAllTextAsync(targetPath, serialized, Encoding.UTF8, cancellationToken);
+        persisted.SourceContentHash = CalculateContentHash(serialized);
         return persisted;
     }
 
@@ -215,7 +217,8 @@ public sealed class NotesRepository : INotesRepository
             Tags = parsed.Tags,
             CreatedAt = parsed.CreatedAt,
             UpdatedAt = parsed.UpdatedAt,
-            IsAutoCreated = false
+            IsAutoCreated = false,
+            SourceContentHash = CalculateContentHash(content)
         };
     }
 
@@ -316,6 +319,11 @@ public sealed class NotesRepository : INotesRepository
     private static NoteDocument Clone(NoteDocument document)
     {
         return document with { Tags = [.. document.Tags] };
+    }
+
+    private static string CalculateContentHash(string content)
+    {
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content)));
     }
 
     private static string SanitizeTitle(string? title)

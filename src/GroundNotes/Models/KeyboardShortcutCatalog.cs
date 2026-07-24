@@ -2,6 +2,34 @@ namespace GroundNotes.Models;
 
 public static class KeyboardShortcutCatalog
 {
+    private static readonly IReadOnlyList<string> s_completeLegacyDefaultActionIds =
+    [
+        KeyboardShortcutActionIds.OpenSettings,
+        KeyboardShortcutActionIds.ShowShortcuts,
+        KeyboardShortcutActionIds.ToggleYaml,
+        KeyboardShortcutActionIds.ReloadNotes,
+        KeyboardShortcutActionIds.NewNote,
+        KeyboardShortcutActionIds.OpenNotePicker,
+        KeyboardShortcutActionIds.DeleteNote,
+        KeyboardShortcutActionIds.ClosePane,
+        KeyboardShortcutActionIds.EqualizePanes,
+        KeyboardShortcutActionIds.ToggleTaskState,
+        KeyboardShortcutActionIds.Bold,
+        KeyboardShortcutActionIds.Italic,
+        KeyboardShortcutActionIds.InlineCode,
+        KeyboardShortcutActionIds.MoveLineUp,
+        KeyboardShortcutActionIds.MoveLineDown,
+        KeyboardShortcutActionIds.DeleteLine,
+        KeyboardShortcutActionIds.ToggleTaskList,
+        KeyboardShortcutActionIds.ToggleBulletList,
+        KeyboardShortcutActionIds.Heading1,
+        KeyboardShortcutActionIds.Heading2,
+        KeyboardShortcutActionIds.Heading3,
+        KeyboardShortcutActionIds.GenerateTitleSuggestions,
+        KeyboardShortcutActionIds.ChatSend,
+        KeyboardShortcutActionIds.ChatSave
+    ];
+
     private static readonly IReadOnlyDictionary<string, IReadOnlyList<KeyboardShortcutBinding>> s_legacyDefaultBindings =
         new Dictionary<string, IReadOnlyList<KeyboardShortcutBinding>>(StringComparer.Ordinal)
         {
@@ -51,16 +79,54 @@ public static class KeyboardShortcutCatalog
         IReadOnlyDictionary<string, List<KeyboardShortcutBinding>> configuredBindings,
         KeyboardShortcutBinding applicationModifier)
     {
-        return Definitions
-            .Where(definition => definition.Id is not KeyboardShortcutActionIds.ToggleSidebar
-                                      and not KeyboardShortcutActionIds.ToggleCodeBlock)
-            .All(definition => configuredBindings.TryGetValue(definition.Id, out var configured)
-                               && MatchesLegacyDefaults(definition, configured, applicationModifier));
+        return s_completeLegacyDefaultActionIds.All(actionId =>
+        {
+            var definition = Find(actionId);
+            return definition is not null
+                   && configuredBindings.TryGetValue(actionId, out var configured)
+                   && MatchesLegacyDefaults(definition, configured, applicationModifier);
+        });
     }
 
     public static string CanonicalizeKey(string key)
     {
         return string.Equals(key, "Oem2", StringComparison.OrdinalIgnoreCase) ? "OemQuestion" : key;
+    }
+
+    internal static bool HasConfiguredConflict(
+        KeyboardShortcutDefinition definition,
+        IReadOnlyList<KeyboardShortcutBinding> candidateBindings,
+        IReadOnlyDictionary<string, List<KeyboardShortcutBinding>> configuredBindings)
+    {
+        var candidates = NormalizeBindings(candidateBindings);
+        return Definitions
+            .Where(other => other.Id != definition.Id && ScopesOverlap(definition.Scope, other.Scope))
+            .Any(other => configuredBindings.TryGetValue(other.Id, out var configured)
+                          && NormalizeBindings(configured).Any(binding =>
+                              candidates.Any(candidate => BindingsMatch(candidate, binding))));
+    }
+
+    private static bool BindingsMatch(KeyboardShortcutBinding first, KeyboardShortcutBinding second)
+    {
+        return string.Equals(
+                   CanonicalizeKey(first.Key),
+                   CanonicalizeKey(second.Key),
+                   StringComparison.OrdinalIgnoreCase)
+               && first.Control == second.Control
+               && first.Shift == second.Shift
+               && first.Alt == second.Alt
+               && first.Meta == second.Meta;
+    }
+
+    internal static bool ScopesOverlap(KeyboardShortcutScope first, KeyboardShortcutScope second)
+    {
+        if (first == second || first == KeyboardShortcutScope.Global || second == KeyboardShortcutScope.Global)
+        {
+            return true;
+        }
+
+        return (first == KeyboardShortcutScope.MainWindow && second == KeyboardShortcutScope.Editor)
+               || (first == KeyboardShortcutScope.Editor && second == KeyboardShortcutScope.MainWindow);
     }
 
     internal static IReadOnlyList<KeyboardShortcutDefinition> CreateDefinitions(bool isMacOS)
@@ -71,6 +137,7 @@ public static class KeyboardShortcutCatalog
             Define(KeyboardShortcutActionIds.ShowShortcuts, "Show keyboard shortcuts", "General", KeyboardShortcutScope.Global, Direct("F1")),
             Define(KeyboardShortcutActionIds.ToggleYaml, "Toggle YAML front matter", "General", KeyboardShortcutScope.MainWindow, Primary("Y", isMacOS, shift: true)),
             Define(KeyboardShortcutActionIds.ToggleSidebar, "Toggle sidebar", "General", KeyboardShortcutScope.MainWindow, Direct("B", control: true, shift: true)),
+            Define(KeyboardShortcutActionIds.ToggleZenMode, "Toggle ZEN mode", "General", KeyboardShortcutScope.MainWindow, Primary("M", isMacOS, shift: true)),
             Define(KeyboardShortcutActionIds.ReloadNotes, "Reload notes", "Notes", KeyboardShortcutScope.MainWindow, Primary("R", isMacOS)),
             Define(KeyboardShortcutActionIds.NewNote, "New note", "Notes", KeyboardShortcutScope.MainWindow, Primary("N", isMacOS)),
             Define(KeyboardShortcutActionIds.OpenNotePicker, "Open note picker", "Notes", KeyboardShortcutScope.MainWindow, Primary("P", isMacOS)),

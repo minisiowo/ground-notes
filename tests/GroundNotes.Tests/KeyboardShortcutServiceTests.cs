@@ -56,6 +56,80 @@ public sealed class KeyboardShortcutServiceTests
         Assert.True(Assert.Single(bold.DefaultBindings).Control);
     }
 
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    public void CreateDefinitions_DefinesZenModeWithPlatformDefault(
+        bool isMacOS,
+        bool expectedControl,
+        bool expectedMeta)
+    {
+        var definitions = KeyboardShortcutCatalog.CreateDefinitions(isMacOS);
+        var zenMode = definitions.Single(definition => definition.Id == KeyboardShortcutActionIds.ToggleZenMode);
+
+        Assert.Equal("Toggle ZEN mode", zenMode.Name);
+        Assert.Equal("General", zenMode.Category);
+        Assert.Equal(KeyboardShortcutScope.MainWindow, zenMode.Scope);
+        var binding = Assert.Single(zenMode.DefaultBindings);
+        Assert.Equal("M", binding.Key);
+        Assert.Equal(expectedControl, binding.Control);
+        Assert.True(binding.Shift);
+        Assert.Equal(expectedMeta, binding.Meta);
+    }
+
+    [Fact]
+    public void ApplySettings_AddsZenModeDefaultToOlderConfiguration()
+    {
+        var olderSettings = KeyboardShortcutSettings.CreateDefault();
+        olderSettings.Bindings.Remove(KeyboardShortcutActionIds.ToggleZenMode);
+        var service = new KeyboardShortcutService();
+        var primaryModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+
+        service.ApplySettings(olderSettings);
+
+        var binding = Assert.Single(service.Settings.Bindings[KeyboardShortcutActionIds.ToggleZenMode]);
+        Assert.Equal("M", binding.Key);
+        Assert.True(binding.Shift);
+        Assert.True(service.Matches(
+            KeyboardShortcutActionIds.ToggleZenMode,
+            Key.M,
+            primaryModifier | KeyModifiers.Shift));
+    }
+
+    [Fact]
+    public void ApplySettings_DoesNotAddZenDefaultWhenGestureIsAlreadyConfigured()
+    {
+        var olderSettings = KeyboardShortcutSettings.CreateDefault();
+        olderSettings.Bindings.Remove(KeyboardShortcutActionIds.ToggleZenMode);
+        olderSettings.Bindings[KeyboardShortcutActionIds.OpenNotePicker] =
+        [
+            new KeyboardShortcutBinding(
+                "m",
+                Control: !OperatingSystem.IsMacOS(),
+                Shift: true,
+                Meta: OperatingSystem.IsMacOS())
+        ];
+        var service = new KeyboardShortcutService();
+
+        service.ApplySettings(olderSettings);
+
+        Assert.Empty(service.Settings.Bindings[KeyboardShortcutActionIds.ToggleZenMode]);
+    }
+
+    [Fact]
+    public void LegacyDefaultDetection_IgnoresZenModeMissingFromHistoricalConfiguration()
+    {
+        var applicationModifier = new KeyboardShortcutBinding(string.Empty, Control: true);
+        var legacyBindings = CreateCompleteLegacyDefaultBindings();
+
+        var isComplete = KeyboardShortcutCatalog.IsCompleteLegacyDefaultConfiguration(
+            legacyBindings,
+            applicationModifier);
+
+        Assert.True(isComplete);
+        Assert.DoesNotContain(KeyboardShortcutActionIds.ToggleZenMode, legacyBindings.Keys);
+    }
+
     [Fact]
     public void Matches_QuestionMarkBindingAcceptsOemAlias()
     {
@@ -127,5 +201,85 @@ public sealed class KeyboardShortcutServiceTests
 
         Assert.True(service.Matches(KeyboardShortcutActionIds.InlineCode, Key.K, KeyModifiers.Control));
         Assert.False(service.Matches(KeyboardShortcutActionIds.InlineCode, Key.K, KeyModifiers.Control | KeyModifiers.Shift));
+    }
+
+    private static Dictionary<string, List<KeyboardShortcutBinding>> CreateCompleteLegacyDefaultBindings()
+    {
+        string[] legacyActionIds =
+        [
+            KeyboardShortcutActionIds.OpenSettings,
+            KeyboardShortcutActionIds.ShowShortcuts,
+            KeyboardShortcutActionIds.ToggleYaml,
+            KeyboardShortcutActionIds.ReloadNotes,
+            KeyboardShortcutActionIds.NewNote,
+            KeyboardShortcutActionIds.OpenNotePicker,
+            KeyboardShortcutActionIds.DeleteNote,
+            KeyboardShortcutActionIds.ClosePane,
+            KeyboardShortcutActionIds.EqualizePanes,
+            KeyboardShortcutActionIds.ToggleTaskState,
+            KeyboardShortcutActionIds.Bold,
+            KeyboardShortcutActionIds.Italic,
+            KeyboardShortcutActionIds.InlineCode,
+            KeyboardShortcutActionIds.MoveLineUp,
+            KeyboardShortcutActionIds.MoveLineDown,
+            KeyboardShortcutActionIds.DeleteLine,
+            KeyboardShortcutActionIds.ToggleTaskList,
+            KeyboardShortcutActionIds.ToggleBulletList,
+            KeyboardShortcutActionIds.Heading1,
+            KeyboardShortcutActionIds.Heading2,
+            KeyboardShortcutActionIds.Heading3,
+            KeyboardShortcutActionIds.GenerateTitleSuggestions,
+            KeyboardShortcutActionIds.ChatSend,
+            KeyboardShortcutActionIds.ChatSave
+        ];
+        var bindings = legacyActionIds.ToDictionary(
+            actionId => actionId,
+            actionId => KeyboardShortcutCatalog.Find(actionId)!.DefaultBindings.ToList(),
+            StringComparer.Ordinal);
+
+        bindings[KeyboardShortcutActionIds.OpenSettings] =
+        [
+            new KeyboardShortcutBinding("OemComma", Control: true),
+            new KeyboardShortcutBinding("OemComma", Meta: true)
+        ];
+        bindings[KeyboardShortcutActionIds.ShowShortcuts] =
+        [
+            new KeyboardShortcutBinding("OemQuestion", Control: true, Shift: true),
+            new KeyboardShortcutBinding("Oem2", Control: true, Shift: true),
+            new KeyboardShortcutBinding("OemQuestion", Shift: true, Meta: true),
+            new KeyboardShortcutBinding("Oem2", Shift: true, Meta: true)
+        ];
+        bindings[KeyboardShortcutActionIds.ToggleYaml] =
+        [
+            new KeyboardShortcutBinding("Y", Control: true, Shift: true),
+            new KeyboardShortcutBinding("Y", Shift: true, Meta: true)
+        ];
+        bindings[KeyboardShortcutActionIds.ReloadNotes] = [new KeyboardShortcutBinding("R", Control: true)];
+        bindings[KeyboardShortcutActionIds.NewNote] = [new KeyboardShortcutBinding("N", Control: true)];
+        bindings[KeyboardShortcutActionIds.OpenNotePicker] = [new KeyboardShortcutBinding("P", Control: true)];
+        bindings[KeyboardShortcutActionIds.ClosePane] =
+        [
+            new KeyboardShortcutBinding("W", Control: true),
+            new KeyboardShortcutBinding("W", Meta: true)
+        ];
+        bindings[KeyboardShortcutActionIds.EqualizePanes] =
+        [
+            new KeyboardShortcutBinding("D0", Control: true),
+            new KeyboardShortcutBinding("NumPad0", Control: true),
+            new KeyboardShortcutBinding("D0", Meta: true),
+            new KeyboardShortcutBinding("NumPad0", Meta: true)
+        ];
+        bindings[KeyboardShortcutActionIds.GenerateTitleSuggestions] =
+        [
+            new KeyboardShortcutBinding("Enter", Control: true),
+            new KeyboardShortcutBinding("Enter", Meta: true)
+        ];
+        bindings[KeyboardShortcutActionIds.ChatSend] =
+        [
+            new KeyboardShortcutBinding("Enter", Control: true),
+            new KeyboardShortcutBinding("Enter", Meta: true)
+        ];
+
+        return bindings;
     }
 }

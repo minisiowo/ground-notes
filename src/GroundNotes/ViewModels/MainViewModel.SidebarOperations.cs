@@ -425,7 +425,7 @@ public partial class MainViewModel
         foreach (var path in deletedPaths)
         {
             _selectedSidebarFilePaths.Remove(path);
-            ApplyDeletedNote(path, refreshCollections: false);
+            ApplyDeletedNote(path, refreshCollections: false, preserveUnsavedOpenNotes: false);
         }
 
         RefreshAvailableTags();
@@ -554,6 +554,12 @@ public partial class MainViewModel
 
     private async Task<NoteDocument?> GetDocumentForTagMutationAsync(string filePath)
     {
+        if (IsNoteConflicted(filePath))
+        {
+            StatusMessage = "Resolve the note conflict before changing its tags.";
+            return null;
+        }
+
         if (CurrentNote is not null && string.Equals(CurrentNote.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
         {
             return UpdateCurrentNoteFromEditor() ? CurrentNote : null;

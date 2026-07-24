@@ -24,10 +24,10 @@ public sealed class FolderSettingsService : ISettingsService
 
     public async Task<AppSettings> GetSettingsAsync(CancellationToken cancellationToken = default)
     {
-        await _settingsLock.WaitAsync(cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var record = await LoadRecordAsync(cancellationToken);
+            var record = await LoadRecordAsync(cancellationToken).ConfigureAwait(false);
             return MapToAppSettings(record);
         }
         finally
@@ -52,10 +52,10 @@ public sealed class FolderSettingsService : ISettingsService
     public async Task SaveSettingsAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
         var normalized = NormalizeSettings(settings);
-        await _settingsLock.WaitAsync(cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await SaveAsync(MapToRecord(normalized), cancellationToken);
+            await SaveAsync(MapToRecord(normalized), cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -77,16 +77,34 @@ public sealed class FolderSettingsService : ISettingsService
         }
     }
 
+    public void UpdateSettingsSync(Func<AppSettings, AppSettings> update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        _settingsLock.Wait();
+        try
+        {
+            var current = MapToAppSettings(LoadRecordSync(tolerateErrors: false));
+            var updated = NormalizeSettings(update(current));
+            SaveSync(MapToRecord(updated));
+        }
+        finally
+        {
+            _settingsLock.Release();
+        }
+    }
+
     public async Task UpdateSettingsAsync(Func<AppSettings, AppSettings> update, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(update);
 
-        await _settingsLock.WaitAsync(cancellationToken);
+        await _settingsLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var current = MapToAppSettings(await LoadRecordAsync(cancellationToken));
+            var record = await LoadRecordAsync(cancellationToken, tolerateErrors: false).ConfigureAwait(false);
+            var current = MapToAppSettings(record);
             var updated = NormalizeSettings(update(current));
-            await SaveAsync(MapToRecord(updated), cancellationToken);
+            await SaveAsync(MapToRecord(updated), cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -107,7 +125,9 @@ public sealed class FolderSettingsService : ISettingsService
             EditorIndentSize = EditorDisplaySettings.NormalizeIndentSize(settings.EditorIndentSize),
             EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor),
             AiSettings = AiSettings.Normalize(settings.AiSettings),
-            KeyboardShortcuts = KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts)
+            KeyboardShortcuts = KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts),
+            StandardNoteWindowLayout = NoteWindowLayout.Normalize(settings.StandardNoteWindowLayout),
+            ZenNoteWindowLayout = NoteWindowLayout.Normalize(settings.ZenNoteWindowLayout)
         };
     }
 
@@ -158,7 +178,9 @@ public sealed class FolderSettingsService : ISettingsService
             record.FileListFontVariantName,
             record.FileListFontSize,
             record.UiFontName,
-            record.UiFontVariantName));
+            record.UiFontVariantName,
+            MapNoteWindowLayout(record.StandardNoteWindowLayout),
+            MapNoteWindowLayout(record.ZenNoteWindowLayout)));
     }
 
     private static SettingsRecord MapToRecord(AppSettings settings)
@@ -210,8 +232,25 @@ public sealed class FolderSettingsService : ISettingsService
             OpenAiProjectId = settings.AiSettings.ProjectId,
             OpenAiOrganizationId = settings.AiSettings.OrganizationId,
             OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort,
-            KeyboardShortcuts = MapKeyboardShortcutSettings(settings.KeyboardShortcuts)
+            KeyboardShortcuts = MapKeyboardShortcutSettings(settings.KeyboardShortcuts),
+            StandardNoteWindowLayout = MapNoteWindowLayout(settings.StandardNoteWindowLayout),
+            ZenNoteWindowLayout = MapNoteWindowLayout(settings.ZenNoteWindowLayout)
         };
+    }
+
+    private static NoteWindowLayout? MapNoteWindowLayout(NoteWindowLayoutRecord? record)
+    {
+        return record is not { Width: { } width, Height: { } height }
+            ? null
+            : NoteWindowLayout.Normalize(new NoteWindowLayout(width, height));
+    }
+
+    private static NoteWindowLayoutRecord? MapNoteWindowLayout(NoteWindowLayout? layout)
+    {
+        var normalized = NoteWindowLayout.Normalize(layout);
+        return normalized is null
+            ? null
+            : new NoteWindowLayoutRecord { Width = normalized.Width, Height = normalized.Height };
     }
 
     private static KeyboardShortcutSettings MapKeyboardShortcutSettings(KeyboardShortcutSettingsRecord? record)
@@ -244,9 +283,16 @@ public sealed class FolderSettingsService : ISettingsService
         var migrated = new Dictionary<string, List<KeyboardShortcutBinding>>(StringComparer.Ordinal);
         foreach (var definition in KeyboardShortcutCatalog.Definitions)
         {
-            migrated[definition.Id] = converted.TryGetValue(definition.Id, out var configured)
-                ? KeyboardShortcutCatalog.NormalizeLegacyBindings(definition, configured, effectiveModifierBinding).ToList()
-                : definition.DefaultBindings.ToList();
+            if (converted.TryGetValue(definition.Id, out var configured))
+            {
+                migrated[definition.Id] = KeyboardShortcutCatalog
+                    .NormalizeLegacyBindings(definition, configured, effectiveModifierBinding)
+                    .ToList();
+            }
+            else if (definition.Id != KeyboardShortcutActionIds.ToggleZenMode)
+            {
+                migrated[definition.Id] = definition.DefaultBindings.ToList();
+            }
         }
 
         return new KeyboardShortcutSettings(migrated);
@@ -306,7 +352,9 @@ public sealed class FolderSettingsService : ISettingsService
         };
     }
 
-    private async Task<SettingsRecord> LoadRecordAsync(CancellationToken cancellationToken)
+    private async Task<SettingsRecord> LoadRecordAsync(
+        CancellationToken cancellationToken,
+        bool tolerateErrors = true)
     {
         if (!File.Exists(_settingsFilePath))
         {
@@ -316,16 +364,18 @@ public sealed class FolderSettingsService : ISettingsService
         try
         {
             await using var stream = File.OpenRead(_settingsFilePath);
-            var settings = await JsonSerializer.DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken);
+            var settings = await JsonSerializer
+                .DeserializeAsync<SettingsRecord>(stream, s_jsonOptions, cancellationToken)
+                .ConfigureAwait(false);
             return settings ?? new SettingsRecord();
         }
-        catch
+        catch when (tolerateErrors)
         {
             return new SettingsRecord();
         }
     }
 
-    private SettingsRecord LoadRecordSync()
+    private SettingsRecord LoadRecordSync(bool tolerateErrors = true)
     {
         if (!File.Exists(_settingsFilePath))
         {
@@ -338,7 +388,7 @@ public sealed class FolderSettingsService : ISettingsService
             var settings = JsonSerializer.Deserialize<SettingsRecord>(json, s_jsonOptions);
             return settings ?? new SettingsRecord();
         }
-        catch
+        catch when (tolerateErrors)
         {
             return new SettingsRecord();
         }
@@ -347,17 +397,43 @@ public sealed class FolderSettingsService : ISettingsService
     private async Task SaveAsync(SettingsRecord record, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsFilePath)!);
+        var temporaryPath = CreateTemporarySettingsPath();
+        try
+        {
+            await using (var stream = File.Create(temporaryPath))
+            {
+                await JsonSerializer
+                    .SerializeAsync(stream, record, cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
 
-        await using var stream = File.Create(_settingsFilePath);
-        await JsonSerializer.SerializeAsync(stream, record, cancellationToken: cancellationToken);
+            File.Move(temporaryPath, _settingsFilePath, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporaryPath);
+        }
     }
 
     private void SaveSync(SettingsRecord record)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(_settingsFilePath)!);
+        var temporaryPath = CreateTemporarySettingsPath();
+        try
+        {
+            var json = JsonSerializer.Serialize(record);
+            File.WriteAllText(temporaryPath, json);
+            File.Move(temporaryPath, _settingsFilePath, overwrite: true);
+        }
+        finally
+        {
+            File.Delete(temporaryPath);
+        }
+    }
 
-        var json = JsonSerializer.Serialize(record);
-        File.WriteAllText(_settingsFilePath, json);
+    private string CreateTemporarySettingsPath()
+    {
+        return $"{_settingsFilePath}.{Guid.NewGuid():N}.tmp";
     }
 
     private sealed class SettingsRecord
@@ -385,6 +461,8 @@ public sealed class FolderSettingsService : ISettingsService
         public bool? ShowYamlFrontMatterInEditor { get; set; }
         public bool? ShowScrollBars { get; set; }
         public WindowLayoutRecord? WindowLayout { get; set; }
+        public NoteWindowLayoutRecord? StandardNoteWindowLayout { get; set; }
+        public NoteWindowLayoutRecord? ZenNoteWindowLayout { get; set; }
         public string? OpenAiApiKey { get; set; }
         public string? OpenAiModel { get; set; }
         public bool? AiEnabled { get; set; }
@@ -427,6 +505,12 @@ public sealed class FolderSettingsService : ISettingsService
     {
         Modifier,
         Direct
+    }
+
+    private sealed class NoteWindowLayoutRecord
+    {
+        public double? Width { get; set; }
+        public double? Height { get; set; }
     }
 
     private sealed class WindowLayoutRecord

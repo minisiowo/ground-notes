@@ -81,17 +81,11 @@ public partial class App : Application
             EditorDisplaySettings.NormalizeIndentSize(startup.Settings.EditorIndentSize),
             EditorDisplaySettings.NormalizeLineHeightFactor(startup.Settings.EditorLineHeightFactor)));
         var windowLayoutService = new SettingsWindowLayoutService(settingsService);
+        var noteWindowLayoutService = new SettingsNoteWindowLayoutService(settingsService);
         var keyboardShortcutService = new KeyboardShortcutService();
         keyboardShortcutService.ApplySettings(KeyboardShortcutSettings.Normalize(startup.Settings.KeyboardShortcuts));
-        var mainWindow = new MainWindow
-        {
-            Opacity = 0
-        };
-        mainWindow.SetEditorLayoutState(editorLayoutState);
-        var dialogService = new WindowDialogService(mainWindow, editorLayoutState, keyboardShortcutService);
         var repository = new NotesRepository();
         var noteMutationService = new NoteMutationService(repository);
-        var fileWatcher = new FileWatcherService();
         var themeLoader = new ThemeLoaderService();
         var aiPromptCatalog = new AiPromptCatalogService();
         var aiPromptEditorService = new AiPromptEditorService(aiPromptCatalog);
@@ -107,15 +101,47 @@ public partial class App : Application
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
         var tagFolderCatalogService = new TagFolderCatalogService();
         var chatViewModelFactory = new ChatViewModelFactory(aiChatService, repository, settingsService, noteMutationService, noteSearchServiceFactory);
-        var mainViewModel = new MainViewModel(repository, settingsService, fileWatcher, themeLoader, fontCatalog, aiPromptCatalog, aiPromptEditorService, aiTextActionService, aiTitleSuggestionService, noteMutationService, dialogService, _appearanceService, editorLayoutState, chatViewModelFactory, keyboardShortcutService, noteSearchServiceFactory, tagFolderCatalogService);
-        mainWindow.DataContext = mainViewModel;
-        mainWindow.SetWindowLayoutService(windowLayoutService);
+
+        MainViewModel CreateWorkspaceViewModel(MainWindow window)
+        {
+            var dialogService = new WindowDialogService(window, editorLayoutState, keyboardShortcutService);
+            return new MainViewModel(
+                repository,
+                settingsService,
+                new FileWatcherService(),
+                themeLoader,
+                fontCatalog,
+                aiPromptCatalog,
+                aiPromptEditorService,
+                aiTextActionService,
+                aiTitleSuggestionService,
+                noteMutationService,
+                dialogService,
+                _appearanceService,
+                editorLayoutState,
+                chatViewModelFactory,
+                keyboardShortcutService,
+                noteSearchServiceFactory,
+                tagFolderCatalogService);
+        }
+
+        var workspaceWindowManager = new WorkspaceWindowManager(
+            CreateWorkspaceViewModel,
+            editorLayoutState,
+            windowLayoutService,
+            noteWindowLayoutService);
+        var mainWindow = workspaceWindowManager.CreateMainWindow();
+        var mainViewModel = (MainViewModel)mainWindow.DataContext!;
 
         if (startup.Layout is not null)
         {
             mainWindow.Position = new PixelPoint((int)startup.Layout.X, (int)startup.Layout.Y);
             mainWindow.Width = startup.Layout.Width;
             mainWindow.Height = startup.Layout.Height;
+        }
+        else
+        {
+            mainWindow.WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
 
         desktop.MainWindow = mainWindow;
