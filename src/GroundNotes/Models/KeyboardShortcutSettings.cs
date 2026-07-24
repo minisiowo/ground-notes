@@ -1,13 +1,11 @@
 namespace GroundNotes.Models;
 
 public sealed record KeyboardShortcutSettings(
-    ApplicationShortcutModifier ApplicationModifier,
     Dictionary<string, List<KeyboardShortcutBinding>> Bindings)
 {
     public static KeyboardShortcutSettings CreateDefault()
     {
         return new KeyboardShortcutSettings(
-            OperatingSystem.IsMacOS() ? ApplicationShortcutModifier.Meta : ApplicationShortcutModifier.Control,
             KeyboardShortcutCatalog.Definitions.ToDictionary(
                 definition => definition.Id,
                 definition => definition.DefaultBindings.ToList(),
@@ -16,7 +14,7 @@ public sealed record KeyboardShortcutSettings(
 
     public bool Equals(KeyboardShortcutSettings? other)
     {
-        if (other is null || ApplicationModifier != other.ApplicationModifier || Bindings.Count != other.Bindings.Count)
+        if (other is null || Bindings.Count != other.Bindings.Count)
         {
             return false;
         }
@@ -29,7 +27,6 @@ public sealed record KeyboardShortcutSettings(
     public override int GetHashCode()
     {
         var hash = new HashCode();
-        hash.Add(ApplicationModifier);
         foreach (var pair in Bindings.OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
             hash.Add(pair.Key, StringComparer.Ordinal);
@@ -51,20 +48,14 @@ public sealed record KeyboardShortcutSettings(
         }
 
         var configuredBindings = settings.Bindings ?? new Dictionary<string, List<KeyboardShortcutBinding>>(StringComparer.Ordinal);
-        var usesCompleteLegacyDefaults = KeyboardShortcutCatalog.IsCompleteLegacyDefaultConfiguration(configuredBindings);
         var bindings = new Dictionary<string, List<KeyboardShortcutBinding>>(StringComparer.Ordinal);
         foreach (var definition in KeyboardShortcutCatalog.Definitions)
         {
             bindings[definition.Id] = configuredBindings.TryGetValue(definition.Id, out var configured)
-                ? KeyboardShortcutCatalog.NormalizeBindings(definition, configured).ToList()
+                ? KeyboardShortcutCatalog.NormalizeBindings(configured).ToList()
                 : definition.DefaultBindings.ToList();
         }
 
-        var modifier = OperatingSystem.IsMacOS()
-                       && usesCompleteLegacyDefaults
-                       && settings.ApplicationModifier == ApplicationShortcutModifier.Control
-            ? ApplicationShortcutModifier.Meta
-            : settings.ApplicationModifier;
-        return new KeyboardShortcutSettings(modifier, bindings);
+        return new KeyboardShortcutSettings(bindings);
     }
 }

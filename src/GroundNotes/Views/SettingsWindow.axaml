@@ -15,12 +15,57 @@
         KeyDown="OnWindowKeyDown"
         WindowStartupLocation="CenterOwner">
   <Window.Styles>
+    <Style Selector="Border.aiPromptRow">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+    </Style>
     <Style Selector="ListBox.aiPromptList ListBoxItem:pointerover Border.aiPromptRow">
       <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
     </Style>
     <Style Selector="ListBox.aiPromptList ListBoxItem:selected Border.aiPromptRow">
       <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+    </Style>
+    <Style Selector="Border.shortcutList">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+      <Setter Property="BorderThickness" Value="1,1,1,0" />
+      <Setter Property="CornerRadius" Value="1" />
+    </Style>
+    <Style Selector="Border.shortcutRow">
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="14,10" />
+    </Style>
+
+    <Style Selector="Button.shortcutChip">
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+      <Setter Property="FontWeight" Value="{DynamicResource TerminalFontWeight}" />
+      <Setter Property="FontStyle" Value="{DynamicResource TerminalFontStyle}" />
+      <Setter Property="FontSize" Value="{DynamicResource AppFontSizeSmall}" />
+    </Style>
+    <Style Selector="Button.shortcutBlank">
+      <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+    </Style>
+    <Style Selector="Button.shortcutRowAction">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="MinWidth" Value="28" />
+      <Setter Property="MinHeight" Value="28" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
+      <Setter Property="FontFamily" Value="{DynamicResource TerminalFont}" />
+    </Style>
+    <Style Selector="Button.shortcutRowAction /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.shortcutRowAction:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
     </Style>
   </Window.Styles>
 
@@ -282,7 +327,7 @@
                     <Button Grid.Column="5" Content="Reload" Click="OnReloadPromptsClick" />
                   </Grid>
 
-                  <Border BorderBrush="{DynamicResource BorderBrushBase}" BorderThickness="1" MinHeight="170">
+                  <Border BorderBrush="{DynamicResource BorderBrushBase}" BorderThickness="1,1,1,0" MaxHeight="280">
                     <ListBox x:Name="PromptListBox"
                              Classes="aiPromptList"
                              ItemsSource="{Binding PromptItems}"
@@ -293,9 +338,6 @@
                         <DataTemplate>
                           <Border Classes="aiPromptRow"
                                   Padding="8"
-                                  Background="Transparent"
-                                  BorderBrush="{DynamicResource BorderBrushBase}"
-                                  BorderThickness="1"
                                   Cursor="Hand">
                             <Grid ColumnDefinitions="2*,*,*,Auto" ColumnSpacing="8">
                               <StackPanel Grid.Column="0" Spacing="2">
@@ -323,91 +365,93 @@
 
       <!-- Tab 3: Keyboard Shortcuts -->
       <TabItem Header="Keyboard Shortcuts">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="24,16" Spacing="16">
-            <Border Classes="settingsCard">
-              <Grid ColumnDefinitions="*,240,Auto" ColumnSpacing="8">
-                <StackPanel Grid.Column="0" Spacing="2">
-                  <TextBlock Classes="settingsLabel" Text="Modifier" />
-                  <TextBlock Classes="settingsDescription" Text="Used only by shortcuts marked as Modifier. Direct shortcuts stay independent." TextWrapping="Wrap" />
-                </StackPanel>
-                <ComboBox Grid.Column="1"
-                          VerticalAlignment="Center"
-                          ItemsSource="{Binding ApplicationModifiers}"
-                          SelectedItem="{Binding SelectedApplicationModifier}" />
-                <Button Grid.Column="2"
-                        VerticalAlignment="Center"
-                        Content="Reset all"
-                        Command="{Binding ResetAllShortcutsCommand}" />
-              </Grid>
-            </Border>
+        <Grid RowDefinitions="Auto,Auto,*" Margin="24,16,24,12">
+          <Grid Grid.Row="0" ColumnDefinitions="*,240,Auto" ColumnSpacing="8" Margin="0,0,0,12">
+            <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+              <TextBlock Classes="settingsHeader" Margin="0" Text="Keyboard shortcuts" />
+              <TextBlock Classes="settingsDescription" Margin="0" Text="{Binding ShortcutFilterSummary}" />
+            </StackPanel>
+            <TextBox Grid.Column="1"
+                     VerticalContentAlignment="Center"
+                     Watermark="Search shortcuts"
+                     Text="{Binding ShortcutSearchText}" />
+            <Button Grid.Column="2"
+                    Classes="secondaryButton"
+                    Content="Reset all"
+                    Command="{Binding ResetAllShortcutsCommand}" />
+          </Grid>
 
+          <StackPanel Grid.Row="1" Margin="0,0,0,8" Spacing="2">
             <TextBlock Classes="settingsDescription"
+                       IsVisible="{Binding HasShortcutConflict}"
                        Foreground="{DynamicResource SecondaryTextBrush}"
                        Text="{Binding ShortcutConflictMessage}"
                        TextWrapping="Wrap" />
             <TextBlock Classes="settingsDescription"
                        Text="{Binding ShortcutWarningMessage}"
                        TextWrapping="Wrap" />
-
-            <ItemsControl ItemsSource="{Binding ShortcutActions}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="viewModels:KeyboardShortcutActionViewModel">
-                  <Border Classes="settingsCard" Margin="0,0,0,8">
-                    <StackPanel Spacing="8">
-                      <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
-                        <StackPanel Grid.Column="0" Spacing="2">
-                          <TextBlock Classes="settingsLabel" Text="{Binding Name}" />
-                          <TextBlock Classes="metaText" Text="{Binding Category}" />
-                        </StackPanel>
-                        <Button Grid.Column="1" Content="+ Modifier" Command="{Binding AddModifierShortcutCommand}" />
-                        <Button Grid.Column="2" Content="+ Direct" Command="{Binding AddDirectShortcutCommand}" />
-                        <Button Grid.Column="3" Content="Reset" Command="{Binding ResetShortcutsCommand}" />
-                      </Grid>
-
-                      <TextBlock Classes="settingsDescription"
-                                 IsVisible="{Binding !HasBindings}"
-                                 Text="No shortcut assigned." />
-
-                      <ItemsControl ItemsSource="{Binding Bindings}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate DataType="viewModels:KeyboardShortcutBindingViewModel">
-                            <Border BorderBrush="{DynamicResource BorderBrushBase}"
-                                    BorderThickness="1"
-                                    Padding="8"
-                                    Margin="0,2">
-                              <Grid ColumnDefinitions="90,220,*,Auto" ColumnSpacing="8">
-                                <TextBlock Grid.Column="0"
-                                           VerticalAlignment="Center"
-                                           Classes="metaText"
-                                           Text="{Binding KindDisplay}" />
-
-                                <Button Grid.Column="1"
-                                        HorizontalAlignment="Stretch"
-                                        Content="{Binding CaptureButtonText}"
-                                        Click="OnRecordShortcutClick" />
-
-                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
-                                  <TextBlock Classes="metaText" Text="{Binding StatusText}" />
-                                  <TextBlock Classes="settingsDescription"
-                                             IsVisible="{Binding HasValidationError}"
-                                             Text="{Binding ValidationMessage}"
-                                             TextWrapping="Wrap" />
-                                </StackPanel>
-
-                                <Button Grid.Column="3" Content="Remove" Command="{Binding RemoveCommand}" />
-                              </Grid>
-                            </Border>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
           </StackPanel>
-        </ScrollViewer>
+
+          <ScrollViewer Grid.Row="2"
+                        HorizontalScrollBarVisibility="Disabled"
+                        VerticalScrollBarVisibility="Auto">
+            <Border Classes="shortcutList">
+              <ItemsControl ItemsSource="{Binding FilteredShortcutActions}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="viewModels:KeyboardShortcutActionViewModel">
+                    <Border Classes="shortcutRow">
+                      <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="2">
+                          <TextBlock Classes="settingsLabel" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Classes="settingsDescription" Margin="0" Text="{Binding Category}" />
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Classes="shortcutChip shortcutBlank"
+                                VerticalAlignment="Center"
+                                IsVisible="{Binding !HasBindings}"
+                                Content="Blank"
+                                ToolTip.Tip="Assign shortcut"
+                                Click="OnAssignShortcutClick" />
+
+                        <ItemsControl Grid.Column="1"
+                                      VerticalAlignment="Center"
+                                      ItemsSource="{Binding Bindings}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <WrapPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="viewModels:KeyboardShortcutBindingViewModel">
+                              <StackPanel Margin="0,0,6,0" Spacing="2">
+                                <Button Classes="shortcutChip"
+                                        Content="{Binding CaptureButtonText}"
+                                        ToolTip.Tip="Click to change. Press Backspace to clear."
+                                        Click="OnRecordShortcutClick" />
+                                <TextBlock Classes="settingsDescription"
+                                           MaxWidth="220"
+                                           IsVisible="{Binding HasValidationError}"
+                                           Text="{Binding ValidationMessage}"
+                                           TextWrapping="Wrap" />
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Button Grid.Column="2"
+                                Classes="shortcutRowAction"
+                                Content="↺"
+                                ToolTip.Tip="Reset to default"
+                                Command="{Binding ResetShortcutsCommand}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+          </ScrollViewer>
+        </Grid>
       </TabItem>
     </TabControl>
 

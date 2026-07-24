@@ -78,18 +78,34 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public void BuildModel_ChangesApplicationModifierWithoutChangingDirectBindings()
+    public void ShortcutSearch_FiltersByActionNameAndCategory()
     {
         var vm = new SettingsViewModel(CreateModel());
-        vm.SelectedApplicationModifier = ApplicationShortcutModifier.Alt;
 
-        var model = vm.BuildModel();
-        var inlineCode = model.KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.InlineCode].Single();
+        vm.ShortcutSearchText = "picker";
 
-        Assert.Equal(ApplicationShortcutModifier.Alt, model.KeyboardShortcuts.ApplicationModifier);
-        Assert.Equal(KeyboardShortcutBindingKind.Direct, inlineCode.Kind);
-        Assert.True(inlineCode.Control);
-        Assert.Equal("K", inlineCode.Key);
+        var action = Assert.Single(vm.FilteredShortcutActions);
+        Assert.Equal(KeyboardShortcutActionIds.OpenNotePicker, action.Id);
+        Assert.Equal($"Showing 1 of {vm.ShortcutActions.Count} shortcuts", vm.ShortcutFilterSummary);
+
+        vm.ShortcutSearchText = "AI chat";
+
+        Assert.NotEmpty(vm.FilteredShortcutActions);
+        Assert.All(vm.FilteredShortcutActions, item => Assert.Equal("AI chat", item.Category));
+    }
+
+    [Fact]
+    public void BuildModel_PreservesExplicitShortcutModifiers()
+    {
+        var vm = new SettingsViewModel(CreateModel());
+        var inlineCode = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.InlineCode);
+
+        Assert.Single(inlineCode.Bindings).Capture("K", control: false, shift: false, alt: true, meta: false);
+        var binding = vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.InlineCode].Single();
+
+        Assert.True(binding.Alt);
+        Assert.False(binding.Control);
+        Assert.Equal("K", binding.Key);
     }
 
     [Fact]
@@ -98,7 +114,6 @@ public sealed class SettingsViewModelTests
         var vm = new SettingsViewModel(CreateModel());
         var toggleTask = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.ToggleTaskState);
         var binding = Assert.Single(toggleTask.Bindings);
-        binding.Kind = KeyboardShortcutBindingKind.Direct;
         binding.Capture("Enter", control: true, shift: false, alt: false, meta: false);
         var service = new KeyboardShortcutService();
 
@@ -109,36 +124,36 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
-    public void BuildModel_AllowsModifierAndDirectBindingsForSameAction()
+    public void BuildModel_AssignsShortcutFromBlankState()
     {
         var vm = new SettingsViewModel(CreateModel());
         var openPicker = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.OpenNotePicker);
-        openPicker.AddDirectShortcutCommand.Execute(null);
-        var direct = openPicker.Bindings[^1];
-        direct.SelectedKey = "O";
-        direct.Control = true;
 
-        var bindings = vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker];
+        Assert.Single(openPicker.Bindings).Clear();
+        Assert.False(openPicker.HasBindings);
+        Assert.Empty(vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker]);
 
-        Assert.Contains(bindings, binding => binding.Kind == KeyboardShortcutBindingKind.Modifier && binding.Key == "P");
-        Assert.Contains(bindings, binding => binding.Kind == KeyboardShortcutBindingKind.Direct && binding.Key == "O" && binding.Control);
+        var blank = openPicker.GetOrCreateEmptyShortcut();
+        Assert.Equal("Blank", blank.Display);
+        blank.Capture("O", control: true, shift: false, alt: false, meta: false);
+
+        var binding = Assert.Single(vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker]);
+        Assert.Equal("O", binding.Key);
+        Assert.True(binding.Control);
     }
 
     [Fact]
     public void UnmodifiedPrintableShortcut_IsBlockedForActionRunningInsideEditor()
     {
         var vm = new SettingsViewModel(CreateModel());
-        vm.SelectedApplicationModifier = ApplicationShortcutModifier.None;
         var deleteNote = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.DeleteNote);
-        deleteNote.AddModifierShortcutCommand.Execute(null);
-        var binding = deleteNote.Bindings[^1];
+        var binding = Assert.Single(deleteNote.Bindings);
         binding.Capture("D", control: false, shift: false, alt: false, meta: false);
 
         Assert.True(vm.HasShortcutConflict);
         Assert.False(binding.IsApplied);
         Assert.Contains("interfere with typing", binding.ValidationMessage, StringComparison.Ordinal);
-        Assert.Equal(ApplicationShortcutModifier.None, vm.BuildModel().KeyboardShortcuts.ApplicationModifier);
-        Assert.DoesNotContain(vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.DeleteNote], configured => configured.Kind == KeyboardShortcutBindingKind.Modifier);
+        Assert.DoesNotContain(vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.DeleteNote], configured => configured.Key == "D" && !configured.Control && !configured.Shift && !configured.Alt && !configured.Meta);
     }
 
     [Theory]
@@ -194,18 +209,15 @@ public sealed class SettingsViewModelTests
     {
         var vm = new SettingsViewModel(CreateModel());
         var newNote = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.NewNote);
-        newNote.AddDirectShortcutCommand.Execute(null);
-        var conflicting = newNote.Bindings[^1];
-        conflicting.SelectedKey = "K";
-        conflicting.Control = true;
+        var conflicting = Assert.Single(newNote.Bindings);
+        conflicting.Capture("K", control: true, shift: false, alt: false, meta: false);
 
         var persistedBindings = vm.BuildModel().KeyboardShortcuts.Bindings[KeyboardShortcutActionIds.NewNote];
 
         Assert.True(vm.HasShortcutConflict);
         Assert.False(conflicting.IsApplied);
         Assert.Contains("Inline code", conflicting.ValidationMessage, StringComparison.Ordinal);
-        Assert.DoesNotContain(persistedBindings, binding => binding.Kind == KeyboardShortcutBindingKind.Direct && binding.Key == "K" && binding.Control);
-        Assert.Contains(persistedBindings, binding => binding.Kind == KeyboardShortcutBindingKind.Modifier && binding.Key == "N");
+        Assert.Empty(persistedBindings);
     }
 
     [Fact]
@@ -213,8 +225,7 @@ public sealed class SettingsViewModelTests
     {
         var vm = new SettingsViewModel(CreateModel());
         var newNote = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.NewNote);
-        newNote.AddDirectShortcutCommand.Execute(null);
-        var conflicting = newNote.Bindings[^1];
+        var conflicting = Assert.Single(newNote.Bindings);
         conflicting.Capture("K", control: true, shift: false, alt: false, meta: false);
         var sidebar = vm.ShortcutActions.Single(action => action.Id == KeyboardShortcutActionIds.ToggleSidebar);
         var valid = Assert.Single(sidebar.Bindings);

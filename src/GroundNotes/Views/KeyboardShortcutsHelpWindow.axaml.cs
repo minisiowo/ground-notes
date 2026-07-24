@@ -13,7 +13,7 @@ public partial class KeyboardShortcutsHelpWindow : Window
     public KeyboardShortcutsHelpWindow()
     {
         InitializeComponent();
-        DataContext = new KeyboardShortcutsHelpDisplayModel();
+        DataContext = new KeyboardShortcutsHelpDisplayModel([]);
         _dialogController = new DialogWindowController(this, () => Close());
         _dialogController.Attach();
         Closed += (_, _) => _dialogController.Detach();

@@ -36,8 +36,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
             : model.PromptsDirectory;
         var keyboardShortcuts = KeyboardShortcutSettings.Normalize(model.KeyboardShortcuts);
         AvailableShortcutKeys = BuildAvailableShortcutKeys(keyboardShortcuts);
-        ApplicationModifiers = Enum.GetValues<ApplicationShortcutModifier>();
-        SelectedApplicationModifier = keyboardShortcuts.ApplicationModifier;
         ShortcutActions = new ObservableCollection<KeyboardShortcutActionViewModel>(
             KeyboardShortcutCatalog.Definitions.Select(definition =>
             {
@@ -47,11 +45,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 var item = new KeyboardShortcutActionViewModel(
                     definition,
                     bindings,
-                    keyboardShortcuts.ApplicationModifier,
                     AvailableShortcutKeys);
                 item.Changed += OnShortcutActionChanged;
                 return item;
             }));
+        RefreshShortcutFilter();
         _appliedKeyboardShortcuts = BuildCurrentKeyboardShortcutSettings();
         RefreshShortcutValidation();
         _appliedKeyboardShortcuts = BuildAppliedKeyboardShortcutSettings();
@@ -104,8 +102,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public string PromptsDirectory { get; }
 
     public IReadOnlyList<string> AvailableShortcutKeys { get; }
-
-    public IReadOnlyList<ApplicationShortcutModifier> ApplicationModifiers { get; }
 
     [ObservableProperty]
     private string _selectedThemeName = string.Empty;
@@ -182,10 +178,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _organizationId = string.Empty;
 
     [ObservableProperty]
-    private ApplicationShortcutModifier _selectedApplicationModifier = ApplicationShortcutModifier.Control;
+    private ObservableCollection<KeyboardShortcutActionViewModel> _shortcutActions = [];
 
     [ObservableProperty]
-    private ObservableCollection<KeyboardShortcutActionViewModel> _shortcutActions = [];
+    private IReadOnlyList<KeyboardShortcutActionViewModel> _filteredShortcutActions = [];
+
+    [ObservableProperty]
+    private string _shortcutSearchText = string.Empty;
+
+    public string ShortcutFilterSummary => string.IsNullOrWhiteSpace(ShortcutSearchText)
+        ? $"{ShortcutActions.Count} shortcuts"
+        : $"Showing {FilteredShortcutActions.Count} of {ShortcutActions.Count} shortcuts";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasShortcutConflict))]
@@ -310,26 +313,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     partial void OnOrganizationIdChanged(string value) => RaisePreviewRequested();
 
-    partial void OnSelectedApplicationModifierChanged(ApplicationShortcutModifier value)
+    partial void OnShortcutSearchTextChanged(string value)
     {
-        foreach (var action in ShortcutActions)
-        {
-            action.SetApplicationModifier(value);
-        }
-
-        HandleShortcutSettingsChanged();
+        RefreshShortcutFilter();
     }
 
     [RelayCommand]
     private void ResetAllShortcuts()
     {
-        var defaults = KeyboardShortcutSettings.CreateDefault();
         _isInitializing = true;
-        SelectedApplicationModifier = defaults.ApplicationModifier;
         foreach (var action in ShortcutActions)
         {
             action.ResetShortcutsCommand.Execute(null);
-            action.SetApplicationModifier(defaults.ApplicationModifier);
         }
         _isInitializing = false;
         HandleShortcutSettingsChanged();
@@ -343,6 +338,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel,
                 AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort))));
         SelectedPrompt = null;
+    }
+
+    private void RefreshShortcutFilter()
+    {
+        var query = ShortcutSearchText.Trim();
+        FilteredShortcutActions = string.IsNullOrEmpty(query)
+            ? ShortcutActions.ToList()
+            : ShortcutActions
+                .Where(action => action.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                                 || action.Category.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        OnPropertyChanged(nameof(ShortcutFilterSummary));
     }
 
     private void OnShortcutActionChanged(object? sender, EventArgs e)
@@ -360,7 +367,6 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private KeyboardShortcutSettings BuildCurrentKeyboardShortcutSettings()
     {
         return new KeyboardShortcutSettings(
-            SelectedApplicationModifier,
             ShortcutActions.ToDictionary(
                 action => action.Id,
                 action => action.BuildBindings().ToList(),
@@ -370,11 +376,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private KeyboardShortcutSettings BuildAppliedKeyboardShortcutSettings()
     {
         return new KeyboardShortcutSettings(
-            SelectedApplicationModifier,
             ShortcutActions.ToDictionary(
                 action => action.Id,
                 action => action.Bindings
-                    .Where(binding => binding.IsApplied)
+                    .Where(binding => binding.IsApplied && !binding.IsEmpty)
                     .Select(binding => binding.BuildBinding())
                     .ToList(),
                 StringComparer.Ordinal));
@@ -386,11 +391,13 @@ public sealed partial class SettingsViewModel : ViewModelBase
         var service = new KeyboardShortcutService();
         service.ApplySettings(settings);
         var entries = ShortcutActions
-            .SelectMany(action => action.Bindings.Select(binding => new ShortcutValidationEntry(
-                action,
-                binding,
-                binding.BuildBinding(),
-                service.Format(binding.BuildBinding()))))
+            .SelectMany(action => action.Bindings
+                .Where(binding => !binding.IsEmpty)
+                .Select(binding => new ShortcutValidationEntry(
+                    action,
+                    binding,
+                    binding.BuildBinding(),
+                    service.Format(binding.BuildBinding()))))
             .ToList();
         var invalidBindings = new HashSet<KeyboardShortcutBindingViewModel>();
         var previouslyInvalidBindings = entries

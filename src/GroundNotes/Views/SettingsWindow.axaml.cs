@@ -103,6 +103,21 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        BeginShortcutRecording(binding);
+    }
+
+    private void OnAssignShortcutClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: KeyboardShortcutActionViewModel action })
+        {
+            return;
+        }
+
+        BeginShortcutRecording(action.GetOrCreateEmptyShortcut());
+    }
+
+    private void BeginShortcutRecording(KeyboardShortcutBindingViewModel binding)
+    {
         _recordingShortcut?.CancelRecording();
         _recordingShortcut = binding;
         binding.BeginRecording();
@@ -120,6 +135,14 @@ public partial class SettingsWindow : Window
         {
             _recordingShortcut.CancelRecording();
             _recordingShortcut = null;
+            return;
+        }
+
+        if (e.Key == Key.Back)
+        {
+            var clearedBinding = _recordingShortcut;
+            _recordingShortcut = null;
+            clearedBinding.Clear();
             return;
         }
 

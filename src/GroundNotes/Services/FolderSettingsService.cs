@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using GroundNotes.Models;
 
 namespace GroundNotes.Services;
@@ -149,7 +150,7 @@ public sealed class FolderSettingsService : ISettingsService
                 record.OpenAiProjectId ?? string.Empty,
                 record.OpenAiOrganizationId ?? string.Empty,
                 record.OpenAiReasoningEffort ?? string.Empty),
-            KeyboardShortcutSettings.Normalize(record.KeyboardShortcuts),
+            MapKeyboardShortcutSettings(record.KeyboardShortcuts),
             record.SidebarFontSize,
             record.ShowSidebarListBackground ?? true,
             record.ShowSidebarListBorder ?? true,
@@ -209,7 +210,99 @@ public sealed class FolderSettingsService : ISettingsService
             OpenAiProjectId = settings.AiSettings.ProjectId,
             OpenAiOrganizationId = settings.AiSettings.OrganizationId,
             OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort,
-            KeyboardShortcuts = KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts)
+            KeyboardShortcuts = MapKeyboardShortcutSettings(settings.KeyboardShortcuts)
+        };
+    }
+
+    private static KeyboardShortcutSettings MapKeyboardShortcutSettings(KeyboardShortcutSettingsRecord? record)
+    {
+        if (record?.Bindings is null)
+        {
+            return KeyboardShortcutSettings.CreateDefault();
+        }
+
+        var storedModifier = record.ApplicationModifier ?? LegacyApplicationShortcutModifier.None;
+        var storedModifierBinding = BuildModifierBinding(storedModifier);
+        var convertedWithStoredModifier = ConvertBindings(record.Bindings, storedModifier);
+        var isLegacy = record.ApplicationModifier.HasValue
+                       || record.Bindings.Values.SelectMany(bindings => bindings).Any(binding => binding.Kind.HasValue);
+        if (!isLegacy)
+        {
+            return KeyboardShortcutSettings.Normalize(new KeyboardShortcutSettings(convertedWithStoredModifier));
+        }
+
+        var usesCompleteLegacyDefaults = KeyboardShortcutCatalog.IsCompleteLegacyDefaultConfiguration(
+            convertedWithStoredModifier,
+            storedModifierBinding);
+        var effectiveModifier = OperatingSystem.IsMacOS()
+                                && usesCompleteLegacyDefaults
+                                && storedModifier == LegacyApplicationShortcutModifier.Control
+            ? LegacyApplicationShortcutModifier.Meta
+            : storedModifier;
+        var effectiveModifierBinding = BuildModifierBinding(effectiveModifier);
+        var converted = ConvertBindings(record.Bindings, effectiveModifier);
+        var migrated = new Dictionary<string, List<KeyboardShortcutBinding>>(StringComparer.Ordinal);
+        foreach (var definition in KeyboardShortcutCatalog.Definitions)
+        {
+            migrated[definition.Id] = converted.TryGetValue(definition.Id, out var configured)
+                ? KeyboardShortcutCatalog.NormalizeLegacyBindings(definition, configured, effectiveModifierBinding).ToList()
+                : definition.DefaultBindings.ToList();
+        }
+
+        return new KeyboardShortcutSettings(migrated);
+    }
+
+    private static KeyboardShortcutSettingsRecord MapKeyboardShortcutSettings(KeyboardShortcutSettings? settings)
+    {
+        var normalized = KeyboardShortcutSettings.Normalize(settings);
+        return new KeyboardShortcutSettingsRecord
+        {
+            Bindings = normalized.Bindings.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value.Select(binding => new KeyboardShortcutBindingRecord
+                {
+                    Key = binding.Key,
+                    Control = binding.Control,
+                    Shift = binding.Shift,
+                    Alt = binding.Alt,
+                    Meta = binding.Meta
+                }).ToList(),
+                StringComparer.Ordinal)
+        };
+    }
+
+    private static Dictionary<string, List<KeyboardShortcutBinding>> ConvertBindings(
+        IReadOnlyDictionary<string, List<KeyboardShortcutBindingRecord>> bindings,
+        LegacyApplicationShortcutModifier applicationModifier)
+    {
+        return bindings.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.Select(binding => ConvertBinding(binding, applicationModifier)).ToList(),
+            StringComparer.Ordinal);
+    }
+
+    private static KeyboardShortcutBinding ConvertBinding(
+        KeyboardShortcutBindingRecord binding,
+        LegacyApplicationShortcutModifier applicationModifier)
+    {
+        var key = binding.Key ?? string.Empty;
+        if (binding.Kind == LegacyKeyboardShortcutBindingKind.Modifier)
+        {
+            return BuildModifierBinding(applicationModifier) with { Key = key };
+        }
+
+        return new KeyboardShortcutBinding(key, binding.Control, binding.Shift, binding.Alt, binding.Meta);
+    }
+
+    private static KeyboardShortcutBinding BuildModifierBinding(LegacyApplicationShortcutModifier modifier)
+    {
+        return modifier switch
+        {
+            LegacyApplicationShortcutModifier.Control => new KeyboardShortcutBinding(string.Empty, Control: true),
+            LegacyApplicationShortcutModifier.Shift => new KeyboardShortcutBinding(string.Empty, Shift: true),
+            LegacyApplicationShortcutModifier.Alt => new KeyboardShortcutBinding(string.Empty, Alt: true),
+            LegacyApplicationShortcutModifier.Meta => new KeyboardShortcutBinding(string.Empty, Meta: true),
+            _ => new KeyboardShortcutBinding(string.Empty)
         };
     }
 
@@ -298,7 +391,42 @@ public sealed class FolderSettingsService : ISettingsService
         public string? OpenAiProjectId { get; set; }
         public string? OpenAiOrganizationId { get; set; }
         public string? OpenAiReasoningEffort { get; set; }
-        public KeyboardShortcutSettings? KeyboardShortcuts { get; set; }
+        public KeyboardShortcutSettingsRecord? KeyboardShortcuts { get; set; }
+    }
+
+    private sealed class KeyboardShortcutSettingsRecord
+    {
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public LegacyApplicationShortcutModifier? ApplicationModifier { get; set; }
+
+        public Dictionary<string, List<KeyboardShortcutBindingRecord>>? Bindings { get; set; }
+    }
+
+    private sealed class KeyboardShortcutBindingRecord
+    {
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public LegacyKeyboardShortcutBindingKind? Kind { get; set; }
+
+        public string? Key { get; set; }
+        public bool Control { get; set; }
+        public bool Shift { get; set; }
+        public bool Alt { get; set; }
+        public bool Meta { get; set; }
+    }
+
+    private enum LegacyApplicationShortcutModifier
+    {
+        None,
+        Control,
+        Alt,
+        Shift,
+        Meta
+    }
+
+    private enum LegacyKeyboardShortcutBindingKind
+    {
+        Modifier,
+        Direct
     }
 
     private sealed class WindowLayoutRecord

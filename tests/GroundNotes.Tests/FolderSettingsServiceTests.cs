@@ -179,23 +179,134 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task SaveAndLoad_RoundTripsKeyboardShortcuts()
+    public async Task SaveAndLoad_RoundTripsExplicitKeyboardShortcuts()
     {
-        var shortcuts = KeyboardShortcutSettings.CreateDefault() with
-        {
-            ApplicationModifier = ApplicationShortcutModifier.Alt
-        };
+        var shortcuts = KeyboardShortcutSettings.CreateDefault();
         shortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker] =
         [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Modifier, "O"),
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "K", Control: true)
+            new KeyboardShortcutBinding("O", Alt: true),
+            new KeyboardShortcutBinding("K", Control: true)
         ];
 
         await _service.UpdateSettingsAsync(settings => settings with { KeyboardShortcuts = shortcuts });
         var loaded = await _service.GetSettingsAsync();
 
-        Assert.Equal(ApplicationShortcutModifier.Alt, loaded.KeyboardShortcuts?.ApplicationModifier);
         Assert.Equal(shortcuts.Bindings[KeyboardShortcutActionIds.OpenNotePicker], loaded.KeyboardShortcuts?.Bindings[KeyboardShortcutActionIds.OpenNotePicker]);
+        var json = await File.ReadAllTextAsync(_settingsFilePath);
+        Assert.DoesNotContain("ApplicationModifier", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Kind", json, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_MigratesLegacyModifierAndDirectBindings()
+    {
+        var legacySettings = JsonSerializer.Serialize(new
+        {
+            keyboardShortcuts = new
+            {
+                applicationModifier = 2,
+                bindings = new Dictionary<string, object>
+                {
+                    [KeyboardShortcutActionIds.OpenNotePicker] = new object[]
+                    {
+                        new { kind = 0, key = "O", control = false, shift = false, alt = false, meta = false },
+                        new { kind = 1, key = "K", control = true, shift = true, alt = false, meta = false }
+                    }
+                }
+            }
+        });
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+        var bindings = settings.KeyboardShortcuts!.Bindings[KeyboardShortcutActionIds.OpenNotePicker];
+
+        Assert.Contains(bindings, binding => binding.Key == "O" && binding.Alt && !binding.Control);
+        Assert.Contains(bindings, binding => binding.Key == "K" && binding.Control && binding.Shift);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_PreservesCustomLegacyApplicationModifier()
+    {
+        var legacySettings = JsonSerializer.Serialize(new
+        {
+            keyboardShortcuts = new
+            {
+                applicationModifier = 2,
+                bindings = new Dictionary<string, object>
+                {
+                    [KeyboardShortcutActionIds.NewNote] = new object[]
+                    {
+                        new { kind = 0, key = "N", control = false, shift = false, alt = false, meta = false }
+                    }
+                }
+            }
+        });
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+        var binding = Assert.Single(settings.KeyboardShortcuts!.Bindings[KeyboardShortcutActionIds.NewNote]);
+
+        Assert.Equal("N", binding.Key);
+        Assert.True(binding.Alt);
+        Assert.False(binding.Control);
+        Assert.False(binding.Meta);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_MigratesPreviousDefaultToCurrentBinding()
+    {
+        var legacySettings = JsonSerializer.Serialize(new
+        {
+            keyboardShortcuts = new
+            {
+                applicationModifier = 1,
+                bindings = new Dictionary<string, object>
+                {
+                    [KeyboardShortcutActionIds.ToggleSidebar] = new object[]
+                    {
+                        new { kind = 0, key = "L", control = false, shift = false, alt = false, meta = false }
+                    }
+                }
+            }
+        });
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+        var binding = Assert.Single(settings.KeyboardShortcuts!.Bindings[KeyboardShortcutActionIds.ToggleSidebar]);
+
+        Assert.Equal("B", binding.Key);
+        Assert.True(binding.Control);
+        Assert.True(binding.Shift);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_CollapsesLegacyTechnicalShortcutAlternatives()
+    {
+        var legacySettings = JsonSerializer.Serialize(new
+        {
+            keyboardShortcuts = new
+            {
+                applicationModifier = 1,
+                bindings = new Dictionary<string, object>
+                {
+                    [KeyboardShortcutActionIds.ShowShortcuts] = new object[]
+                    {
+                        new { kind = 1, key = "OemQuestion", control = true, shift = true, alt = false, meta = false },
+                        new { kind = 1, key = "Oem2", control = true, shift = true, alt = false, meta = false },
+                        new { kind = 1, key = "OemQuestion", control = false, shift = true, alt = false, meta = true },
+                        new { kind = 1, key = "Oem2", control = false, shift = true, alt = false, meta = true }
+                    }
+                }
+            }
+        });
+        await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
+
+        var settings = await _service.GetSettingsAsync();
+        var binding = Assert.Single(settings.KeyboardShortcuts!.Bindings[KeyboardShortcutActionIds.ShowShortcuts]);
+
+        Assert.Equal("F1", binding.Key);
+        Assert.False(binding.Control);
+        Assert.False(binding.Meta);
     }
 
     [Fact]

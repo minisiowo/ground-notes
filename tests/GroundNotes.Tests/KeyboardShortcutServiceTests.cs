@@ -8,31 +8,18 @@ namespace GroundNotes.Tests;
 public sealed class KeyboardShortcutServiceTests
 {
     [Fact]
-    public void Matches_ApplicationModifierBindingUsesConfiguredModifier()
+    public void Matches_ExplicitBindingUsesConfiguredModifiers()
     {
-        var settings = KeyboardShortcutSettings.CreateDefault() with
-        {
-            ApplicationModifier = ApplicationShortcutModifier.Alt
-        };
+        var settings = KeyboardShortcutSettings.CreateDefault();
+        settings.Bindings[KeyboardShortcutActionIds.NewNote] =
+        [
+            new KeyboardShortcutBinding("N", Alt: true)
+        ];
         var service = new KeyboardShortcutService();
         service.ApplySettings(settings);
 
         Assert.True(service.Matches(KeyboardShortcutActionIds.NewNote, Key.N, KeyModifiers.Alt));
         Assert.False(service.Matches(KeyboardShortcutActionIds.NewNote, Key.N, KeyModifiers.Control));
-    }
-
-    [Fact]
-    public void Matches_DirectBindingDoesNotChangeWithApplicationModifier()
-    {
-        var settings = KeyboardShortcutSettings.CreateDefault() with
-        {
-            ApplicationModifier = ApplicationShortcutModifier.Alt
-        };
-        var service = new KeyboardShortcutService();
-        service.ApplySettings(settings);
-
-        Assert.True(service.Matches(KeyboardShortcutActionIds.InlineCode, Key.K, KeyModifiers.Control));
-        Assert.False(service.Matches(KeyboardShortcutActionIds.InlineCode, Key.K, KeyModifiers.Alt));
     }
 
     [Fact]
@@ -51,35 +38,36 @@ public sealed class KeyboardShortcutServiceTests
         Assert.True(service.Matches(KeyboardShortcutActionIds.ShowShortcuts, Key.F1, KeyModifiers.None));
     }
 
+    [Theory]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, true)]
+    public void CreateDefinitions_UsesPlatformModifierForPrimaryShortcuts(
+        bool isMacOS,
+        bool expectedControl,
+        bool expectedMeta)
+    {
+        var definitions = KeyboardShortcutCatalog.CreateDefinitions(isMacOS);
+        var newNote = definitions.Single(definition => definition.Id == KeyboardShortcutActionIds.NewNote);
+        var bold = definitions.Single(definition => definition.Id == KeyboardShortcutActionIds.Bold);
+
+        var primary = Assert.Single(newNote.DefaultBindings);
+        Assert.Equal(expectedControl, primary.Control);
+        Assert.Equal(expectedMeta, primary.Meta);
+        Assert.True(Assert.Single(bold.DefaultBindings).Control);
+    }
+
     [Fact]
     public void Matches_QuestionMarkBindingAcceptsOemAlias()
     {
         var settings = KeyboardShortcutSettings.CreateDefault();
         settings.Bindings[KeyboardShortcutActionIds.ShowShortcuts] =
         [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "OemQuestion", Shift: true, Alt: true)
+            new KeyboardShortcutBinding("OemQuestion", Shift: true, Alt: true)
         ];
         var service = new KeyboardShortcutService();
         service.ApplySettings(settings);
 
         Assert.True(service.Matches(KeyboardShortcutActionIds.ShowShortcuts, Key.Oem2, KeyModifiers.Alt | KeyModifiers.Shift));
-    }
-
-    [Fact]
-    public void Normalize_LegacyDefaultsCollapseTechnicalAlternatives()
-    {
-        var settings = KeyboardShortcutSettings.CreateDefault();
-        settings.Bindings[KeyboardShortcutActionIds.ShowShortcuts] =
-        [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "OemQuestion", Control: true, Shift: true),
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "Oem2", Control: true, Shift: true),
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "OemQuestion", Shift: true, Meta: true),
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "Oem2", Shift: true, Meta: true)
-        ];
-
-        var normalized = KeyboardShortcutSettings.Normalize(settings);
-
-        Assert.Single(normalized.Bindings[KeyboardShortcutActionIds.ShowShortcuts]);
     }
 
     [Fact]
@@ -101,31 +89,12 @@ public sealed class KeyboardShortcutServiceTests
     }
 
     [Fact]
-    public void Normalize_PreviousDefaultsMigrateToNewBindings()
-    {
-        var settings = KeyboardShortcutSettings.CreateDefault();
-        settings.Bindings[KeyboardShortcutActionIds.ToggleSidebar] =
-        [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Modifier, "L")
-        ];
-        settings.Bindings[KeyboardShortcutActionIds.DeleteLine] =
-        [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "D", Control: true, Shift: true)
-        ];
-
-        var normalized = KeyboardShortcutSettings.Normalize(settings);
-
-        Assert.Contains(normalized.Bindings[KeyboardShortcutActionIds.ToggleSidebar], binding => binding.Key == "B" && binding.Control && binding.Shift);
-        Assert.Contains(normalized.Bindings[KeyboardShortcutActionIds.DeleteLine], binding => binding.Key == "D" && binding.Control && !binding.Shift);
-    }
-
-    [Fact]
-    public void Matches_DirectBindingCanUseNoModifier()
+    public void Matches_BindingCanUseNoModifier()
     {
         var settings = KeyboardShortcutSettings.CreateDefault();
         settings.Bindings[KeyboardShortcutActionIds.ReloadNotes] =
         [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "F8")
+            new KeyboardShortcutBinding("F8")
         ];
         var service = new KeyboardShortcutService();
         service.ApplySettings(settings);
@@ -137,14 +106,11 @@ public sealed class KeyboardShortcutServiceTests
     [Fact]
     public void Matches_SupportsMultipleIndependentBindingsForAction()
     {
-        var settings = KeyboardShortcutSettings.CreateDefault() with
-        {
-            ApplicationModifier = ApplicationShortcutModifier.Alt
-        };
+        var settings = KeyboardShortcutSettings.CreateDefault();
         settings.Bindings[KeyboardShortcutActionIds.OpenNotePicker] =
         [
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Modifier, "O"),
-            new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "K", Control: true)
+            new KeyboardShortcutBinding("O", Alt: true),
+            new KeyboardShortcutBinding("K", Control: true)
         ];
         var service = new KeyboardShortcutService();
         service.ApplySettings(settings);
@@ -154,7 +120,7 @@ public sealed class KeyboardShortcutServiceTests
     }
 
     [Fact]
-    public void Matches_RequiresExactDirectModifiers()
+    public void Matches_RequiresExactModifiers()
     {
         var service = new KeyboardShortcutService();
         service.ApplySettings(KeyboardShortcutSettings.CreateDefault());

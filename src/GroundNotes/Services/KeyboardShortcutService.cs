@@ -54,7 +54,7 @@ public sealed class KeyboardShortcutService : IKeyboardShortcutService
 
     public string Format(KeyboardShortcutBinding binding)
     {
-        var modifiers = ResolveModifiers(binding);
+        var modifiers = GetModifiers(binding);
         var parts = new List<string>();
         if (modifiers.HasFlag(KeyModifiers.Control))
         {
@@ -80,30 +80,18 @@ public sealed class KeyboardShortcutService : IKeyboardShortcutService
         return string.Join('+', parts);
     }
 
-    private bool Matches(KeyboardShortcutBinding binding, Key key, KeyModifiers modifiers)
+    private static bool Matches(KeyboardShortcutBinding binding, Key key, KeyModifiers modifiers)
     {
         if (!Enum.TryParse<Key>(binding.Key, ignoreCase: true, out var expectedKey))
         {
             return false;
         }
 
-        return expectedKey == key && ResolveModifiers(binding) == NormalizeModifiers(modifiers);
+        return expectedKey == key && GetModifiers(binding) == NormalizeModifiers(modifiers);
     }
 
-    private KeyModifiers ResolveModifiers(KeyboardShortcutBinding binding)
+    private static KeyModifiers GetModifiers(KeyboardShortcutBinding binding)
     {
-        if (binding.Kind == KeyboardShortcutBindingKind.Modifier)
-        {
-            return _settings.ApplicationModifier switch
-            {
-                ApplicationShortcutModifier.Control => KeyModifiers.Control,
-                ApplicationShortcutModifier.Shift => KeyModifiers.Shift,
-                ApplicationShortcutModifier.Alt => KeyModifiers.Alt,
-                ApplicationShortcutModifier.Meta => KeyModifiers.Meta,
-                _ => KeyModifiers.None
-            };
-        }
-
         var modifiers = KeyModifiers.None;
         if (binding.Control)
         {

@@ -7,16 +7,12 @@ namespace GroundNotes.ViewModels;
 
 public sealed partial class KeyboardShortcutActionViewModel : ViewModelBase
 {
-    private ApplicationShortcutModifier _applicationModifier;
-
     public KeyboardShortcutActionViewModel(
         KeyboardShortcutDefinition definition,
         IEnumerable<KeyboardShortcutBinding> bindings,
-        ApplicationShortcutModifier applicationModifier,
         IReadOnlyList<string> availableKeys)
     {
         Definition = definition;
-        _applicationModifier = applicationModifier;
         AvailableKeys = availableKeys;
         Bindings = new ObservableCollection<KeyboardShortcutBindingViewModel>(
             bindings.Select(CreateBindingViewModel));
@@ -44,28 +40,23 @@ public sealed partial class KeyboardShortcutActionViewModel : ViewModelBase
 
     public IReadOnlyList<KeyboardShortcutBinding> BuildBindings()
     {
-        return Bindings.Select(binding => binding.BuildBinding()).ToList();
+        return Bindings
+            .Where(binding => !binding.IsEmpty)
+            .Select(binding => binding.BuildBinding())
+            .ToList();
     }
 
-    public void SetApplicationModifier(ApplicationShortcutModifier modifier)
+    public KeyboardShortcutBindingViewModel GetOrCreateEmptyShortcut()
     {
-        _applicationModifier = modifier;
-        foreach (var binding in Bindings)
+        if (Bindings.Count > 0)
         {
-            binding.SetApplicationModifier(modifier);
+            return Bindings[0];
         }
-    }
 
-    [RelayCommand]
-    private void AddModifierShortcut()
-    {
-        AddBinding(new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Modifier, "F8"));
-    }
-
-    [RelayCommand]
-    private void AddDirectShortcut()
-    {
-        AddBinding(new KeyboardShortcutBinding(KeyboardShortcutBindingKind.Direct, "F8"));
+        var viewModel = CreateBindingViewModel(new KeyboardShortcutBinding(string.Empty));
+        Bindings.Add(viewModel);
+        OnPropertyChanged(nameof(HasBindings));
+        return viewModel;
     }
 
     [RelayCommand]
@@ -96,17 +87,11 @@ public sealed partial class KeyboardShortcutActionViewModel : ViewModelBase
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private void AddBinding(KeyboardShortcutBinding binding)
-    {
-        var viewModel = CreateBindingViewModel(binding);
-        Bindings.Add(viewModel);
-        OnPropertyChanged(nameof(HasBindings));
-        Changed?.Invoke(viewModel, EventArgs.Empty);
-    }
+
 
     private KeyboardShortcutBindingViewModel CreateBindingViewModel(KeyboardShortcutBinding binding)
     {
-        var viewModel = new KeyboardShortcutBindingViewModel(binding, _applicationModifier, AvailableKeys);
+        var viewModel = new KeyboardShortcutBindingViewModel(binding, AvailableKeys);
         viewModel.Changed += OnBindingChanged;
         viewModel.RemoveRequested += OnBindingRemoveRequested;
         return viewModel;
