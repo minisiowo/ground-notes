@@ -57,7 +57,9 @@ public sealed record KeyboardShortcutSettings(
                 continue;
             }
 
-            bindings[definition.Id] = definition.Id == KeyboardShortcutActionIds.ToggleZenMode
+            var requiresConflictSafeDefault = definition.Id is KeyboardShortcutActionIds.ToggleZenMode
+                or KeyboardShortcutActionIds.NewNoteWindow;
+            bindings[definition.Id] = requiresConflictSafeDefault
                                       && KeyboardShortcutCatalog.HasConfiguredConflict(
                                           definition,
                                           definition.DefaultBindings,

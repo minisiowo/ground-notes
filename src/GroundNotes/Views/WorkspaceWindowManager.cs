@@ -44,6 +44,7 @@ internal sealed class WorkspaceWindowManager
             var viewModel = _viewModelFactory(window);
             window.DataContext = viewModel;
             window.OpenNoteInWindowAsync = (filePath, mode) => OpenNoteWindowAsync(window, filePath, mode);
+            window.OpenNewNoteInWindowAsync = () => OpenNewNoteWindowAsync(window);
             window.SaveNoteWindowLayout = _noteWindowLayoutService.SaveLayout;
             if (persistMainWindowLayout)
             {
@@ -117,6 +118,64 @@ internal sealed class WorkspaceWindowManager
             }
 
             SetOpenError(sourceViewModel, ex.Message);
+        }
+    }
+
+    private async Task OpenNewNoteWindowAsync(MainWindow sourceWindow)
+    {
+        var sourceViewModel = sourceWindow.DataContext as MainViewModel;
+        var sourceFolder = sourceViewModel?.NotesFolder;
+        if (string.IsNullOrWhiteSpace(sourceFolder) || !Directory.Exists(sourceFolder))
+        {
+            if (sourceViewModel is not null)
+            {
+                sourceViewModel.StatusMessage = "Choose a folder first.";
+            }
+            return;
+        }
+
+        MainWindow? noteWindow = null;
+        MainViewModel? noteViewModel = null;
+        var wasShown = false;
+        try
+        {
+            noteWindow = CreateWorkspaceWindow(persistMainWindowLayout: false);
+            noteViewModel = (MainViewModel)noteWindow.DataContext!;
+            await noteViewModel.InitializeForFolderAsync(sourceFolder);
+            await noteViewModel.NewNoteCommand.ExecuteAsync(null);
+
+            noteWindow.Title = "New note";
+            ApplyPlacement(sourceWindow, noteWindow, NoteWindowMode.Standard);
+            noteWindow.ShowActivated = false;
+            noteWindow.ConfigureAsStandaloneWindow(NoteWindowMode.Standard);
+            noteWindow.Show();
+            wasShown = true;
+            ThemeService.SyncScrollBarClassFromMainWindow(noteWindow);
+
+            await noteWindow.CompleteStartupInitializationAsync(revealWindow: false);
+            noteWindow.Opacity = 1;
+            noteWindow.ShowActivated = true;
+            noteWindow.ActivateAndFocusActiveEditor();
+        }
+        catch (Exception ex)
+        {
+            if (wasShown)
+            {
+                noteWindow!.CloseAfterStartupFailure();
+            }
+            else if (noteWindow is not null)
+            {
+                noteWindow.DisposeBeforeShow();
+            }
+            else
+            {
+                noteViewModel?.Dispose();
+            }
+
+            if (sourceViewModel is not null)
+            {
+                sourceViewModel.StatusMessage = $"Could not open new note window: {ex.Message}";
+            }
         }
     }
 

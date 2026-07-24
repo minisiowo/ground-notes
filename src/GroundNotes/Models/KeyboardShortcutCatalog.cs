@@ -140,6 +140,7 @@ public static class KeyboardShortcutCatalog
             Define(KeyboardShortcutActionIds.ToggleZenMode, "Toggle ZEN mode", "General", KeyboardShortcutScope.MainWindow, Primary("M", isMacOS, shift: true)),
             Define(KeyboardShortcutActionIds.ReloadNotes, "Reload notes", "Notes", KeyboardShortcutScope.MainWindow, Primary("R", isMacOS)),
             Define(KeyboardShortcutActionIds.NewNote, "New note", "Notes", KeyboardShortcutScope.MainWindow, Primary("N", isMacOS)),
+            Define(KeyboardShortcutActionIds.NewNoteWindow, "New note in new window", "Notes", KeyboardShortcutScope.MainWindow, Direct("N", control: true, shift: true)),
             Define(KeyboardShortcutActionIds.OpenNotePicker, "Open note picker", "Notes", KeyboardShortcutScope.MainWindow, Primary("P", isMacOS)),
             Define(KeyboardShortcutActionIds.DeleteNote, "Delete current note", "Notes", KeyboardShortcutScope.MainWindow, Direct("D", control: true, shift: true)),
             Define(KeyboardShortcutActionIds.ClosePane, "Close active pane", "Editor", KeyboardShortcutScope.MainWindow, Primary("W", isMacOS)),

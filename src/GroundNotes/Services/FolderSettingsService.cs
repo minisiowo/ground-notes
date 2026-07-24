@@ -289,7 +289,8 @@ public sealed class FolderSettingsService : ISettingsService
                     .NormalizeLegacyBindings(definition, configured, effectiveModifierBinding)
                     .ToList();
             }
-            else if (definition.Id != KeyboardShortcutActionIds.ToggleZenMode)
+            else if (definition.Id is not KeyboardShortcutActionIds.ToggleZenMode
+                     and not KeyboardShortcutActionIds.NewNoteWindow)
             {
                 migrated[definition.Id] = definition.DefaultBindings.ToList();
             }

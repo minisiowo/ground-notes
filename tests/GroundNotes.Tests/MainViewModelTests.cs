@@ -885,6 +885,64 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task RestoreSidebarSelection_RevertsTemporaryContextMenuSelection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9));
+        await WriteNoteAsync("beta.md", "beta", "body", new DateTime(2026, 3, 10));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var alphaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var betaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alphaRow);
+        var selectionBeforeContextMenu = vm.CaptureSidebarSelection();
+        vm.SelectOnlySidebarNote(betaRow);
+
+        vm.RestoreSidebarSelection(selectionBeforeContextMenu);
+
+        Assert.Equal("alpha", Assert.Single(vm.SelectedSidebarNotes).DisplayName);
+        Assert.Same(alphaRow, vm.SelectedSidebarRow);
+        Assert.True(alphaRow.Note!.IsSelected);
+        Assert.False(betaRow.Note!.IsSelected);
+    }
+
+    [Fact]
+    public async Task AddSelectedNotesToTagFolderCommand_UsesSelectionCapturedBeforeDialogCompletes()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body", new DateTime(2026, 3, 9));
+        await WriteNoteAsync("beta.md", "beta", "body", new DateTime(2026, 3, 10));
+
+        var destinationSource = new TaskCompletionSource<string?>();
+        var dialogService = new FakeWorkspaceDialogService
+        {
+            FolderToPick = _tempRoot,
+            TagFolderDestinationSource = destinationSource
+        };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        var alphaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var betaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alphaRow);
+        var selectionBeforeContextMenu = vm.CaptureSidebarSelection();
+        vm.SelectOnlySidebarNote(betaRow);
+
+        var addTask = vm.AddSelectedNotesToTagFolderCommand.ExecuteAsync(null);
+        vm.RestoreSidebarSelection(selectionBeforeContextMenu);
+        destinationSource.SetResult("work");
+        await addTask;
+
+        var repository = new NotesRepository();
+        var alpha = await repository.LoadNoteAsync(Path.Combine(_tempRoot, "alpha.md"));
+        var beta = await repository.LoadNoteAsync(Path.Combine(_tempRoot, "beta.md"));
+        Assert.Empty(alpha!.Tags);
+        Assert.Contains("work", beta!.Tags);
+        Assert.Equal("alpha", Assert.Single(vm.SelectedSidebarNotes).DisplayName);
+    }
+
+    [Fact]
     public async Task CreateTagFolderCommand_PersistsAndShowsEmptyFolder()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -1638,6 +1696,8 @@ public sealed class MainViewModelTests : IDisposable
 
         public string? TagFolderDestinationResult { get; set; }
 
+        public TaskCompletionSource<string?>? TagFolderDestinationSource { get; set; }
+
         public bool ConfirmDeleteTagFolderResult { get; set; }
 
         public bool ConfirmDeleteNotesResult { get; set; }
@@ -1680,7 +1740,8 @@ public sealed class MainViewModelTests : IDisposable
 
         public Task<string?> PromptRenameTagFolderAsync(string currentPath) => Task.FromResult(RenameTagFolderResult);
 
-        public Task<string?> ChooseTagFolderDestinationAsync(IReadOnlyList<string> folderPaths) => Task.FromResult(TagFolderDestinationResult);
+        public Task<string?> ChooseTagFolderDestinationAsync(IReadOnlyList<string> folderPaths) =>
+            TagFolderDestinationSource?.Task ?? Task.FromResult(TagFolderDestinationResult);
 
         public Task<bool> ConfirmDeleteTagFolderAsync(string folderPath) => Task.FromResult(ConfirmDeleteTagFolderResult);
 

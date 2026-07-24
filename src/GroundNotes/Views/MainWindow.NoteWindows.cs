@@ -14,6 +14,8 @@ public partial class MainWindow
 
     public Func<string, NoteWindowMode, Task>? OpenNoteInWindowAsync { get; set; }
 
+    public Func<Task>? OpenNewNoteInWindowAsync { get; set; }
+
     public Action<NoteWindowMode, NoteWindowLayout>? SaveNoteWindowLayout { get; set; }
 
     internal static bool IsOpenNoteInNewWindowGesture(Key key, KeyModifiers modifiers) =>
@@ -98,6 +100,27 @@ public partial class MainWindow
             ? _lastNormalHeight ?? Height
             : Bounds.Height;
         SaveNoteWindowLayout(mode, new NoteWindowLayout(width, height));
+    }
+
+    private async Task InvokeOpenNewNoteInWindowAsync()
+    {
+        var callback = OpenNewNoteInWindowAsync;
+        if (callback is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await callback();
+        }
+        catch (Exception ex)
+        {
+            if (DataContext is MainViewModel viewModel)
+            {
+                viewModel.StatusMessage = $"Could not open new note window: {ex.Message}";
+            }
+        }
     }
 
     private async Task InvokeOpenNoteInWindowAsync(string filePath, NoteWindowMode mode)

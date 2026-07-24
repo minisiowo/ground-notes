@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private Point _sidebarDragStartPoint;
     private bool _isSidebarDragStarting;
     private SidebarTreeRowViewModel? _sidebarPendingSingleClickRow;
+    private SidebarSelectionState? _sidebarSelectionBeforeContextMenu;
     private OverlayLayer? _sidebarDragOverlay;
     private Border? _sidebarDragGhost;
     private TextBlock? _sidebarDragGhostText;
@@ -2158,9 +2159,20 @@ public partial class MainWindow : Window
 
         if (point.Properties.IsRightButtonPressed)
         {
+            _sidebarSelectionBeforeContextMenu = noteItem.IsSelected
+                ? null
+                : vm.CaptureSidebarSelection();
             vm.EnsureSidebarNoteSelected((SidebarTreeRowViewModel)border.DataContext!);
             e.Handled = true;
-            border.ContextMenu?.Open(border);
+            if (border.ContextMenu is { } contextMenu)
+            {
+                contextMenu.Open(border);
+            }
+            else if (_sidebarSelectionBeforeContextMenu is { } previousSelection)
+            {
+                _sidebarSelectionBeforeContextMenu = null;
+                vm.RestoreSidebarSelection(previousSelection);
+            }
             return;
         }
 
@@ -2252,6 +2264,18 @@ public partial class MainWindow : Window
 
         vm.SelectOnlySidebarNote(pendingRow);
         await vm.OpenSidebarNoteCommand.ExecuteAsync(note);
+    }
+
+    private void OnSidebarNoteContextMenuClosed(object? sender, RoutedEventArgs e)
+    {
+        if (_sidebarSelectionBeforeContextMenu is not { } previousSelection
+            || DataContext is not MainViewModel vm)
+        {
+            return;
+        }
+
+        _sidebarSelectionBeforeContextMenu = null;
+        vm.RestoreSidebarSelection(previousSelection);
     }
 
     private void OnSidebarFolderDragOver(object? sender, DragEventArgs e)
@@ -3404,6 +3428,13 @@ public partial class MainWindow : Window
             {
                 e.Handled = true;
                 await vm.NewNoteCommand.ExecuteAsync(null);
+                return;
+            }
+
+            if (vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.NewNoteWindow, e.Key, e.KeyModifiers))
+            {
+                e.Handled = true;
+                await InvokeOpenNewNoteInWindowAsync();
                 return;
             }
 

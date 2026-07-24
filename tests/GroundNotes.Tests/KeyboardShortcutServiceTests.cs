@@ -78,6 +78,54 @@ public sealed class KeyboardShortcutServiceTests
     }
 
     [Fact]
+    public void CreateDefinitions_DefinesNewNoteWindowWithCtrlShiftN()
+    {
+        var definitions = KeyboardShortcutCatalog.CreateDefinitions(isMacOS: false);
+        var newNoteWindow = definitions.Single(definition => definition.Id == KeyboardShortcutActionIds.NewNoteWindow);
+
+        Assert.Equal("New note in new window", newNoteWindow.Name);
+        Assert.Equal("Notes", newNoteWindow.Category);
+        Assert.Equal(KeyboardShortcutScope.MainWindow, newNoteWindow.Scope);
+        var binding = Assert.Single(newNoteWindow.DefaultBindings);
+        Assert.Equal("N", binding.Key);
+        Assert.True(binding.Control);
+        Assert.True(binding.Shift);
+        Assert.False(binding.Alt);
+        Assert.False(binding.Meta);
+    }
+
+    [Fact]
+    public void ApplySettings_AddsNewNoteWindowDefaultToOlderConfiguration()
+    {
+        var olderSettings = KeyboardShortcutSettings.CreateDefault();
+        olderSettings.Bindings.Remove(KeyboardShortcutActionIds.NewNoteWindow);
+        var service = new KeyboardShortcutService();
+
+        service.ApplySettings(olderSettings);
+
+        Assert.True(service.Matches(
+            KeyboardShortcutActionIds.NewNoteWindow,
+            Key.N,
+            KeyModifiers.Control | KeyModifiers.Shift));
+    }
+
+    [Fact]
+    public void ApplySettings_DoesNotAddNewNoteWindowDefaultWhenGestureIsAlreadyConfigured()
+    {
+        var olderSettings = KeyboardShortcutSettings.CreateDefault();
+        olderSettings.Bindings.Remove(KeyboardShortcutActionIds.NewNoteWindow);
+        olderSettings.Bindings[KeyboardShortcutActionIds.OpenNotePicker] =
+        [
+            new KeyboardShortcutBinding("N", Control: true, Shift: true)
+        ];
+        var service = new KeyboardShortcutService();
+
+        service.ApplySettings(olderSettings);
+
+        Assert.Empty(service.Settings.Bindings[KeyboardShortcutActionIds.NewNoteWindow]);
+    }
+
+    [Fact]
     public void ApplySettings_AddsZenModeDefaultToOlderConfiguration()
     {
         var olderSettings = KeyboardShortcutSettings.CreateDefault();
@@ -153,6 +201,7 @@ public sealed class KeyboardShortcutServiceTests
         var modifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
         Assert.True(service.Matches(KeyboardShortcutActionIds.ToggleSidebar, Key.B, KeyModifiers.Control | KeyModifiers.Shift));
+        Assert.True(service.Matches(KeyboardShortcutActionIds.NewNoteWindow, Key.N, KeyModifiers.Control | KeyModifiers.Shift));
         Assert.True(service.Matches(KeyboardShortcutActionIds.OpenNotePicker, Key.P, modifier));
         Assert.True(service.Matches(KeyboardShortcutActionIds.DeleteNote, Key.D, KeyModifiers.Control | KeyModifiers.Shift));
         Assert.True(service.Matches(KeyboardShortcutActionIds.DeleteLine, Key.D, KeyModifiers.Control));

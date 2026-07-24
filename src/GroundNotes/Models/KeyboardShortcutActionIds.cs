@@ -9,6 +9,7 @@ public static class KeyboardShortcutActionIds
     public const string ToggleZenMode = "app.toggle-zen-mode";
     public const string ReloadNotes = "notes.reload";
     public const string NewNote = "notes.new";
+    public const string NewNoteWindow = "notes.new-window";
     public const string OpenNotePicker = "notes.open-picker";
     public const string DeleteNote = "notes.delete";
     public const string ClosePane = "editor.close-pane";

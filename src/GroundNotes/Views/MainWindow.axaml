@@ -223,7 +223,7 @@
                                PointerMoved="OnNoteListItemPointerMoved"
                                PointerReleased="OnNoteListItemPointerReleased">
                         <Border.ContextMenu>
-                          <ContextMenu>
+                          <ContextMenu Closed="OnSidebarNoteContextMenuClosed">
                              <MenuItem Header="Open to right"
                                        Command="{Binding #RootWindow.DataContext.OpenNoteInSplitCommand}"
                                        CommandParameter="{Binding Note}" />

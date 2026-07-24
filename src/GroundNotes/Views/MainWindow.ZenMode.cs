@@ -117,11 +117,6 @@ public partial class MainWindow
 
     private void ToggleZenMode()
     {
-        if (_standaloneLaunchMode == NoteWindowMode.Zen)
-        {
-            return;
-        }
-
         if (_isZenMode)
         {
             ExitZenMode();

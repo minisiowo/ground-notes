@@ -4,6 +4,11 @@ using GroundNotes.Services;
 
 namespace GroundNotes.ViewModels;
 
+internal sealed record SidebarSelectionState(
+    IReadOnlyList<string> FilePaths,
+    string? AnchorOccurrencePath,
+    string? SelectedOccurrencePath);
+
 public partial class MainViewModel
 {
     private readonly HashSet<string> _selectedSidebarFilePaths = new(StringComparer.OrdinalIgnoreCase);
@@ -115,6 +120,36 @@ public partial class MainViewModel
     {
         _selectedSidebarFilePaths.Clear();
         _sidebarSelectionAnchorOccurrencePath = null;
+        RestoreSidebarSelectionFlags();
+    }
+
+    internal SidebarSelectionState CaptureSidebarSelection()
+    {
+        return new SidebarSelectionState(
+            _selectedSidebarFilePaths.ToList(),
+            _sidebarSelectionAnchorOccurrencePath,
+            SelectedSidebarRow?.OccurrencePath);
+    }
+
+    internal void RestoreSidebarSelection(SidebarSelectionState state)
+    {
+        _selectedSidebarFilePaths.Clear();
+        foreach (var filePath in state.FilePaths)
+        {
+            if (_allNotes.Any(note => string.Equals(note.FilePath, filePath, StringComparison.OrdinalIgnoreCase)))
+            {
+                _selectedSidebarFilePaths.Add(filePath);
+            }
+        }
+
+        _sidebarSelectionAnchorOccurrencePath = state.AnchorOccurrencePath;
+        SelectedSidebarRow = state.SelectedOccurrencePath is null
+            ? FindPreferredNoteRow(GetActiveSidebarFilePath())
+            : VisibleSidebarRows.FirstOrDefault(row => string.Equals(
+                row.OccurrencePath,
+                state.SelectedOccurrencePath,
+                StringComparison.Ordinal))
+              ?? FindPreferredNoteRow(GetActiveSidebarFilePath());
         RestoreSidebarSelectionFlags();
     }
 
@@ -301,10 +336,11 @@ public partial class MainViewModel
     [RelayCommand]
     private async Task AddSelectedNotesToTagFolderAsync()
     {
+        var selectedPaths = _selectedSidebarFilePaths.ToList();
         var destination = await _workspaceDialogService.ChooseTagFolderDestinationAsync(GetAllTagFolderPaths());
         if (destination is not null)
         {
-            await AddSidebarSelectionToTagFolderAsync(destination);
+            await AddSidebarNotesToTagFolderAsync(selectedPaths, destination);
         }
     }
 
