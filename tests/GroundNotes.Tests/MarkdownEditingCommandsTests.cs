@@ -330,6 +330,18 @@ public sealed class MarkdownEditingCommandsTests
     }
 
     [Fact]
+    public void ListChangeIndentation_MultilineSelectionDoesNotExpandIntoFollowingLines()
+    {
+        var text = "one\ntwo\nx\ny\nz";
+        var result = MarkdownListEditingCommands.ChangeIndentation(text, 0, "one\ntwo".Length, 2, unindent: false);
+
+        Assert.Equal("  one\n  two", result.Replacement);
+        Assert.Equal(2, result.SelectionStart);
+        Assert.Equal(9, result.SelectionLength);
+        Assert.Equal("one\n  two", (result.Replacement + "\nx\ny\nz").Substring(result.SelectionStart, result.SelectionLength));
+    }
+
+    [Fact]
     public void ListChangeIndentation_UnindentsPlainLineRegardlessOfCaretColumn()
     {
         var text = "  plain text";

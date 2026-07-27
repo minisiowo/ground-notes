@@ -126,6 +126,7 @@ public sealed class FolderSettingsService : ISettingsService
             EditorLineHeightFactor = EditorDisplaySettings.NormalizeLineHeightFactor(settings.EditorLineHeightFactor),
             AiSettings = AiSettings.Normalize(settings.AiSettings),
             KeyboardShortcuts = KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts),
+            VimModeSettings = VimModeSettings.Normalize(settings.VimModeSettings),
             StandardNoteWindowLayout = NoteWindowLayout.Normalize(settings.StandardNoteWindowLayout),
             ZenNoteWindowLayout = NoteWindowLayout.Normalize(settings.ZenNoteWindowLayout)
         };
@@ -180,7 +181,8 @@ public sealed class FolderSettingsService : ISettingsService
             record.UiFontName,
             record.UiFontVariantName,
             MapNoteWindowLayout(record.StandardNoteWindowLayout),
-            MapNoteWindowLayout(record.ZenNoteWindowLayout)));
+            MapNoteWindowLayout(record.ZenNoteWindowLayout),
+            MapVimModeSettings(record.VimModeSettings)));
     }
 
     private static SettingsRecord MapToRecord(AppSettings settings)
@@ -233,8 +235,42 @@ public sealed class FolderSettingsService : ISettingsService
             OpenAiOrganizationId = settings.AiSettings.OrganizationId,
             OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort,
             KeyboardShortcuts = MapKeyboardShortcutSettings(settings.KeyboardShortcuts),
+            VimModeSettings = MapVimModeSettings(settings.VimModeSettings),
             StandardNoteWindowLayout = MapNoteWindowLayout(settings.StandardNoteWindowLayout),
             ZenNoteWindowLayout = MapNoteWindowLayout(settings.ZenNoteWindowLayout)
+        };
+    }
+
+    private static VimModeSettings MapVimModeSettings(VimModeSettingsRecord? record)
+    {
+        var defaults = VimModeSettings.Default;
+        var clipboardMode = Enum.TryParse<VimClipboardMode>(record?.ClipboardMode, ignoreCase: true, out var parsedClipboardMode)
+                            && Enum.IsDefined(parsedClipboardMode)
+            ? parsedClipboardMode
+            : defaults.ClipboardMode;
+
+        return VimModeSettings.Normalize(new VimModeSettings(
+            record?.IsEnabled ?? defaults.IsEnabled,
+            record?.LeaderKey ?? defaults.LeaderKey,
+            record?.KeySequenceTimeoutMilliseconds ?? defaults.KeySequenceTimeoutMilliseconds,
+            record?.WhichKeyDelayMilliseconds ?? defaults.WhichKeyDelayMilliseconds,
+            record?.UseStandardCtrlBindings ?? defaults.UseStandardCtrlBindings,
+            clipboardMode,
+            record?.ShowStatus ?? defaults.ShowStatus));
+    }
+
+    private static VimModeSettingsRecord MapVimModeSettings(VimModeSettings? settings)
+    {
+        var normalized = VimModeSettings.Normalize(settings);
+        return new VimModeSettingsRecord
+        {
+            IsEnabled = normalized.IsEnabled,
+            LeaderKey = normalized.LeaderKey,
+            KeySequenceTimeoutMilliseconds = normalized.KeySequenceTimeoutMilliseconds,
+            WhichKeyDelayMilliseconds = normalized.WhichKeyDelayMilliseconds,
+            UseStandardCtrlBindings = normalized.UseStandardCtrlBindings,
+            ClipboardMode = normalized.ClipboardMode.ToString(),
+            ShowStatus = normalized.ShowStatus
         };
     }
 
@@ -471,6 +507,18 @@ public sealed class FolderSettingsService : ISettingsService
         public string? OpenAiOrganizationId { get; set; }
         public string? OpenAiReasoningEffort { get; set; }
         public KeyboardShortcutSettingsRecord? KeyboardShortcuts { get; set; }
+        public VimModeSettingsRecord? VimModeSettings { get; set; }
+    }
+
+    private sealed class VimModeSettingsRecord
+    {
+        public bool? IsEnabled { get; set; }
+        public string? LeaderKey { get; set; }
+        public int? KeySequenceTimeoutMilliseconds { get; set; }
+        public int? WhichKeyDelayMilliseconds { get; set; }
+        public bool? UseStandardCtrlBindings { get; set; }
+        public string? ClipboardMode { get; set; }
+        public bool? ShowStatus { get; set; }
     }
 
     private sealed class KeyboardShortcutSettingsRecord

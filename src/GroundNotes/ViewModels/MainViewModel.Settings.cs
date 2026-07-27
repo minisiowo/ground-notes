@@ -11,6 +11,27 @@ namespace GroundNotes.ViewModels;
 
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
+    private VimModeSettings? _vimModeSettings;
+
+    public VimModeSettings VimModeSettings
+    {
+        get => _vimModeSettings ??= Models.VimModeSettings.Normalize(_settingsService.GetSettingsSync().VimModeSettings);
+        private set
+        {
+            var normalized = Models.VimModeSettings.Normalize(value);
+            if (normalized == _vimModeSettings)
+            {
+                return;
+            }
+
+            _vimModeSettings = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(VimModeEnabled));
+        }
+    }
+
+    public bool VimModeEnabled => VimModeSettings.IsEnabled;
+
     [RelayCommand]
     private Task ShowKeyboardShortcutsHelpAsync()
     {
@@ -54,7 +75,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             OpenAiOrganizationId,
             CurrentAiPromptsDirectory,
             AiPrompts,
-            _keyboardShortcutService.Settings);
+            _keyboardShortcutService.Settings,
+            VimModeSettings);
     }
 
 
@@ -121,6 +143,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _appearanceService.ApplyScrollBars(model.ShowScrollBars);
 
         _keyboardShortcutService.ApplySettings(model.KeyboardShortcuts);
+        VimModeSettings = Models.VimModeSettings.Normalize(model.VimModeSettings);
 
         ApplyAiSettings(new AiSettings(
             model.ApiKey,
@@ -148,7 +171,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             EditorLineHeightFactor = persistedEditorLineHeightFactor,
             ShowScrollBars = model.ShowScrollBars,
             AiSettings = BuildAiSettings(),
-            KeyboardShortcuts = _keyboardShortcutService.Settings
+            KeyboardShortcuts = _keyboardShortcutService.Settings,
+            VimModeSettings = VimModeSettings
         });
     }
 }

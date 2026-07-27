@@ -70,6 +70,32 @@ Keyboard shortcuts can be customized from Settings → Keyboard Shortcuts.
 - The modifier can be set to `None`; unmodified printable keys are ignored while typing in text inputs for main-window actions.
 - Conflicting bindings are excluded from the applied and persisted shortcut set until the affected row is fixed.
 
+### Vim Mode
+
+Vim mode is opt-in under Settings → Vim Mode. It applies to note body editors; title, tags, search, chat input, settings, and dialogs remain standard text fields.
+
+Implemented editing commands include:
+
+- Normal, Insert, Operator-pending, Visual, and Visual Line modes.
+- Motions: `h`, `j`, `k`, `l`, `w`, `b`, `e`, `0`, `^`, `$`, `gg`, and `G`, including counts.
+- Insert commands: `i`, `a`, `I`, `A`, `o`, and `O`.
+- Operators: `d`, `c`, and `y`, doubled forms such as `dd`, and combinations such as `2d3w`.
+- Text objects `iw` and `aw`, aliases `D`, `C`, `Y`, `s`, and `S`, plus `x`, `p`, `P`, `u`, and `Ctrl+R`.
+- Registers are shared between editor panes in the same workspace.
+
+The default leader is `Space` in Normal mode. Common application sequences are:
+
+- `Space f f` — find/open a note.
+- `Space f s` — focus sidebar search.
+- `Space n n` — create a note.
+- `Space w h/l/w/c/=` — move between, cycle, close, or equalize panes.
+- `Space g e/t/m/s` — focus editor, title, metadata, or sidebar.
+- `Space v s/z/y/r` — toggle sidebar, ZEN, YAML, or reload.
+- `Space a c/t` — open AI chat or generate title suggestions.
+- `Space ,` / `Space ?` — settings / shortcut help.
+
+Standard pane sequences `Ctrl+W h/l/w/c/=` are also supported. `F6` and `Shift+F6` cycle the major focus areas without changing the editor meaning of `Tab`.
+
 ## AI Features
 
 GroundNotes has two separate AI workflows.

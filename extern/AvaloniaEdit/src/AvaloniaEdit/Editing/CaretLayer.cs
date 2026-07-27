@@ -95,7 +95,7 @@ namespace AvaloniaEdit.Editing
             {
                 var caretBrush = CaretBrush ?? TextView.GetValue(TextBlock.ForegroundProperty);
 
-                if (_textArea.OverstrikeMode)
+                if (_textArea.OverstrikeMode || _textArea.CaretShape == CaretShape.Block)
                 {
                     if (caretBrush is ISolidColorBrush scBrush)
                     {

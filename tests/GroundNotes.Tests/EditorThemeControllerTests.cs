@@ -1194,6 +1194,26 @@ public sealed class EditorThemeControllerTests
     }
 
     [Fact]
+    public void EditorCaret_BlockShapeUsesGlyphWidthWithoutEnablingOverstrike()
+    {
+        EnsureApplication();
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        var editor = CreateEditor(new TextDocument("block caret"), 320, 120, colorizer, out _);
+        editor.CaretOffset = 0;
+        editor.TextArea.CaretShape = AvaloniaEdit.Editing.CaretShape.Bar;
+        var barRectangle = editor.TextArea.Caret.CalculateCaretRectangle();
+
+        editor.TextArea.CaretShape = AvaloniaEdit.Editing.CaretShape.Block;
+        var blockRectangle = editor.TextArea.Caret.CalculateCaretRectangle();
+
+        Assert.False(editor.TextArea.OverstrikeMode);
+        Assert.True(blockRectangle.Width > barRectangle.Width,
+            $"Block caret width {blockRectangle.Width} should exceed bar width {barRectangle.Width}.");
+        Assert.True(Math.Abs(blockRectangle.Height - barRectangle.Height) < 1.0);
+    }
+
+    [Fact]
     public void OrdinaryIndentedLine_PreservesWhitespaceIndentAcrossSegments()
     {
         EnsureApplication();

@@ -46,7 +46,8 @@ public sealed record AppSettings(
     string? UiFontName = null,
     string? UiFontVariantName = null,
     NoteWindowLayout? StandardNoteWindowLayout = null,
-    NoteWindowLayout? ZenNoteWindowLayout = null);
+    NoteWindowLayout? ZenNoteWindowLayout = null,
+    VimModeSettings? VimModeSettings = null);
 
 public sealed record WindowLayout(
     double Width,

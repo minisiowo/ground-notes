@@ -53,8 +53,13 @@ internal static class MarkdownListEditingCommands
         var replacementText = string.Join('\n', transformedLines);
         var delta = replacementText.Length - (blockBounds.End - blockBounds.Start);
         var newSelectionStart = Math.Max(blockBounds.Start, start + GetFirstLineSelectionDelta(rawLines[0], transformedLines[0], start - blockBounds.Start));
-        var newSelectionLength = Math.Max(0, length + delta);
-        return new MarkdownEditResult(blockBounds.Start, blockBounds.End - blockBounds.Start, replacementText, newSelectionStart, newSelectionLength);
+        var newSelectionEnd = Math.Max(newSelectionStart, end + delta);
+        return new MarkdownEditResult(
+            blockBounds.Start,
+            blockBounds.End - blockBounds.Start,
+            replacementText,
+            newSelectionStart,
+            newSelectionEnd - newSelectionStart);
     }
 
     public static bool TryInsertListItemBreak(string text, int caretOffset, int selectionLength, int indentationSize, out MarkdownEditResult result)

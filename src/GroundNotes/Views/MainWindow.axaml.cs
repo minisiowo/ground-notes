@@ -91,7 +91,7 @@ public partial class MainWindow : Window
                 IsInteractiveControl = IsPointerOverInteractiveControl,
                 ShouldSuppressTitleBarDoubleTap = e => e.Source is Control control && control.FindAncestorOfType<Button>() is not null
             });
-        _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer, CopyCodeBlockAsync);
+        _editorHost = new EditorHostController(EditorTextEditor, _markdownColorizer, CopyCodeBlockAsync, _vimWorkspaceState);
         _editorHost.SetDocumentDisplayMode(EditorDocumentDisplayMode.Markdown);
         _slashCommandPopup = new SlashCommandPopupController(
             EditorTextEditor,
@@ -100,6 +100,7 @@ public partial class MainWindow : Window
             SlashCommandPopupContent,
             SlashCommandListBox,
             SlashCommandHintText);
+        ConfigureVimHost(_editorHost, EditorTextEditor, PrimaryVimStatusText);
         _titleSuggestionsPopup = new ToolPopupController(TitleSuggestionsPopup, TitleSuggestionsPopupContent);
         _tagSuggestionsPopup = new ToolPopupController(TagSuggestionsPopup, TagSuggestionsPopupContent);
         _resizeHandleHoverTimer = new DispatcherTimer
@@ -151,6 +152,7 @@ public partial class MainWindow : Window
                         pane.PropertyChanged += OnSecondaryPaneViewModelPropertyChanged;
                     }
                     _editorHost.SetBaseDirectoryPath(vm.NotesFolder);
+                    ApplyVimSettings(vm);
                     ApplyEditorDisplayMode(vm.ShowYamlFrontMatterInEditor);
                     SyncEditorText(vm.EditorBody);
                     UpdateActiveEditorBindings();
@@ -1541,6 +1543,22 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.PropertyName == nameof(MainViewModel.VimModeSettings))
+        {
+            ApplyVimSettings(vm);
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.CurrentNote))
+        {
+            var currentPath = vm.CurrentNote?.FilePath;
+            if (!string.Equals(_primaryEditorSyncedFilePath, currentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                SyncEditorText(vm.EditorBody);
+            }
+            return;
+        }
+
         if (e.PropertyName == nameof(MainViewModel.EditorBody))
         {
             SyncEditorText(vm.EditorBody);
@@ -1559,6 +1577,11 @@ public partial class MainWindow : Window
         {
             SyncSidebarSelectionFromActivePane(vm);
             UpdateActiveEditorBindings();
+            _editorHost.ResetVimState();
+            foreach (var host in _secondaryEditorHosts.Values)
+            {
+                host.ResetVimState();
+            }
             UpdateEditorCanvasWidth();
             return;
         }
@@ -1582,7 +1605,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.PropertyName == nameof(EditorPaneViewModel.EditorBody))
+        if (e.PropertyName is nameof(EditorPaneViewModel.CurrentNote)
+            or nameof(EditorPaneViewModel.EditorBody))
         {
             SyncSecondaryEditorText(pane);
         }
@@ -3152,6 +3176,10 @@ public partial class MainWindow : Window
         var shouldResetViewport = HasSyncedFilePathChanged(_primaryEditorSyncedFilePath, syncedFilePath);
         var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out var appendedOnly);
         var isEditorOriginatedUpdate = _editorHost.IsUpdatingViewModelFromEditor;
+        if (shouldResetViewport && !isEditorOriginatedUpdate)
+        {
+            _editorHost.ResetVimState();
+        }
         _primaryEditorSyncedFilePath = syncedFilePath;
         _isUpdatingEditorFromViewModel = _editorHost.IsUpdatingEditorFromViewModel;
         if (!changed)
@@ -3188,6 +3216,10 @@ public partial class MainWindow : Window
         var shouldResetViewport = HasSyncedFilePathChanged(previousFilePath, syncedFilePath);
         var changed = host.SyncFromViewModel(pane.EditorBody, appendSuffixWhenPossible: false, out var appendedOnly);
         var isEditorOriginatedUpdate = host.IsUpdatingViewModelFromEditor;
+        if (shouldResetViewport && !isEditorOriginatedUpdate)
+        {
+            host.ResetVimState();
+        }
         _secondaryEditorSyncedFilePaths[pane.Id] = syncedFilePath;
         if (!changed)
         {
@@ -3221,9 +3253,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var host = new EditorHostController(editor, new MarkdownColorizingTransformer(), CopyCodeBlockAsync);
+        var host = new EditorHostController(editor, new MarkdownColorizingTransformer(), CopyCodeBlockAsync, _vimWorkspaceState);
         _secondaryEditorHosts[pane.Id] = host;
         _secondaryEditorControls[pane.Id] = editor;
+        ConfigureVimHost(host, editor, FindSecondaryVimStatus(pane.Id));
         if (DataContext is MainViewModel vm)
         {
             host.SetBaseDirectoryPath(vm.NotesFolder);
@@ -3377,6 +3410,14 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainViewModel vm)
         {
+            return;
+        }
+
+        if (e.Key == Key.F6
+            && (e.KeyModifiers == KeyModifiers.None || e.KeyModifiers == KeyModifiers.Shift))
+        {
+            e.Handled = true;
+            CycleMainFocus(reverse: e.KeyModifiers == KeyModifiers.Shift);
             return;
         }
 

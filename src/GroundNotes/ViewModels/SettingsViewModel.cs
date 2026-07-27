@@ -76,6 +76,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         ProjectId = model.ProjectId;
         OrganizationId = model.OrganizationId;
         SetAiPrompts(model.AiPrompts);
+        InitializeVimModeSettings(model.VimModeSettings);
         _isInitializing = false;
     }
 
@@ -245,7 +246,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             OrganizationId.Trim(),
             PromptsDirectory,
             PromptItems.Select(item => item.Definition).ToList(),
-            _appliedKeyboardShortcuts);
+            _appliedKeyboardShortcuts,
+            BuildVimModeSettings());
     }
 
     partial void OnSelectedThemeNameChanged(string value) => RaisePreviewRequested();

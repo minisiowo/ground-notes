@@ -179,6 +179,59 @@ public sealed class FolderSettingsServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetSettingsAsync_MigratesMissingVimModeSectionToDefaults()
+    {
+        await File.WriteAllTextAsync(_settingsFilePath, "{\"themeName\":\"Nord\"}");
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal("Nord", settings.ThemeName);
+        Assert.Equal(VimModeSettings.Default, settings.VimModeSettings);
+    }
+
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsVimModeSettings()
+    {
+        var vimModeSettings = VimModeSettings.Default with
+        {
+            IsEnabled = true,
+            LeaderKey = ",",
+            KeySequenceTimeoutMilliseconds = 2400,
+            WhichKeyDelayMilliseconds = 400,
+            UseStandardCtrlBindings = false,
+            ClipboardMode = VimClipboardMode.InternalOnly,
+            ShowStatus = false
+        };
+
+        await _service.UpdateSettingsAsync(settings => settings with { VimModeSettings = vimModeSettings });
+        var loaded = await _service.GetSettingsAsync();
+        var json = await File.ReadAllTextAsync(_settingsFilePath);
+
+        Assert.Equal(vimModeSettings, loaded.VimModeSettings);
+        Assert.Contains("\"ClipboardMode\":\"InternalOnly\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetSettingsAsync_NormalizesInvalidVimModeValuesWithoutLosingOtherSettings()
+    {
+        await File.WriteAllTextAsync(
+            _settingsFilePath,
+            "{\"themeName\":\"Nord\",\"vimModeSettings\":{\"isEnabled\":true,\"leaderKey\":\"  \",\"keySequenceTimeoutMilliseconds\":10,\"whichKeyDelayMilliseconds\":2000,\"clipboardMode\":\"FutureMode\"}}");
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal("Nord", settings.ThemeName);
+        Assert.NotNull(settings.VimModeSettings);
+        Assert.True(settings.VimModeSettings.IsEnabled);
+        Assert.Equal(VimModeSettings.DefaultLeaderKey, settings.VimModeSettings.LeaderKey);
+        Assert.Equal(VimModeSettings.MinKeySequenceTimeoutMilliseconds, settings.VimModeSettings.KeySequenceTimeoutMilliseconds);
+        Assert.Equal(VimModeSettings.MaxWhichKeyDelayMilliseconds, settings.VimModeSettings.WhichKeyDelayMilliseconds);
+        Assert.Equal(VimClipboardMode.ExplicitSystemRegister, settings.VimModeSettings.ClipboardMode);
+        Assert.True(settings.VimModeSettings.UseStandardCtrlBindings);
+        Assert.True(settings.VimModeSettings.ShowStatus);
+    }
+
+    [Fact]
     public async Task SaveAndLoad_RoundTripsExplicitKeyboardShortcuts()
     {
         var shortcuts = KeyboardShortcutSettings.CreateDefault();

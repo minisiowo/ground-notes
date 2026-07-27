@@ -39,6 +39,20 @@ public sealed class KeyboardShortcutService : IKeyboardShortcutService
             .ToList();
 
         configurableSections.Add(new KeyboardShortcutSection(
+            "Vim mode (when enabled)",
+            [
+                new KeyboardShortcutEntry("Normal / Insert", "Escape / i, a, I, A, o, O"),
+                new KeyboardShortcutEntry("Move", "h, j, k, l, w, b, e, 0, ^, $, gg, G"),
+                new KeyboardShortcutEntry("Visual / Visual Line", "v / V"),
+                new KeyboardShortcutEntry("Delete / change / yank", "d / c / y + motion, dd / cc / yy"),
+                new KeyboardShortcutEntry("Text objects", "iw / aw"),
+                new KeyboardShortcutEntry("Paste / undo / redo", "p, P / u / Ctrl+R"),
+                new KeyboardShortcutEntry("Find note", "Space f f"),
+                new KeyboardShortcutEntry("Pane commands", "Space w ... or Ctrl+W ..."),
+                new KeyboardShortcutEntry("Cycle focus areas", "F6 / Shift+F6")
+            ]));
+
+        configurableSections.Add(new KeyboardShortcutSection(
             "Fixed navigation and editing",
             [
                 new KeyboardShortcutEntry("Undo / redo", "Ctrl+Z / Ctrl+Y"),

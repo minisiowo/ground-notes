@@ -1061,7 +1061,22 @@ namespace AvaloniaEdit.Editing
 
         #endregion
 
-        #region Overstrike mode
+        #region Caret shape and overstrike mode
+
+        /// <summary>
+        /// The <see cref="CaretShape"/> dependency property.
+        /// </summary>
+        public static readonly StyledProperty<CaretShape> CaretShapeProperty =
+            AvaloniaProperty.Register<TextArea, CaretShape>(nameof(CaretShape), CaretShape.Bar);
+
+        /// <summary>
+        /// Gets or sets the visual shape of the caret without changing text input behavior.
+        /// </summary>
+        public CaretShape CaretShape
+        {
+            get => GetValue(CaretShapeProperty);
+            set => SetValue(CaretShapeProperty, value);
+        }
 
         /// <summary>
         /// The <see cref="OverstrikeMode"/> dependency property.
@@ -1095,7 +1110,8 @@ namespace AvaloniaEdit.Editing
             {
                 TextView.Redraw();
             }
-            else if (change.Property == OverstrikeModeProperty)
+            else if (change.Property == OverstrikeModeProperty
+                     || change.Property == CaretShapeProperty)
             {
                 Caret.UpdateIfVisible();
             }

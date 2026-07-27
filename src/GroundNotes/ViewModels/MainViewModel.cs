@@ -332,7 +332,22 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public IKeyboardShortcutService KeyboardShortcuts => _keyboardShortcutService;
 
-    public NoteDocument? CurrentNote { get; private set; }
+    private NoteDocument? _currentNote;
+
+    public NoteDocument? CurrentNote
+    {
+        get => _currentNote;
+        private set
+        {
+            if (ReferenceEquals(_currentNote, value))
+            {
+                return;
+            }
+
+            _currentNote = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool HasUnsavedChanges { get; private set; }
 

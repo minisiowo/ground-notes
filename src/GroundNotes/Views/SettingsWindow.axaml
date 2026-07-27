@@ -363,7 +363,69 @@
         </ScrollViewer>
       </TabItem>
 
-      <!-- Tab 3: Keyboard Shortcuts -->
+      <!-- Tab 3: Vim Mode -->
+      <TabItem Header="Vim Mode">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel Margin="24,16" Spacing="24">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="settingsHeader" Text="Vim Mode" />
+
+              <Border Classes="settingsCard">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Enable Vim mode" />
+                    <TextBlock Classes="settingsDescription" Text="Use modal Vim-style editing in note editors." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding IsVimModeEnabled}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard" IsEnabled="{Binding IsVimModeEnabled}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Standard Vim Ctrl bindings" />
+                    <TextBlock Classes="settingsDescription" Text="Keep bindings such as Ctrl+D, Ctrl+U, Ctrl+F, and Ctrl+B available to Vim." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding UseStandardVimCtrlBindings}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard" IsEnabled="{Binding IsVimModeEnabled}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Key sequence timeout" />
+                    <TextBlock Classes="settingsDescription" Text="Milliseconds to wait for the next key in a Vim sequence (100–5000)." />
+                  </StackPanel>
+                  <NumericUpDown Grid.Column="1"
+                                 Width="140"
+                                 Minimum="100"
+                                 Maximum="5000"
+                                 Increment="100"
+                                 Value="{Binding VimKeySequenceTimeoutMilliseconds, Mode=TwoWay}" />
+                </Grid>
+              </Border>
+
+              <Border Classes="settingsCard" IsEnabled="{Binding IsVimModeEnabled}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Show Vim status" />
+                    <TextBlock Classes="settingsDescription" Text="Show the current Vim mode and pending key sequence." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                VerticalAlignment="Center"
+                                IsChecked="{Binding ShowVimStatus}" />
+                </Grid>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <!-- Tab 4: Keyboard Shortcuts -->
       <TabItem Header="Keyboard Shortcuts">
         <Grid RowDefinitions="Auto,Auto,*" Margin="24,16,24,12">
           <Grid Grid.Row="0" ColumnDefinitions="*,240,Auto" ColumnSpacing="8" Margin="0,0,0,12">

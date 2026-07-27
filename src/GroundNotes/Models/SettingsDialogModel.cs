@@ -26,4 +26,5 @@ public sealed record SettingsDialogModel(
     string OrganizationId,
     string PromptsDirectory,
     IReadOnlyList<AiPromptDefinition> AiPrompts,
-    KeyboardShortcutSettings KeyboardShortcuts);
+    KeyboardShortcutSettings KeyboardShortcuts,
+    VimModeSettings? VimModeSettings = null);

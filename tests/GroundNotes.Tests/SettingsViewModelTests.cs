@@ -260,6 +260,48 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void ConstructorAndBuildModel_PreserveCompleteVimModeSettings()
+    {
+        var vimModeSettings = VimModeSettings.Default with
+        {
+            IsEnabled = true,
+            LeaderKey = ",",
+            KeySequenceTimeoutMilliseconds = 1800,
+            WhichKeyDelayMilliseconds = 350,
+            UseStandardCtrlBindings = false,
+            ClipboardMode = VimClipboardMode.UnnamedSystemClipboard,
+            ShowStatus = false
+        };
+        var vm = new SettingsViewModel(CreateModel() with { VimModeSettings = vimModeSettings });
+
+        var built = vm.BuildModel().VimModeSettings;
+
+        Assert.True(vm.IsVimModeEnabled);
+        Assert.False(vm.UseStandardVimCtrlBindings);
+        Assert.Equal(1800, vm.VimKeySequenceTimeoutMilliseconds);
+        Assert.False(vm.ShowVimStatus);
+        Assert.Equal(vimModeSettings, built);
+    }
+
+    [Fact]
+    public void VimModeChange_RaisesPreviewWithNormalizedSettings()
+    {
+        var vm = new SettingsViewModel(CreateModel());
+        SettingsDialogModel? preview = null;
+        vm.PreviewRequested += (_, model) => preview = model;
+
+        vm.IsVimModeEnabled = true;
+        vm.VimKeySequenceTimeoutMilliseconds = 20;
+        vm.ShowVimStatus = false;
+
+        Assert.NotNull(preview?.VimModeSettings);
+        Assert.True(preview.VimModeSettings.IsEnabled);
+        Assert.Equal(VimModeSettings.MinKeySequenceTimeoutMilliseconds, preview.VimModeSettings.KeySequenceTimeoutMilliseconds);
+        Assert.False(preview.VimModeSettings.ShowStatus);
+        Assert.Equal(VimModeSettings.Default.WhichKeyDelayMilliseconds, preview.VimModeSettings.WhichKeyDelayMilliseconds);
+    }
+
+    [Fact]
     public void BuildModel_ParsesIndentSizeAndLineHeight()
     {
         var vm = new SettingsViewModel(CreateModel())

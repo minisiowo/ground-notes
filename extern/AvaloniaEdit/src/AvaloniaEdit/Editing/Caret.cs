@@ -489,7 +489,7 @@ namespace AvaloniaEdit.Editing
             if (_textView?.Document != null)
             {
                 var visualLine = _textView.GetOrConstructVisualLine(_textView.Document.GetLineByNumber(_position.Line));
-                return _textArea.OverstrikeMode ? CalcCaretOverstrikeRectangle(visualLine) : CalcCaretRectangle(visualLine);
+                return UsesBlockCaret ? CalcCaretOverstrikeRectangle(visualLine) : CalcCaretRectangle(visualLine);
             }
             return default;
         }
@@ -547,7 +547,7 @@ namespace AvaloniaEdit.Editing
                 var visualLine = _textView.GetVisualLine(_position.Line);
                 if (visualLine != null)
                 {
-                    var caretRect = _textArea.OverstrikeMode ? CalcCaretOverstrikeRectangle(visualLine) : CalcCaretRectangle(visualLine);
+                    var caretRect = UsesBlockCaret ? CalcCaretOverstrikeRectangle(visualLine) : CalcCaretRectangle(visualLine);
                     // TODO: win32 caret
                     // Create Win32 caret so that Windows knows where our managed caret is. This is necessary for
                     // features like 'Follow text editing' in the Windows Magnifier.
@@ -589,6 +589,8 @@ namespace AvaloniaEdit.Editing
             // commented out to make debug output less noisy - add back if there are any problems with the caret
             //Debug.WriteLine(text);
         }
+
+        private bool UsesBlockCaret => _textArea.OverstrikeMode || _textArea.CaretShape == CaretShape.Block;
 
         /// <summary>
         /// Gets/Sets the color of the caret.

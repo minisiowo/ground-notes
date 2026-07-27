@@ -683,6 +683,22 @@
                                    Foreground="{DynamicResource PlaceholderTextBrush}"
                                    Text="Click here to start typing. A note will be created automatically when you first edit the body."
                                    TextWrapping="Wrap" />
+                        <Border HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Margin="8"
+                                Padding="6,3"
+                                Background="{DynamicResource SurfaceRaisedBrush}"
+                                BorderBrush="{DynamicResource BorderBrushBase}"
+                                BorderThickness="1"
+                                IsHitTestVisible="False"
+                                IsVisible="False">
+                          <TextBlock x:Name="PrimaryVimStatusText"
+                                     Classes="sidebarFooterStatus"
+                                     FontFamily="{DynamicResource TerminalFont}"
+                                     FontWeight="SemiBold"
+                                     IsVisible="False"
+                                     Text="-- NORMAL --" />
+                        </Border>
                         <Popup x:Name="SlashCommandPopup"
                                IsOpen="False"
                                IsLightDismissEnabled="False"
@@ -802,7 +818,8 @@
                               Margin="0,0,0,10">
                           <Grid x:Name="SecondaryTitleAnchor"
                                  ColumnDefinitions="*,Auto">
-                            <TextBox Classes="editorFont"
+                            <TextBox x:Name="SecondaryTitleTextBox"
+                                     Classes="editorFont"
                                      Text="{Binding EditorTitle}"
                                      ScrollViewer.BringIntoViewOnFocusChange="False"
                                      VerticalContentAlignment="Center"
@@ -883,6 +900,22 @@
                                        Foreground="{DynamicResource PlaceholderTextBrush}"
                                        Text="Open another note here and keep scrolling horizontally."
                                        TextWrapping="Wrap" />
+                            <Border HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Margin="8"
+                                    Padding="6,3"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrushBase}"
+                                    BorderThickness="1"
+                                    IsHitTestVisible="False"
+                                    IsVisible="False">
+                              <TextBlock x:Name="SecondaryVimStatusText"
+                                         Classes="sidebarFooterStatus"
+                                         FontFamily="{DynamicResource TerminalFont}"
+                                         FontWeight="SemiBold"
+                                         IsVisible="False"
+                                         Text="-- NORMAL --" />
+                            </Border>
                           </Grid>
                         </Border>
                         <Border Classes="sidebarResizeHandle editorResizeHandle"
