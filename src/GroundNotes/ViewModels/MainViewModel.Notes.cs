@@ -507,6 +507,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             || status == "AI request canceled."
             || status == "AI request failed."
             || status == "AI is disabled in settings."
+            || status == "AI title generation is disabled in settings."
             || status == "AI is already processing a prompt."
             || status == "Open a note first."
             || status == "Select text first."

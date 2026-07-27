@@ -69,12 +69,33 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void BuildModel_PreservesTitleGenerationSettings()
+    {
+        var vm = new SettingsViewModel(CreateModel() with
+        {
+            TitleGenerationModel = "custom-title-model"
+        })
+        {
+            IsTitleGenerationEnabled = false,
+            TitleGenerationReasoningEffort = " HIGH "
+        };
+
+        var model = vm.BuildModel();
+
+        Assert.False(model.IsTitleGenerationEnabled);
+        Assert.Equal("custom-title-model", model.TitleGenerationModel);
+        Assert.Equal("high", model.TitleGenerationReasoningEffort);
+        Assert.Contains("custom-title-model", vm.AvailableTitleGenerationModels);
+    }
+
+    [Fact]
     public void Constructor_ExposesReasoningEffortOptions()
     {
         var vm = new SettingsViewModel(CreateModel());
 
         Assert.Equal(["none", "low", "medium", "high", "xhigh", "max"], vm.ReasoningEfforts);
         Assert.Equal("none", vm.DefaultReasoningEffort);
+        Assert.Equal("none", vm.TitleGenerationReasoningEffort);
     }
 
     [Fact]
@@ -356,6 +377,9 @@ public sealed class SettingsViewModelTests
             "none",
             string.Empty,
             string.Empty,
+            true,
+            "gpt-5-mini",
+            "none",
             "/tmp/prompts",
             [],
             KeyboardShortcutSettings.CreateDefault());

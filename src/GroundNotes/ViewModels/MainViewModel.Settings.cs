@@ -73,6 +73,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             SelectedAiReasoningEffort,
             OpenAiProjectId,
             OpenAiOrganizationId,
+            IsTitleGenerationEnabled,
+            SelectedTitleGenerationModel,
+            SelectedTitleGenerationReasoningEffort,
             CurrentAiPromptsDirectory,
             AiPrompts,
             _keyboardShortcutService.Settings,
@@ -151,7 +154,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             model.IsAiEnabled,
             model.ProjectId,
             model.OrganizationId,
-            model.DefaultReasoningEffort));
+            model.DefaultReasoningEffort)
+        {
+            TitleGeneration = AiTitleGenerationSettings.Normalize(
+                model.TitleGenerationModel,
+                model.IsTitleGenerationEnabled,
+                model.TitleGenerationReasoningEffort)
+        });
 
         _ = PersistSettingsAsync(settings => settings with
         {

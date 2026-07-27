@@ -241,6 +241,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _selectedAiModel = AiSettings.Default.DefaultModel;
 
     [ObservableProperty]
+    private string _selectedTitleGenerationModel = AiTitleGenerationSettings.Default.DefaultModel;
+
+    [ObservableProperty]
+    private string _selectedTitleGenerationReasoningEffort = AiTitleGenerationSettings.Default.DefaultReasoningEffort;
+
+    [ObservableProperty]
     private string _selectedAiReasoningEffort = AiSettings.Default.DefaultReasoningEffort;
 
     [ObservableProperty]
@@ -250,7 +256,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _openAiOrganizationId = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTitleGenerationAvailable))]
     private bool _isAiEnabled = AiSettings.Default.IsEnabled;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsTitleGenerationAvailable))]
+    private bool _isTitleGenerationEnabled = AiTitleGenerationSettings.Default.IsEnabled;
 
     [ObservableProperty]
     private bool _isAiBusy;
@@ -358,6 +369,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     public bool HasAiPrompts => AiPrompts.Count > 0;
 
     public bool HasTitleSuggestions => TitleSuggestions.Count > 0;
+
+    public bool IsTitleGenerationAvailable => IsAiEnabled && IsTitleGenerationEnabled;
 
     public bool CanEditTitleSuggestionsContext => !IsGeneratingTitleSuggestions;
 

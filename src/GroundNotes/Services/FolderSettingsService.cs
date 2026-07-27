@@ -170,7 +170,13 @@ public sealed class FolderSettingsService : ISettingsService
                 record.AiEnabled ?? AiSettings.Default.IsEnabled,
                 record.OpenAiProjectId ?? string.Empty,
                 record.OpenAiOrganizationId ?? string.Empty,
-                record.OpenAiReasoningEffort ?? string.Empty),
+                record.OpenAiReasoningEffort ?? string.Empty)
+            {
+                TitleGeneration = AiTitleGenerationSettings.Normalize(
+                    record.OpenAiTitleGenerationModel,
+                    record.AiTitleGenerationEnabled ?? AiTitleGenerationSettings.Default.IsEnabled,
+                    record.OpenAiTitleGenerationReasoningEffort)
+            },
             MapKeyboardShortcutSettings(record.KeyboardShortcuts),
             record.SidebarFontSize,
             record.ShowSidebarListBackground ?? true,
@@ -234,6 +240,9 @@ public sealed class FolderSettingsService : ISettingsService
             OpenAiProjectId = settings.AiSettings.ProjectId,
             OpenAiOrganizationId = settings.AiSettings.OrganizationId,
             OpenAiReasoningEffort = settings.AiSettings.DefaultReasoningEffort,
+            AiTitleGenerationEnabled = settings.AiSettings.TitleGeneration.IsEnabled,
+            OpenAiTitleGenerationModel = settings.AiSettings.TitleGeneration.DefaultModel,
+            OpenAiTitleGenerationReasoningEffort = settings.AiSettings.TitleGeneration.DefaultReasoningEffort,
             KeyboardShortcuts = MapKeyboardShortcutSettings(settings.KeyboardShortcuts),
             VimModeSettings = MapVimModeSettings(settings.VimModeSettings),
             StandardNoteWindowLayout = MapNoteWindowLayout(settings.StandardNoteWindowLayout),
@@ -506,6 +515,9 @@ public sealed class FolderSettingsService : ISettingsService
         public string? OpenAiProjectId { get; set; }
         public string? OpenAiOrganizationId { get; set; }
         public string? OpenAiReasoningEffort { get; set; }
+        public bool? AiTitleGenerationEnabled { get; set; }
+        public string? OpenAiTitleGenerationModel { get; set; }
+        public string? OpenAiTitleGenerationReasoningEffort { get; set; }
         public KeyboardShortcutSettingsRecord? KeyboardShortcuts { get; set; }
         public VimModeSettingsRecord? VimModeSettings { get; set; }
     }

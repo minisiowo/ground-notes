@@ -488,7 +488,7 @@
                         </Grid>
                         <Grid Grid.Column="1"
                               Margin="8,0,0,0"
-                              IsVisible="{Binding IsAiEnabled}">
+                              IsVisible="{Binding IsTitleGenerationAvailable}">
                           <Button x:Name="GenerateTitleSuggestionsButton"
                                   Classes="compactIconButton"
                                   Width="32"
@@ -840,7 +840,7 @@
                                      Width="32"
                                      Margin="8,0,0,0"
                                      Padding="0"
-                                     IsVisible="{Binding #RootWindow.DataContext.IsAiEnabled}"
+                                     IsVisible="{Binding #RootWindow.DataContext.IsTitleGenerationAvailable}"
                                      Foreground="{DynamicResource PlaceholderTextBrush}"
                                      ToolTip.Tip="Suggest 3 AI titles"
                                      Content="AI"

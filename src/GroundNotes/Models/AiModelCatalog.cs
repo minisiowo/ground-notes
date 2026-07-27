@@ -15,5 +15,15 @@ public static class AiModelCatalog
         "gpt-5.6-luna"
     ];
 
+    public static IReadOnlyList<string> TitleGenerationModels { get; } =
+    [
+        "gpt-5-mini",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna"
+    ];
+
     public static string DefaultChatModel => "gpt-5.6-terra";
+
+    public static string DefaultTitleGenerationModel => "gpt-5-mini";
 }

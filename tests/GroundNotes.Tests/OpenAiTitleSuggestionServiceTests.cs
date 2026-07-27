@@ -47,6 +47,37 @@ public sealed class OpenAiTitleSuggestionServiceTests
     }
 
     [Fact]
+    public async Task GetSuggestionsAsync_UsesConfiguredTitleGenerationModelAndReasoningEffort()
+    {
+        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""
+            {
+              "choices": [
+                {
+                  "message": {
+                    "content": "[\"project-outline\"]"
+                  }
+                }
+              ]
+            }
+            """, Encoding.UTF8, "application/json")
+        });
+        var service = new OpenAiTitleSuggestionService(new HttpClient(handler));
+
+        await service.GetSuggestionsAsync(
+            new NoteDocument { Title = "draft", Body = "Body text" },
+            new AiSettings("secret", "gpt-5.6-sol", true)
+            {
+                TitleGeneration = new AiTitleGenerationSettings(true, "gpt-5.6-luna", "high")
+            });
+
+        Assert.Contains("gpt-5.6-luna", handler.RequestBody, StringComparison.Ordinal);
+        Assert.Contains("\"reasoning_effort\":\"high\"", handler.RequestBody, StringComparison.Ordinal);
+        Assert.DoesNotContain("gpt-5.6-sol", handler.RequestBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task GetSuggestionsAsync_IncludesAdditionalContextWhenProvided()
     {
         var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
