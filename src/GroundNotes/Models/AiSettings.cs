@@ -8,6 +8,8 @@ public sealed record AiSettings(
     string OrganizationId = "",
     string DefaultReasoningEffort = "")
 {
+    public AiTitleGenerationSettings TitleGeneration { get; init; } = AiTitleGenerationSettings.Default;
+
     public static AiSettings Default { get; } = new(
         string.Empty,
         AiModelCatalog.DefaultChatModel,
@@ -20,7 +22,8 @@ public sealed record AiSettings(
         bool isEnabled,
         string? projectId = "",
         string? organizationId = "",
-        string? defaultReasoningEffort = "")
+        string? defaultReasoningEffort = "",
+        AiTitleGenerationSettings? titleGeneration = null)
     {
         return new AiSettings(
             apiKey?.Trim() ?? string.Empty,
@@ -28,7 +31,10 @@ public sealed record AiSettings(
             isEnabled,
             projectId?.Trim() ?? string.Empty,
             organizationId?.Trim() ?? string.Empty,
-            AiReasoningEffortCatalog.Normalize(defaultReasoningEffort));
+            AiReasoningEffortCatalog.Normalize(defaultReasoningEffort))
+        {
+            TitleGeneration = AiTitleGenerationSettings.Normalize(titleGeneration)
+        };
     }
 
     public static AiSettings Normalize(AiSettings settings)
@@ -40,6 +46,7 @@ public sealed record AiSettings(
             settings.IsEnabled,
             settings.ProjectId,
             settings.OrganizationId,
-            settings.DefaultReasoningEffort);
+            settings.DefaultReasoningEffort,
+            settings.TitleGeneration);
     }
 }

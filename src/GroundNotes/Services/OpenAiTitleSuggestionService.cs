@@ -5,7 +5,6 @@ namespace GroundNotes.Services;
 
 public sealed class OpenAiTitleSuggestionService : IAiTitleSuggestionService
 {
-    private const string SuggestionModel = "gpt-5-mini";
     private const int SuggestionCount = 3;
 
     private readonly IOpenAiCompletionsClient _completionsClient;
@@ -28,12 +27,20 @@ public sealed class OpenAiTitleSuggestionService : IAiTitleSuggestionService
     {
         ArgumentNullException.ThrowIfNull(document);
 
+        var normalizedSettings = AiSettings.Normalize(settings);
         var prompt = BuildPrompt(document, additionalContext);
+        var reasoningEffort = normalizedSettings.TitleGeneration.DefaultReasoningEffort;
+        var options = string.Equals(
+            reasoningEffort,
+            AiReasoningEffortCatalog.DefaultReasoningEffort,
+            StringComparison.Ordinal)
+            ? null
+            : new OpenAiCompletionOptions(ReasoningEffort: reasoningEffort);
         var response = await _completionsClient.CompleteAsync(
             [new AiChatMessage("user", prompt)],
-            SuggestionModel,
-            settings,
-            options: null,
+            normalizedSettings.TitleGeneration.DefaultModel,
+            normalizedSettings,
+            options,
             cancellationToken);
 
         var suggestions = ParseSuggestions(response);

@@ -135,6 +135,9 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal(AiSettings.Default.DefaultModel, settings.AiSettings.DefaultModel);
         Assert.Equal(AiReasoningEffortCatalog.DefaultReasoningEffort, settings.AiSettings.DefaultReasoningEffort);
         Assert.True(settings.AiSettings.IsEnabled);
+        Assert.True(settings.AiSettings.TitleGeneration.IsEnabled);
+        Assert.Equal(AiTitleGenerationSettings.Default.DefaultModel, settings.AiSettings.TitleGeneration.DefaultModel);
+        Assert.Equal(AiReasoningEffortCatalog.DefaultReasoningEffort, settings.AiSettings.TitleGeneration.DefaultReasoningEffort);
         Assert.Equal(string.Empty, settings.AiSettings.ApiKey);
     }
 
@@ -149,7 +152,10 @@ public sealed class FolderSettingsServiceTests : IDisposable
             aiEnabled = false,
             openAiProjectId = "  proj_123  ",
             openAiOrganizationId = "  org_456  ",
-            openAiReasoningEffort = " HIGH "
+            openAiReasoningEffort = " HIGH ",
+            aiTitleGenerationEnabled = false,
+            openAiTitleGenerationModel = "  gpt-5.6-luna  ",
+            openAiTitleGenerationReasoningEffort = " HIGH "
         });
 
         await File.WriteAllTextAsync(_settingsFilePath, legacySettings);
@@ -162,6 +168,31 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal("proj_123", settings.AiSettings.ProjectId);
         Assert.Equal("org_456", settings.AiSettings.OrganizationId);
         Assert.Equal("high", settings.AiSettings.DefaultReasoningEffort);
+        Assert.False(settings.AiSettings.TitleGeneration.IsEnabled);
+        Assert.Equal("gpt-5.6-luna", settings.AiSettings.TitleGeneration.DefaultModel);
+        Assert.Equal("high", settings.AiSettings.TitleGeneration.DefaultReasoningEffort);
+    }
+
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsTitleGenerationSettings()
+    {
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            AiSettings = settings.AiSettings with
+            {
+                TitleGeneration = new AiTitleGenerationSettings(false, "custom-title-model", "xhigh")
+            }
+        });
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.False(settings.AiSettings.TitleGeneration.IsEnabled);
+        Assert.Equal("custom-title-model", settings.AiSettings.TitleGeneration.DefaultModel);
+        Assert.Equal("xhigh", settings.AiSettings.TitleGeneration.DefaultReasoningEffort);
+        var json = await File.ReadAllTextAsync(_settingsFilePath);
+        Assert.Contains("custom-title-model", json, StringComparison.Ordinal);
+        Assert.Contains("AiTitleGenerationEnabled", json, StringComparison.Ordinal);
+        Assert.Contains("OpenAiTitleGenerationReasoningEffort", json, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -30,6 +30,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             .Select(EditorDisplaySettings.FormatLineHeight)
             .ToList();
         AvailableModels = BuildAvailableModels(model.DefaultModel);
+        AvailableTitleGenerationModels = BuildAvailableTitleGenerationModels(model.TitleGenerationModel);
         ReasoningEfforts = AiReasoningEffortCatalog.ReasoningEfforts;
         PromptsDirectory = string.IsNullOrWhiteSpace(model.PromptsDirectory)
             ? "Choose a notes folder first."
@@ -75,6 +76,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
         DefaultReasoningEffort = AiReasoningEffortCatalog.Normalize(model.DefaultReasoningEffort);
         ProjectId = model.ProjectId;
         OrganizationId = model.OrganizationId;
+        IsTitleGenerationEnabled = model.IsTitleGenerationEnabled;
+        TitleGenerationModel = string.IsNullOrWhiteSpace(model.TitleGenerationModel)
+            ? AiModelCatalog.DefaultTitleGenerationModel
+            : model.TitleGenerationModel.Trim();
+        TitleGenerationReasoningEffort = AiReasoningEffortCatalog.Normalize(model.TitleGenerationReasoningEffort);
         SetAiPrompts(model.AiPrompts);
         _isInitializing = false;
     }
@@ -96,6 +102,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> LineHeights { get; }
 
     public IReadOnlyList<string> AvailableModels { get; }
+
+    public IReadOnlyList<string> AvailableTitleGenerationModels { get; }
 
     public IReadOnlyList<string> ReasoningEfforts { get; }
 
@@ -163,10 +171,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private bool _isAiEnabled = true;
 
     [ObservableProperty]
+    private bool _isTitleGenerationEnabled = AiTitleGenerationSettings.Default.IsEnabled;
+
+    [ObservableProperty]
     private string _apiKey = string.Empty;
 
     [ObservableProperty]
     private string _defaultModel = AiModelCatalog.DefaultChatModel;
+
+    [ObservableProperty]
+    private string _titleGenerationModel = AiModelCatalog.DefaultTitleGenerationModel;
+
+    [ObservableProperty]
+    private string _titleGenerationReasoningEffort = AiReasoningEffortCatalog.DefaultReasoningEffort;
 
     [ObservableProperty]
     private string _defaultReasoningEffort = AiReasoningEffortCatalog.DefaultReasoningEffort;
@@ -243,6 +260,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
             AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort),
             ProjectId.Trim(),
             OrganizationId.Trim(),
+            IsTitleGenerationEnabled,
+            string.IsNullOrWhiteSpace(TitleGenerationModel)
+                ? AiModelCatalog.DefaultTitleGenerationModel
+                : TitleGenerationModel.Trim(),
+            AiReasoningEffortCatalog.Normalize(TitleGenerationReasoningEffort),
             PromptsDirectory,
             PromptItems.Select(item => item.Definition).ToList(),
             _appliedKeyboardShortcuts);
@@ -294,11 +316,21 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     partial void OnIsAiEnabledChanged(bool value) => RaisePreviewRequested();
 
+    partial void OnIsTitleGenerationEnabledChanged(bool value) => RaisePreviewRequested();
+
     partial void OnApiKeyChanged(string value) => RaisePreviewRequested();
 
     partial void OnDefaultModelChanged(string value)
     {
         RefreshPromptLabels();
+        RaisePreviewRequested();
+    }
+
+    partial void OnTitleGenerationModelChanged(string value) => RaisePreviewRequested();
+
+    partial void OnTitleGenerationReasoningEffortChanged(string value)
+    {
+        TitleGenerationReasoningEffort = AiReasoningEffortCatalog.Normalize(value);
         RaisePreviewRequested();
     }
 
@@ -568,6 +600,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private static IReadOnlyList<string> BuildAvailableModels(string? currentModel)
     {
         var models = AiModelCatalog.ChatCompletionModels.ToList();
+        if (!string.IsNullOrWhiteSpace(currentModel)
+            && !models.Contains(currentModel.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            models.Add(currentModel.Trim());
+        }
+
+        return models;
+    }
+
+    private static IReadOnlyList<string> BuildAvailableTitleGenerationModels(string? currentModel)
+    {
+        var models = AiModelCatalog.TitleGenerationModels.ToList();
         if (!string.IsNullOrWhiteSpace(currentModel)
             && !models.Contains(currentModel.Trim(), StringComparer.OrdinalIgnoreCase))
         {

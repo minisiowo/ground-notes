@@ -24,6 +24,9 @@ public sealed record SettingsDialogModel(
     string DefaultReasoningEffort,
     string ProjectId,
     string OrganizationId,
+    bool IsTitleGenerationEnabled,
+    string TitleGenerationModel,
+    string TitleGenerationReasoningEffort,
     string PromptsDirectory,
     IReadOnlyList<AiPromptDefinition> AiPrompts,
     KeyboardShortcutSettings KeyboardShortcuts);

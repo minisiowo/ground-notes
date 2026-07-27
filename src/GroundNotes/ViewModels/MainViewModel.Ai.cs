@@ -11,12 +11,34 @@ namespace GroundNotes.ViewModels;
 
 public partial class MainViewModel : ViewModelBase, IDisposable
 {
+    partial void OnIsAiEnabledChanged(bool value)
+    {
+        if (!value)
+        {
+            DismissTitleSuggestions(clearContext: false);
+        }
+    }
+
+    partial void OnIsTitleGenerationEnabledChanged(bool value)
+    {
+        if (!value)
+        {
+            DismissTitleSuggestions(clearContext: false);
+        }
+    }
+
     [RelayCommand]
     private async Task GenerateTitleSuggestionsAsync(CancellationToken cancellationToken = default)
     {
         if (!IsAiEnabled)
         {
             StatusMessage = "AI is disabled in settings.";
+            return;
+        }
+
+        if (!IsTitleGenerationEnabled)
+        {
+            StatusMessage = "AI title generation is disabled in settings.";
             return;
         }
 
@@ -348,10 +370,13 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         var normalized = AiSettings.Normalize(settings);
         OpenAiApiKey = normalized.ApiKey;
         SelectedAiModel = normalized.DefaultModel;
+        SelectedTitleGenerationModel = normalized.TitleGeneration.DefaultModel;
+        SelectedTitleGenerationReasoningEffort = normalized.TitleGeneration.DefaultReasoningEffort;
         OpenAiProjectId = normalized.ProjectId;
         OpenAiOrganizationId = normalized.OrganizationId;
         SelectedAiReasoningEffort = normalized.DefaultReasoningEffort;
         IsAiEnabled = normalized.IsEnabled;
+        IsTitleGenerationEnabled = normalized.TitleGeneration.IsEnabled;
     }
 
     private AiSettings BuildAiSettings()
@@ -362,7 +387,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             IsAiEnabled,
             OpenAiProjectId,
             OpenAiOrganizationId,
-            SelectedAiReasoningEffort);
+            SelectedAiReasoningEffort,
+            AiTitleGenerationSettings.Normalize(
+                SelectedTitleGenerationModel,
+                IsTitleGenerationEnabled,
+                SelectedTitleGenerationReasoningEffort));
     }
 
     private static string BuildPromptLoadStatus(AiPromptCatalogLoadResult promptLoad, string defaultMessage = "No AI prompts were found.")

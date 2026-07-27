@@ -1261,6 +1261,73 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateTitleSuggestionsCommand_DoesNotRunWhenTitleGenerationIsDisabled()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "note.md"), "body");
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        var settingsService = new FakeSettingsService();
+        await settingsService.UpdateSettingsAsync(settings => settings with
+        {
+            AiSettings = settings.AiSettings with
+            {
+                TitleGeneration = new AiTitleGenerationSettings(false, "gpt-5.6-terra")
+            }
+        });
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["project-outline"]
+        };
+
+        using var vm = await CreateViewModelAsync(
+            dialogService: dialogService,
+            settingsService: settingsService,
+            aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(Assert.Single(vm.VisibleNotes));
+
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        Assert.Empty(vm.TitleSuggestions);
+        Assert.Equal("AI title generation is disabled in settings.", vm.StatusMessage);
+        Assert.Null(aiTitleSuggestionService.LastDocument);
+    }
+
+    [Fact]
+    public async Task GenerateTitleSuggestionsCommand_PassesConfiguredTitleGenerationModel()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await File.WriteAllTextAsync(Path.Combine(_tempRoot, "note.md"), "body");
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        var settingsService = new FakeSettingsService();
+        await settingsService.UpdateSettingsAsync(settings => settings with
+        {
+            AiSettings = settings.AiSettings with
+            {
+                TitleGeneration = new AiTitleGenerationSettings(true, "gpt-5.6-luna", "high")
+            }
+        });
+        var aiTitleSuggestionService = new FakeAiTitleSuggestionService
+        {
+            Suggestions = ["project-outline"]
+        };
+
+        using var vm = await CreateViewModelAsync(
+            dialogService: dialogService,
+            settingsService: settingsService,
+            aiTitleSuggestionService: aiTitleSuggestionService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(Assert.Single(vm.VisibleNotes));
+
+        await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+
+        Assert.Equal("gpt-5.6-luna", aiTitleSuggestionService.LastSettings?.TitleGeneration.DefaultModel);
+        Assert.Equal("high", aiTitleSuggestionService.LastSettings?.TitleGeneration.DefaultReasoningEffort);
+    }
+
+    [Fact]
     public async Task SelectCalendarDayCommand_FiltersByCreatedDate_AndSecondClickClearsFilter()
     {
         Directory.CreateDirectory(_tempRoot);
@@ -1410,6 +1477,9 @@ public sealed class MainViewModelTests : IDisposable
             "none",
             string.Empty,
             string.Empty,
+            true,
+            "gpt-5-mini",
+            "none",
             string.Empty,
             [],
             KeyboardShortcutSettings.CreateDefault());
@@ -1987,6 +2057,8 @@ public sealed class MainViewModelTests : IDisposable
 
         public string? LastAdditionalContext { get; private set; }
 
+        public AiSettings? LastSettings { get; private set; }
+
         public Task<IReadOnlyList<string>> GetSuggestionsAsync(NoteDocument document, AiSettings settings, string? additionalContext = null, CancellationToken cancellationToken = default)
         {
             LastDocument = new NoteDocument
@@ -1998,6 +2070,7 @@ public sealed class MainViewModelTests : IDisposable
                 Tags = [.. document.Tags]
             };
             LastAdditionalContext = additionalContext;
+            LastSettings = settings;
             return Task.FromResult(Suggestions);
         }
     }

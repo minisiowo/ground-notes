@@ -287,9 +287,48 @@
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Reasoning effort" />
-                    <TextBlock Classes="settingsDescription" Text="Default reasoning mode. Use none to keep costs lower." />
+                    <TextBlock Classes="settingsDescription" Text="Default reasoning mode for the selected general AI model. Use none to keep costs lower." />
                   </StackPanel>
                   <ComboBox Grid.Column="1" ItemsSource="{Binding ReasoningEfforts}" SelectedItem="{Binding DefaultReasoningEffort}" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, Auto">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Enable AI title generation" />
+                    <TextBlock Classes="settingsDescription" Text="Allow AI to suggest titles from the current note." />
+                  </StackPanel>
+                  <ToggleSwitch Grid.Column="1"
+                                x:Name="TitleGenerationEnabledToggle"
+                                IsChecked="{Binding IsTitleGenerationEnabled}"
+                                OnContent=""
+                                OffContent="" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Title generation model" />
+                    <TextBlock Classes="settingsDescription" Text="Default model used for AI title suggestions." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1"
+                            x:Name="TitleGenerationModelComboBox"
+                            ItemsSource="{Binding AvailableTitleGenerationModels}"
+                            SelectedItem="{Binding TitleGenerationModel}" />
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
+                <Grid ColumnDefinitions="*, 330">
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Title generation reasoning effort" />
+                    <TextBlock Classes="settingsDescription" Text="Reasoning mode used for AI title suggestions. Use none to keep costs lower." />
+                  </StackPanel>
+                  <ComboBox Grid.Column="1"
+                            ItemsSource="{Binding ReasoningEfforts}"
+                            SelectedItem="{Binding TitleGenerationReasoningEffort}" />
                 </Grid>
               </Border>
 
