@@ -123,6 +123,38 @@ public partial class MainViewModel
         RestoreSidebarSelectionFlags();
     }
 
+    public bool ClearAdditionalSidebarSelection()
+    {
+        if (_selectedSidebarFilePaths.Count <= 1)
+        {
+            return false;
+        }
+
+        var activeFilePath = GetActiveSidebarFilePath();
+        var retainedFilePath = !string.IsNullOrWhiteSpace(activeFilePath)
+            && _selectedSidebarFilePaths.Contains(activeFilePath)
+            ? activeFilePath
+            : null;
+        var retainedRow = retainedFilePath is null
+            ? (!string.IsNullOrWhiteSpace(activeFilePath) ? FindPreferredNoteRow(activeFilePath) : null)
+            : FindPreferredNoteRow(retainedFilePath);
+
+        _selectedSidebarFilePaths.Clear();
+        if (retainedFilePath is not null)
+        {
+            _selectedSidebarFilePaths.Add(retainedFilePath);
+            _sidebarSelectionAnchorOccurrencePath = retainedRow?.OccurrencePath;
+        }
+        else
+        {
+            _sidebarSelectionAnchorOccurrencePath = null;
+        }
+
+        SelectedSidebarRow = retainedRow;
+        RestoreSidebarSelectionFlags();
+        return true;
+    }
+
     internal SidebarSelectionState CaptureSidebarSelection()
     {
         return new SidebarSelectionState(

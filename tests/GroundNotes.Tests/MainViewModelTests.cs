@@ -885,6 +885,34 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ClearAdditionalSidebarSelection_KeepsActiveNoteAndRemovesOtherNotes()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "body alpha", new DateTime(2026, 3, 9));
+        await WriteNoteAsync("beta.md", "beta", "body beta", new DateTime(2026, 3, 10));
+
+        var dialogService = new FakeWorkspaceDialogService { FolderToPick = _tempRoot };
+        using var vm = await CreateViewModelAsync(dialogService: dialogService);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        var alphaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var betaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alphaRow);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(alphaRow.Note);
+        await WaitForConditionAsync(() => vm.CurrentNote?.FilePath == alphaRow.Note!.FilePath);
+        vm.ToggleSidebarNoteSelection(betaRow);
+
+        Assert.Equal(2, vm.SelectedSidebarNotes.Count);
+        Assert.True(vm.ClearAdditionalSidebarSelection());
+
+        Assert.Equal("alpha", Assert.Single(vm.SelectedSidebarNotes).DisplayName);
+        Assert.Same(alphaRow, vm.SelectedSidebarRow);
+        Assert.True(alphaRow.Note!.IsSelected);
+        Assert.False(betaRow.Note!.IsSelected);
+        Assert.False(vm.ClearAdditionalSidebarSelection());
+    }
+
+    [Fact]
     public async Task RestoreSidebarSelection_RevertsTemporaryContextMenuSelection()
     {
         Directory.CreateDirectory(_tempRoot);

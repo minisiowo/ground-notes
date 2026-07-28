@@ -3413,6 +3413,20 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!e.Handled
+            && e.Key == Key.Escape
+            && e.KeyModifiers == KeyModifiers.None
+            && !vm.IsNotePickerOpen
+            && !vm.IsTitleSuggestionsOpen
+            && !vm.IsTagSuggestionsOpen
+            && vm.ClearAdditionalSidebarSelection())
+        {
+            NotesListBox.SelectedItems?.Clear();
+            NotesListBox.SelectedItem = vm.SelectedSidebarRow;
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.F6
             && (e.KeyModifiers == KeyModifiers.None || e.KeyModifiers == KeyModifiers.Shift))
         {
