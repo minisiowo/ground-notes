@@ -134,6 +134,7 @@
                       Classes.backgroundVisible="{Binding ShowSidebarListBackground}"
                       Classes.borderVisible="{Binding ShowSidebarListBorder}"
                       DragDrop.AllowDrop="True"
+                      DragDrop.DragEnter="OnSidebarRootDragOver"
                       DragDrop.DragOver="OnSidebarRootDragOver"
                       DragDrop.DragLeave="OnSidebarRootDragLeave"
                       DragDrop.Drop="OnSidebarRootDrop">
@@ -180,6 +181,7 @@
                                HorizontalContentAlignment="Stretch"
                                Command="{Binding ToggleExpandedCommand}"
                                DragDrop.AllowDrop="True"
+                               DragDrop.DragEnter="OnSidebarFolderDragOver"
                                DragDrop.DragOver="OnSidebarFolderDragOver"
                                DragDrop.DragLeave="OnSidebarFolderDragLeave"
                                DragDrop.Drop="OnSidebarFolderDrop">
@@ -270,6 +272,7 @@
                         VerticalAlignment="Bottom"
                         IsVisible="False"
                         DragDrop.AllowDrop="True"
+                        DragDrop.DragEnter="OnSidebarRootDragOver"
                         DragDrop.DragOver="OnSidebarRootDragOver"
                         DragDrop.DragLeave="OnSidebarRootDragLeave"
                         DragDrop.Drop="OnSidebarRootDrop">

@@ -53,7 +53,17 @@ public partial class MainWindow : Window
     private OverlayLayer? _sidebarDragOverlay;
     private Border? _sidebarDragGhost;
     private TextBlock? _sidebarDragGhostText;
+    private TranslateTransform? _sidebarDragGhostTransform;
     private string _sidebarDragBaseLabel = string.Empty;
+    private Control? _activeSidebarDropTarget;
+    private readonly SidebarDragGhostPositionState _sidebarDragGhostPositionState = new();
+    private int _sidebarDragGhostPositionGeneration;
+    private IDataTransfer? _sidebarDragDataTransfer;
+    private IReadOnlyList<string> _sidebarDragPaths = [];
+    private IDataTransfer? _sidebarDragPathsCacheTransfer;
+    private IReadOnlyList<string> _sidebarDragPathsCache = [];
+    private readonly DispatcherTimer _sidebarDragTargetLabelTimer;
+    private string? _pendingSidebarDragTargetLabel;
     private readonly ToolPopupController _titleSuggestionsPopup;
     private readonly ToolPopupController _tagSuggestionsPopup;
     private readonly DispatcherTimer _resizeHandleHoverTimer;
@@ -83,6 +93,17 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
+        SidebarNotesContainer.AddHandler(
+            DragDrop.DragEnterEvent,
+            OnSidebarDragPositionChanged,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+        SidebarNotesContainer.AddHandler(
+            DragDrop.DragOverEvent,
+            OnSidebarDragPositionChanged,
+            RoutingStrategies.Bubble,
+            handledEventsToo: true);
+
         _windowChrome = new WindowChromeController(
             this,
             new WindowChromeController.Options
@@ -108,6 +129,11 @@ public partial class MainWindow : Window
             Interval = ResizeHandleHoverDelay
         };
         _resizeHandleHoverTimer.Tick += OnResizeHandleHoverTimerTick;
+        _sidebarDragTargetLabelTimer = new DispatcherTimer
+        {
+            Interval = SidebarDragTargetLabelDelay
+        };
+        _sidebarDragTargetLabelTimer.Tick += OnSidebarDragTargetLabelTimerTick;
 
         PointerMoved += OnWindowPointerMoved;
         PointerExited += OnWindowPointerExited;
@@ -131,6 +157,7 @@ public partial class MainWindow : Window
         EditorTextEditor.TextArea.TextView.ScrollOffsetChanged += OnEditorTextViewScrollOffsetChanged;
         EditorTextEditor.TextArea.TextView.VisualLinesChanged += OnEditorTextViewVisualLinesChanged;
         ConfigureEditorFocusScrollSuppression(EditorTextEditor);
+        PaneWorkspaceScrollViewer.SizeChanged += OnPaneWorkspaceViewportSizeChanged;
         EditorPanel.SizeChanged += OnEditorPanelSizeChanged;
         SlashCommandPopup.PlacementTarget = EditorBorder;
         EditorTextEditor.TextChanged += OnEditorTextChanged;
@@ -255,6 +282,9 @@ public partial class MainWindow : Window
         }
 
         _windowResourcesDisposed = true;
+        HideSidebarDragGhost();
+        SidebarNotesContainer.RemoveHandler(DragDrop.DragEnterEvent, OnSidebarDragPositionChanged);
+        SidebarNotesContainer.RemoveHandler(DragDrop.DragOverEvent, OnSidebarDragPositionChanged);
         if (DataContext is MainViewModel viewModel)
         {
             viewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -282,8 +312,12 @@ public partial class MainWindow : Window
         DetachWorkspaceBringIntoViewSuppression(EditorTitleTextBox);
         DetachWorkspaceBringIntoViewSuppression(EditorTagsTextBox);
         EditorTextEditor.GotFocus -= OnPrimaryEditorGotFocus;
+        PaneWorkspaceScrollViewer.SizeChanged -= OnPaneWorkspaceViewportSizeChanged;
+        EditorPanel.SizeChanged -= OnEditorPanelSizeChanged;
         _resizeHandleHoverTimer.Stop();
         _resizeHandleHoverTimer.Tick -= OnResizeHandleHoverTimerTick;
+        _sidebarDragTargetLabelTimer.Stop();
+        _sidebarDragTargetLabelTimer.Tick -= OnSidebarDragTargetLabelTimerTick;
         _clipboardImageBitmap?.Dispose();
         _clipboardImageBitmap = null;
         _editorHost.Dispose();
@@ -489,6 +523,7 @@ public partial class MainWindow : Window
     private const double EditorOuterGutter = 10;
     private const int SidebarAnimationDurationMs = 140;
     private static readonly TimeSpan ResizeHandleHoverDelay = TimeSpan.FromMilliseconds(150);
+    private static readonly TimeSpan SidebarDragTargetLabelDelay = TimeSpan.FromMilliseconds(350);
     private const double EditorCanvasMinWidth = 520;
     private const double EditorCanvasResetThreshold = 12;
     private const double EditorResizeStripeHeight = 32;
@@ -851,9 +886,14 @@ public partial class MainWindow : Window
         return Math.Clamp(pointerY - (stripeHeight / 2), 0, maxTop);
     }
 
+    private void OnPaneWorkspaceViewportSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateWorkspacePresentation();
+    }
+
     private void OnEditorPanelSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        UpdateEditorCanvasWidth();
+        UpdateEditorCanvasHostWidth();
         UpdateSplitEditorAvailability();
     }
 
@@ -870,6 +910,11 @@ public partial class MainWindow : Window
     private void UpdateEditorCanvasWidth()
     {
         UpdateWorkspacePresentation();
+        UpdateEditorCanvasHostWidth();
+    }
+
+    private void UpdateEditorCanvasHostWidth()
+    {
         if (TryUpdateZenEditorCanvasWidth())
         {
             return;
@@ -1595,7 +1640,6 @@ public partial class MainWindow : Window
         }
 
         AnimateSidebar(vm.SidebarCollapsed);
-        UpdateWorkspacePresentation();
     }
 
     private void OnSecondaryPaneViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -1756,6 +1800,11 @@ public partial class MainWindow : Window
         var animationCts = new CancellationTokenSource();
         _sidebarAnimationCts = animationCts;
         var cancellationToken = animationCts.Token;
+        var editorResizeScopes = new List<IDisposable>
+        {
+            _editorHost.BeginContinuousResize()
+        };
+        editorResizeScopes.AddRange(_secondaryEditorHosts.Values.Select(host => host.BeginContinuousResize()));
 
         var startWidth = SidebarCol.Width.Value;
         var targetWidth = collapse ? 0 : Math.Max(_sidebarWidthBeforeCollapse, SidebarMinWidth);
@@ -1787,15 +1836,24 @@ public partial class MainWindow : Window
                 SidebarCol.Width = new GridLength(Lerp(startWidth, targetWidth, eased), GridUnitType.Pixel);
                 SidebarBorder.Opacity = Lerp(startOpacity, targetOpacity, eased);
                 UpdateWorkspaceHostMargin();
-                UpdateEditorCanvasWidth();
 
                 if (progress >= 1)
                 {
                     break;
                 }
 
-                await Task.Delay(16, cancellationToken);
+                await WaitForNextAnimationFrameAsync(cancellationToken);
             }
+
+            SidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
+            SidebarBorder.Opacity = targetOpacity;
+            UpdateWorkspaceHostMargin();
+            UpdateEditorCanvasWidth();
+            SidebarCol.MinWidth = collapse ? 0 : SidebarMinWidth;
+            SplitterCol.Width = new GridLength(collapse ? 0 : SidebarSplitterWidth, GridUnitType.Pixel);
+            SidebarBorder.IsVisible = !collapse;
+            UpdateWorkspaceHostMargin();
+            ScheduleSidebarLayoutRefresh();
         }
         catch (OperationCanceledException)
         {
@@ -1803,22 +1861,17 @@ public partial class MainWindow : Window
         }
         finally
         {
+            for (var index = editorResizeScopes.Count - 1; index >= 0; index--)
+            {
+                editorResizeScopes[index].Dispose();
+            }
+
             if (ReferenceEquals(_sidebarAnimationCts, animationCts))
             {
                 _sidebarAnimationCts = null;
                 animationCts.Dispose();
             }
         }
-
-        SidebarCol.Width = new GridLength(targetWidth, GridUnitType.Pixel);
-        SidebarBorder.Opacity = targetOpacity;
-        UpdateWorkspaceHostMargin();
-        UpdateEditorCanvasWidth();
-        SidebarCol.MinWidth = collapse ? 0 : SidebarMinWidth;
-        SplitterCol.Width = new GridLength(collapse ? 0 : SidebarSplitterWidth, GridUnitType.Pixel);
-        SidebarBorder.IsVisible = !collapse;
-        UpdateWorkspaceHostMargin();
-        ScheduleSidebarLayoutRefresh();
     }
 
     private void UpdateWorkspaceHostMargin()
@@ -1844,6 +1897,13 @@ public partial class MainWindow : Window
                 UpdateEditorCanvasWidth();
             }, DispatcherPriority.Background);
         }, DispatcherPriority.Render);
+    }
+
+    private Task WaitForNextAnimationFrameAsync(CancellationToken cancellationToken)
+    {
+        var frameCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        RequestAnimationFrame(_ => frameCompletion.TrySetResult());
+        return frameCompletion.Task.WaitAsync(cancellationToken);
     }
 
     private static double Lerp(double from, double to, double progress)
@@ -2264,9 +2324,13 @@ public partial class MainWindow : Window
         _sidebarDragPointerPressedEvent = null;
         try
         {
-            ShowSidebarDragGhost(vm.SelectedSidebarNotes, e);
             var data = new DataTransfer();
             data.Add(DataTransferItem.Create(s_sidebarNotePathsDataFormat, string.Join('\n', paths)));
+            ShowSidebarDragGhost(vm.SelectedSidebarNotes, e);
+            _sidebarDragDataTransfer = data;
+            _sidebarDragPaths = paths;
+            _sidebarDragPathsCacheTransfer = data;
+            _sidebarDragPathsCache = paths;
             await DragDrop.DoDragDropAsync(pointerPressedEvent, data, DragDropEffects.Move);
         }
         finally
@@ -2302,16 +2366,25 @@ public partial class MainWindow : Window
         vm.RestoreSidebarSelection(previousSelection);
     }
 
+    private void OnSidebarDragPositionChanged(object? sender, DragEventArgs e)
+    {
+        if (!_isSidebarDragStarting
+            || _sidebarDragGhost is null
+            || _sidebarDragOverlay is null)
+        {
+            return;
+        }
+
+        QueueSidebarDragGhostPosition(e.GetPosition(_sidebarDragOverlay));
+    }
+
     private void OnSidebarFolderDragOver(object? sender, DragEventArgs e)
     {
         if (sender is Button { DataContext: SidebarTreeRowViewModel { TagPath: { } tagPath } } button
             && GetSidebarDragPaths(e.DataTransfer).Count > 0)
         {
-            SidebarNotesContainer.Classes.Set("rootDragTarget", false);
             e.DragEffects = DragDropEffects.Move;
-            button.Classes.Set("dragTarget", true);
-            UpdateSidebarDragGhost(e);
-            SetSidebarDragGhostTarget($"Add to {tagPath}");
+            SetActiveSidebarDropTarget(button, $"Add to {tagPath}");
             e.Handled = true;
             return;
         }
@@ -2321,26 +2394,29 @@ public partial class MainWindow : Window
 
     private void OnSidebarFolderDragLeave(object? sender, DragEventArgs e)
     {
-        if (sender is Button button)
+        if (sender is not Button button
+            || IsPointWithinSidebarDropTarget(e.GetPosition(button), button.Bounds.Size)
+            || !ReferenceEquals(button, _activeSidebarDropTarget))
         {
-            button.Classes.Set("dragTarget", false);
-            SetSidebarDragGhostTarget(null);
+            return;
         }
+
+        SetActiveSidebarDropTarget(null, null);
     }
 
     private async void OnSidebarFolderDrop(object? sender, DragEventArgs e)
     {
         var paths = GetSidebarDragPaths(e.DataTransfer);
-        if (sender is not Button { DataContext: SidebarTreeRowViewModel { TagPath: { } tagPath } } button
+        if (sender is not Button { DataContext: SidebarTreeRowViewModel { TagPath: { } tagPath } }
             || DataContext is not MainViewModel vm
             || paths.Count == 0)
         {
             return;
         }
 
-        button.Classes.Set("dragTarget", false);
         e.DragEffects = DragDropEffects.Move;
         e.Handled = true;
+        SetActiveSidebarDropTarget(null, null);
         await vm.AddSidebarNotesToTagFolderAsync(paths, tagPath);
     }
 
@@ -2348,12 +2424,8 @@ public partial class MainWindow : Window
     {
         if (sender is Border border && GetSidebarDragPaths(e.DataTransfer).Count > 0)
         {
-            UpdateSidebarDragGhost(e);
             e.DragEffects = DragDropEffects.Move;
-            border.Classes.Set(
-                ReferenceEquals(border, SidebarRootDropTarget) ? "dragTarget" : "rootDragTarget",
-                true);
-            SetSidebarDragGhostTarget("Move to root");
+            SetActiveSidebarDropTarget(border, "Move to root");
             e.Handled = true;
             return;
         }
@@ -2363,45 +2435,38 @@ public partial class MainWindow : Window
 
     private void OnSidebarRootDragLeave(object? sender, DragEventArgs e)
     {
-        if (sender is not Border border)
+        if (sender is not Border border
+            || IsPointWithinSidebarDropTarget(e.GetPosition(border), border.Bounds.Size)
+            || !ReferenceEquals(border, _activeSidebarDropTarget))
         {
             return;
         }
 
-        if (ReferenceEquals(border, SidebarRootDropTarget))
-        {
-            border.Classes.Set("dragTarget", false);
-            return;
-        }
-
-        var pointerPosition = e.GetPosition(border);
-        if (pointerPosition.X >= 0
-            && pointerPosition.X <= border.Bounds.Width
-            && pointerPosition.Y >= 0
-            && pointerPosition.Y <= border.Bounds.Height)
-        {
-            return;
-        }
-
-        border.Classes.Set("rootDragTarget", false);
-        SetSidebarDragGhostTarget(null);
+        SetActiveSidebarDropTarget(null, null);
     }
 
     private async void OnSidebarRootDrop(object? sender, DragEventArgs e)
     {
         var paths = GetSidebarDragPaths(e.DataTransfer);
-        if (sender is not Border border
+        if (sender is not Border
             || DataContext is not MainViewModel vm
             || paths.Count == 0)
         {
             return;
         }
 
-        border.Classes.Set("dragTarget", false);
-        border.Classes.Set("rootDragTarget", false);
         e.DragEffects = DragDropEffects.Move;
         e.Handled = true;
+        SetActiveSidebarDropTarget(null, null);
         await vm.MoveSidebarNotesToRootAsync(paths);
+    }
+
+    internal static bool IsPointWithinSidebarDropTarget(Point point, Size targetSize)
+    {
+        return point.X >= 0
+            && point.X <= targetSize.Width
+            && point.Y >= 0
+            && point.Y <= targetSize.Height;
     }
 
     internal static string FormatSidebarDragLabel(IReadOnlyList<NoteListItemViewModel> notes)
@@ -2416,9 +2481,27 @@ public partial class MainWindow : Window
             : $"{notes[0].DisplayName} +{notes.Count - 1}";
     }
 
-    private static IReadOnlyList<string> GetSidebarDragPaths(IDataTransfer dataTransfer)
+    private IReadOnlyList<string> GetSidebarDragPaths(IDataTransfer dataTransfer)
     {
-        return dataTransfer.TryGetValues(s_sidebarNotePathsDataFormat)?
+        if (ReferenceEquals(dataTransfer, _sidebarDragDataTransfer))
+        {
+            return _sidebarDragPaths;
+        }
+
+        if (ReferenceEquals(dataTransfer, _sidebarDragPathsCacheTransfer))
+        {
+            return _sidebarDragPathsCache;
+        }
+
+        var paths = ParseSidebarDragPaths(dataTransfer.TryGetValues(s_sidebarNotePathsDataFormat));
+        _sidebarDragPathsCacheTransfer = dataTransfer;
+        _sidebarDragPathsCache = paths;
+        return paths;
+    }
+
+    internal static IReadOnlyList<string> ParseSidebarDragPaths(IEnumerable<string>? values)
+    {
+        return values?
             .SelectMany(value => value.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList()
@@ -2437,34 +2520,107 @@ public partial class MainWindow : Window
         _sidebarDragBaseLabel = FormatSidebarDragLabel(notes);
         _sidebarDragGhostText = new TextBlock { Text = _sidebarDragBaseLabel };
         _sidebarDragGhostText.Classes.Add("sidebarDragGhostText");
+        _sidebarDragGhostTransform = new TranslateTransform();
         _sidebarDragGhost = new Border
         {
             Child = _sidebarDragGhostText,
-            IsHitTestVisible = false
+            IsHitTestVisible = false,
+            RenderTransform = _sidebarDragGhostTransform
         };
         _sidebarDragGhost.Classes.Add("sidebarDragGhost");
         _sidebarDragOverlay.Children.Add(_sidebarDragGhost);
         SidebarRootDropTarget.IsVisible = true;
-        UpdateSidebarDragGhost(e.GetPosition(_sidebarDragOverlay));
+        ApplySidebarDragGhostPosition(e.GetPosition(_sidebarDragOverlay));
     }
 
-    private void UpdateSidebarDragGhost(DragEventArgs e)
+    private void QueueSidebarDragGhostPosition(Point point)
     {
-        if (_sidebarDragOverlay is not null)
-        {
-            UpdateSidebarDragGhost(e.GetPosition(_sidebarDragOverlay));
-        }
-    }
-
-    private void UpdateSidebarDragGhost(Point point)
-    {
-        if (_sidebarDragGhost is null)
+        if (_sidebarDragGhostTransform is null
+            || !_sidebarDragGhostPositionState.Queue(point))
         {
             return;
         }
 
-        Canvas.SetLeft(_sidebarDragGhost, point.X + 14);
-        Canvas.SetTop(_sidebarDragGhost, point.Y + 14);
+        var generation = _sidebarDragGhostPositionGeneration;
+        Dispatcher.UIThread.Post(
+            () => ApplyQueuedSidebarDragGhostPosition(generation),
+            DispatcherPriority.Render);
+    }
+
+    private void ApplyQueuedSidebarDragGhostPosition(int generation)
+    {
+        if (generation != _sidebarDragGhostPositionGeneration
+            || !_sidebarDragGhostPositionState.TryConsume(out var point))
+        {
+            return;
+        }
+
+        ApplySidebarDragGhostPosition(point);
+    }
+
+    private void ApplySidebarDragGhostPosition(Point point)
+    {
+        if (_sidebarDragGhostTransform is not { } transform)
+        {
+            return;
+        }
+
+        transform.X = point.X + 14;
+        transform.Y = point.Y + 14;
+    }
+
+    private void SetActiveSidebarDropTarget(Control? target, string? ghostTargetLabel)
+    {
+        if (ReferenceEquals(_activeSidebarDropTarget, target))
+        {
+            if (target is null)
+            {
+                CancelSidebarDragTargetLabelReveal();
+            }
+            return;
+        }
+
+        if (_activeSidebarDropTarget is { } previousTarget)
+        {
+            previousTarget.Classes.Set(GetSidebarDropTargetClass(previousTarget), false);
+        }
+
+        _activeSidebarDropTarget = target;
+        if (target is not null)
+        {
+            target.Classes.Set(GetSidebarDropTargetClass(target), true);
+        }
+
+        CancelSidebarDragTargetLabelReveal();
+        if (target is not null && !string.IsNullOrWhiteSpace(ghostTargetLabel))
+        {
+            _pendingSidebarDragTargetLabel = ghostTargetLabel;
+            _sidebarDragTargetLabelTimer.Start();
+        }
+    }
+
+    private void OnSidebarDragTargetLabelTimerTick(object? sender, EventArgs e)
+    {
+        _sidebarDragTargetLabelTimer.Stop();
+        if (_activeSidebarDropTarget is not null && _pendingSidebarDragTargetLabel is { } targetLabel)
+        {
+            SetSidebarDragGhostTarget(targetLabel);
+        }
+        _pendingSidebarDragTargetLabel = null;
+    }
+
+    private void CancelSidebarDragTargetLabelReveal()
+    {
+        _sidebarDragTargetLabelTimer.Stop();
+        _pendingSidebarDragTargetLabel = null;
+        SetSidebarDragGhostTarget(null);
+    }
+
+    private string GetSidebarDropTargetClass(Control target)
+    {
+        return ReferenceEquals(target, SidebarNotesContainer)
+            ? "rootDragTarget"
+            : "dragTarget";
     }
 
     private void SetSidebarDragGhostTarget(string? target)
@@ -2479,6 +2635,8 @@ public partial class MainWindow : Window
 
     private void HideSidebarDragGhost()
     {
+        SetActiveSidebarDropTarget(null, null);
+
         if (_sidebarDragOverlay is not null && _sidebarDragGhost is not null)
         {
             _sidebarDragOverlay.Children.Remove(_sidebarDragGhost);
@@ -2492,10 +2650,17 @@ public partial class MainWindow : Window
         SidebarNotesContainer.Classes.Set("rootDragTarget", false);
         SidebarRootDropTarget.Classes.Set("dragTarget", false);
         SidebarRootDropTarget.IsVisible = false;
+        _sidebarDragGhostPositionGeneration++;
+        _sidebarDragGhostPositionState.Reset();
         _sidebarDragOverlay = null;
         _sidebarDragGhost = null;
+        _sidebarDragGhostTransform = null;
         _sidebarDragGhostText = null;
         _sidebarDragBaseLabel = string.Empty;
+        _sidebarDragDataTransfer = null;
+        _sidebarDragPaths = [];
+        _sidebarDragPathsCacheTransfer = null;
+        _sidebarDragPathsCache = [];
     }
 
     private async void OnSidebarTreeKeyDown(object? sender, KeyEventArgs e)

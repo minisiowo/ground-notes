@@ -62,6 +62,8 @@ internal sealed class EditorHostController : IDisposable
 
     public void RefreshImagePreviews(string? resolvedImagePath = null) => _themeController.RefreshImagePreviews(resolvedImagePath);
 
+    public IDisposable BeginContinuousResize() => _themeController.BeginContinuousResize();
+
     public void ApplyInitialLayout(EditorLayoutSettings settings) => _layoutController.ApplyInitialLayout(settings);
 
     public void ApplyRuntimeLayout(EditorLayoutSettings settings) => _layoutController.ApplyRuntimeLayout(settings);

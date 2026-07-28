@@ -27,6 +27,9 @@ internal sealed class EditorThemeController : IDisposable
     private EditorAppearanceSignature _lastAppearanceSignature;
     private Size _lastTextViewBounds;
     private bool _isResizeRefreshQueued;
+    private int _continuousResizeDepth;
+    private bool _hasDeferredResizeRefresh;
+    private bool _isDisposed;
     private bool _markdownFormattingEnabled = true;
     private bool _isPointerOverInteractiveMarkdownTarget;
 
@@ -67,6 +70,12 @@ internal sealed class EditorThemeController : IDisposable
     }
 
     public bool IsMarkdownFormattingEnabled => _markdownFormattingEnabled;
+
+    public IDisposable BeginContinuousResize()
+    {
+        _continuousResizeDepth++;
+        return new ContinuousResizeScope(this);
+    }
 
     public void ApplySelectionTheme()
     {
@@ -221,6 +230,7 @@ internal sealed class EditorThemeController : IDisposable
 
     public void Dispose()
     {
+        _isDisposed = true;
         _editor.ResourcesChanged -= OnEditorResourcesChanged;
         _editor.SizeChanged -= OnEditorSizeChanged;
         _editor.TextArea.TextView.PropertyChanged -= OnTextViewPropertyChanged;
@@ -437,21 +447,18 @@ internal sealed class EditorThemeController : IDisposable
 
     private void RefreshAfterResize()
     {
-        var textView = _editor.TextArea.TextView;
-        _imagePreviewLayer.InvalidateRefreshState();
-        _codeBlockCopyLayer.RequestRefresh();
-        UpdatePreviewAvailableWidth(textView.Bounds.Width);
-        textView.InvalidateMeasure();
-        textView.InvalidateArrange();
-        textView.InvalidateVisual();
-        textView.Redraw();
-
-        if (textView.Bounds.Width > 0 && textView.Bounds.Height > 0)
+        if (_continuousResizeDepth > 0)
         {
-            textView.EnsureVisualLines();
+            _hasDeferredResizeRefresh = true;
+            return;
         }
 
-        if (_isResizeRefreshQueued)
+        QueueResizeRefresh();
+    }
+
+    private void QueueResizeRefresh()
+    {
+        if (_isDisposed || _isResizeRefreshQueued)
         {
             return;
         }
@@ -460,22 +467,65 @@ internal sealed class EditorThemeController : IDisposable
         Dispatcher.UIThread.Post(() =>
         {
             _isResizeRefreshQueued = false;
-            var currentTextView = _editor.TextArea.TextView;
-            currentTextView.InvalidateMeasure();
-            currentTextView.InvalidateArrange();
-            currentTextView.InvalidateVisual();
-            currentTextView.Redraw();
-
-            if (currentTextView.Bounds.Width > 0 && currentTextView.Bounds.Height > 0)
+            if (_isDisposed)
             {
-                currentTextView.EnsureVisualLines();
+                return;
+            }
+
+            if (_continuousResizeDepth > 0)
+            {
+                _hasDeferredResizeRefresh = true;
+                return;
+            }
+
+            var textView = _editor.TextArea.TextView;
+            _imagePreviewLayer.InvalidateRefreshState();
+            _codeBlockCopyLayer.RequestRefresh();
+            UpdatePreviewAvailableWidth(textView.Bounds.Width);
+            textView.InvalidateMeasure();
+            textView.InvalidateArrange();
+            textView.InvalidateVisual();
+            textView.Redraw();
+
+            if (textView.Bounds.Width > 0 && textView.Bounds.Height > 0)
+            {
+                textView.EnsureVisualLines();
             }
         }, DispatcherPriority.Render);
+    }
+
+    private void EndContinuousResize()
+    {
+        if (_continuousResizeDepth == 0)
+        {
+            return;
+        }
+
+        _continuousResizeDepth--;
+        if (_continuousResizeDepth > 0 || !_hasDeferredResizeRefresh)
+        {
+            return;
+        }
+
+        _hasDeferredResizeRefresh = false;
+        QueueResizeRefresh();
     }
 
     private void UpdatePreviewAvailableWidth(double width)
     {
         _imagePreviewProvider.SetAvailableWidth(width);
+    }
+
+    private sealed class ContinuousResizeScope(EditorThemeController owner) : IDisposable
+    {
+        private EditorThemeController? _owner = owner;
+
+        public void Dispose()
+        {
+            var currentOwner = _owner;
+            _owner = null;
+            currentOwner?.EndContinuousResize();
+        }
     }
 
     private readonly record struct EditorAppearanceSignature(

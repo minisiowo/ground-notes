@@ -6,6 +6,8 @@ namespace GroundNotes.Tests;
 
 public sealed class MainWindowShortcutTests
 {
+
+
     [Fact]
     public void FormatSidebarDragLabel_UsesNameAndSelectionCount()
     {

@@ -1046,8 +1046,8 @@
   </Style>
 
   <Style Selector="Border.sidebarNotesContainer.rootDragTarget">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <Style Selector="Border.sidebarRootDropTarget">
@@ -1061,7 +1061,6 @@
   <Style Selector="Border.sidebarRootDropTarget.dragTarget">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
-    <Setter Property="BorderThickness" Value="2" />
   </Style>
 
   <Style Selector="Border.sidebarDragGhost">
@@ -1111,7 +1110,7 @@
   <Style Selector="Button.sidebarTreeFolderRow /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="BorderThickness" Value="1" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
   </Style>
 
@@ -1208,7 +1207,6 @@
   <Style Selector="Button.sidebarTreeFolderRow.dragTarget /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
     <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
-    <Setter Property="BorderThickness" Value="1" />
   </Style>
 
   <Style Selector="Border.fileRow.open:not(.active)">
