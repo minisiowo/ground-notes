@@ -57,4 +57,11 @@ public sealed class MarkdownSlashCommandCatalogTests
         var command = Assert.Single(results);
         Assert.Equal("codeblock", command.Id);
     }
+
+    [Fact]
+    public void Filter_IncludesTableInsertionAndFormattingCommands()
+    {
+        Assert.Equal("table", MarkdownSlashCommandCatalog.Filter("grid").Single().Id);
+        Assert.Equal("table-format", MarkdownSlashCommandCatalog.Filter("align-table").Single().Id);
+    }
 }

@@ -2776,6 +2776,11 @@ public partial class MainWindow : Window
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Cut", targetEditor.CanCut, async (_, _) => await CutEditorSelectionAsync(targetEditor)));
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Copy", targetEditor.CanCopy, async (_, _) => await CopyEditorSelectionAsync(targetEditor)));
         _editorContextFlyout.Items.Add(CreateEditorMenuItem("Paste", targetEditor.CanPaste, async (_, _) => await PasteIntoEditorAsync(targetEditor)));
+        if (GetEditorHost(targetEditor).SupportsMarkdownTables)
+        {
+            _editorContextFlyout.Items.Add(new Separator());
+            AddMarkdownTableMenuSection(targetEditor);
+        }
 
         if (DataContext is MainViewModel { IsAiEnabled: true })
         {
@@ -2796,6 +2801,45 @@ public partial class MainWindow : Window
         };
         item.Click += onClick;
         return item;
+    }
+
+    private void AddMarkdownTableMenuSection(TextEditor editor)
+    {
+        var host = GetEditorHost(editor);
+        if (!host.IsCaretInMarkdownTable)
+        {
+            _editorContextFlyout.Items.Add(CreateEditorMenuItem("Insert table", true, (_, _) =>
+            {
+                DismissEditorContextFlyout();
+                ApplyEditorEdit(editor, MarkdownTableEditingCommands.InsertTable(GetEditorText(editor), editor.SelectionStart, editor.SelectionLength));
+            }));
+            return;
+        }
+
+        _editorContextFlyout.Items.Add(new MenuItem { Header = "Table", IsEnabled = false });
+        AddTableAction("Format table", host.FormatMarkdownTable);
+        AddTableAction("Insert row above", () => host.InsertMarkdownTableRow(above: true));
+        AddTableAction("Insert row below", () => host.InsertMarkdownTableRow(above: false));
+        AddTableAction("Move row up", () => host.MoveMarkdownTableRow(down: false));
+        AddTableAction("Move row down", () => host.MoveMarkdownTableRow(down: true));
+        AddTableAction("Delete row", host.DeleteMarkdownTableRow);
+        AddTableAction("Insert column left", () => host.InsertMarkdownTableColumn(before: true));
+        AddTableAction("Insert column right", () => host.InsertMarkdownTableColumn(before: false));
+        AddTableAction("Move column left", () => host.MoveMarkdownTableColumn(right: false));
+        AddTableAction("Move column right", () => host.MoveMarkdownTableColumn(right: true));
+        AddTableAction("Delete column", host.DeleteMarkdownTableColumn);
+        AddTableAction("Align column left", () => host.SetMarkdownTableAlignment(MarkdownTableAlignment.Left));
+        AddTableAction("Align column center", () => host.SetMarkdownTableAlignment(MarkdownTableAlignment.Center));
+        AddTableAction("Align column right", () => host.SetMarkdownTableAlignment(MarkdownTableAlignment.Right));
+    }
+
+    private void AddTableAction(string header, Func<bool> action)
+    {
+        _editorContextFlyout.Items.Add(CreateEditorMenuItem(header, true, (_, _) =>
+        {
+            DismissEditorContextFlyout();
+            action();
+        }));
     }
 
     private void AddAiMenuSection()
@@ -3308,6 +3352,13 @@ public partial class MainWindow : Window
         var shouldResetViewport = HasSyncedFilePathChanged(_primaryEditorSyncedFilePath, syncedFilePath);
         var changed = _editorHost.SyncFromViewModel(text, appendSuffixWhenPossible: false, out var appendedOnly);
         var isEditorOriginatedUpdate = _editorHost.IsUpdatingViewModelFromEditor;
+        if (!isEditorOriginatedUpdate
+            && DataContext is MainViewModel vm
+            && !string.Equals(text, _editorHost.GetText(), StringComparison.Ordinal))
+        {
+            _editorHost.SyncToViewModel(() => vm.EditorBody, normalized => vm.EditorBody = normalized);
+        }
+
         if (shouldResetViewport && !isEditorOriginatedUpdate)
         {
             _editorHost.ResetVimState();
@@ -3348,6 +3399,12 @@ public partial class MainWindow : Window
         var shouldResetViewport = HasSyncedFilePathChanged(previousFilePath, syncedFilePath);
         var changed = host.SyncFromViewModel(pane.EditorBody, appendSuffixWhenPossible: false, out var appendedOnly);
         var isEditorOriginatedUpdate = host.IsUpdatingViewModelFromEditor;
+        if (!isEditorOriginatedUpdate
+            && !string.Equals(pane.EditorBody, host.GetText(), StringComparison.Ordinal))
+        {
+            host.SyncToViewModel(() => pane.EditorBody, normalized => pane.EditorBody = normalized);
+        }
+
         if (shouldResetViewport && !isEditorOriginatedUpdate)
         {
             host.ResetVimState();
@@ -3834,6 +3891,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        var host = GetEditorHost(editor);
+#pragma warning disable CS0618 // Compatibility fallback for Avalonia clipboard text API.
+        var clipboardText = await topLevel.Clipboard.GetTextAsync();
+#pragma warning restore CS0618
+        if (clipboardText is not null && host.ShouldHandleMarkdownTablePaste)
+        {
+            host.TryInsertMarkdownTableText(clipboardText);
+            return;
+        }
+
         using var data = await topLevel.Clipboard.TryGetDataAsync();
         var bitmap = data is null ? null : await data.TryGetBitmapAsync();
         if (bitmap is null || DataContext is not MainViewModel vm || string.IsNullOrWhiteSpace(vm.NotesFolder))
@@ -3844,6 +3911,12 @@ public partial class MainWindow : Window
 
         var assetFileName = await _noteAssetService.SaveBitmapAsync(vm.NotesFolder, bitmap);
         var imageReference = _noteAssetService.BuildMarkdownImageReference(assetFileName);
+        if (host.ShouldHandleMarkdownTablePaste)
+        {
+            host.TryInsertMarkdownTableText(imageReference);
+            return;
+        }
+
         InsertTextAtSelection(editor, imageReference);
     }
 
@@ -3992,21 +4065,45 @@ public partial class MainWindow : Window
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.MoveLineUp, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, moveDown: false));
+            var host = GetEditorHost(textEditor);
+            if (host.IsCaretInMarkdownTable)
+            {
+                host.MoveMarkdownTableRow(down: false);
+            }
+            else
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, moveDown: false));
+            }
             return;
         }
 
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.MoveLineDown, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, moveDown: true));
+            var host = GetEditorHost(textEditor);
+            if (host.IsCaretInMarkdownTable)
+            {
+                host.MoveMarkdownTableRow(down: true);
+            }
+            else
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.MoveLines(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, moveDown: true));
+            }
             return;
         }
 
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.DeleteLine, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            var host = GetEditorHost(textEditor);
+            if (host.IsCaretInMarkdownTable)
+            {
+                host.DeleteMarkdownTableRow();
+            }
+            else
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.DeleteCurrentLine(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            }
             return;
         }
 
@@ -4036,6 +4133,11 @@ public partial class MainWindow : Window
         }
 
         if (e.Key != Key.Tab)
+        {
+            return;
+        }
+
+        if (GetEditorHost(textEditor).IsCaretInMarkdownTable)
         {
             return;
         }

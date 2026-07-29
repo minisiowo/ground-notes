@@ -115,6 +115,13 @@ internal sealed class SlashCommandPopupController : IDisposable
             return;
         }
 
+        if (command.Action == SlashCommandAction.FormatTable
+            && !MarkdownTableEditingCommands.IsInTable(document.Text, trigger.Start))
+        {
+            Close();
+            return;
+        }
+
         document.Replace(trigger.Start, trigger.Length, string.Empty);
         _editor.CaretOffset = trigger.Start;
         _editor.Select(trigger.Start, 0);
@@ -128,6 +135,8 @@ internal sealed class SlashCommandPopupController : IDisposable
             SlashCommandAction.CodeBlock => MarkdownEditingCommands.ToggleCodeBlock(document.Text, commandOffset, 0),
             SlashCommandAction.TaskList => MarkdownEditingCommands.ToggleTaskList(document.Text, commandOffset, 0),
             SlashCommandAction.BulletList => MarkdownEditingCommands.ToggleBulletList(document.Text, commandOffset, 0),
+            SlashCommandAction.Table => MarkdownTableEditingCommands.InsertTable(document.Text, commandOffset, 0),
+            SlashCommandAction.FormatTable when MarkdownTableEditingCommands.TryFormat(document.Text, commandOffset, out var tableEdit) => tableEdit,
             SlashCommandAction.Heading1 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 1),
             SlashCommandAction.Heading2 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 2),
             SlashCommandAction.Heading3 => MarkdownEditingCommands.ToggleHeading(document.Text, commandOffset, 0, 3),

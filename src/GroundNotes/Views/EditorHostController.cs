@@ -14,6 +14,7 @@ internal sealed class EditorHostController : IDisposable
     private readonly EditorTextSyncController _textSyncController;
     private readonly EditorLayoutController _layoutController;
     private readonly VimEditorController _vimController;
+    private readonly EditorMarkdownTableController _tableController;
     private readonly EditorMarkdownListController _listController;
 
     public EditorHostController(
@@ -24,9 +25,17 @@ internal sealed class EditorHostController : IDisposable
     {
         _editor = editor;
         _themeController = new EditorThemeController(editor, colorizer, copyCodeBlockAsync);
-        _textSyncController = new EditorTextSyncController(editor);
+        _textSyncController = new EditorTextSyncController(editor)
+        {
+            TextNormalizer = MarkdownTableFormatter.FormatAll
+        };
         _layoutController = new EditorLayoutController(editor);
+        _tableController = new EditorMarkdownTableController(editor);
         _vimController = new VimEditorController(editor, vimWorkspaceState ?? new VimWorkspaceState());
+        _tableController.SetTextInputCoordination(
+            () => !_vimController.IsEnabled || _vimController.Mode == VimMode.Insert,
+            _vimController.BeginExternalInsertUndoGroup,
+            _vimController.EndExternalInsertUndoGroup);
         _listController = new EditorMarkdownListController(editor, colorizer);
     }
 
@@ -76,10 +85,36 @@ internal sealed class EditorHostController : IDisposable
 
     public void ResetVimState() => _vimController.ResetState();
 
+    public bool SupportsMarkdownTables => _tableController.IsEnabled;
+
+    public bool IsCaretInMarkdownTable => _tableController.IsCaretInTable;
+
+    public bool ShouldHandleMarkdownTablePaste => _tableController.ShouldHandlePaste;
+
+    public bool FormatMarkdownTable() => _tableController.TryFormat();
+
+    public bool TryInsertMarkdownTableText(string text) => _tableController.TryInsertText(text);
+
+    public bool InsertMarkdownTableRow(bool above) => _tableController.TryInsertRow(above);
+
+    public bool DeleteMarkdownTableRow() => _tableController.TryDeleteRow();
+
+    public bool MoveMarkdownTableRow(bool down) => _tableController.TryMoveRow(down);
+
+    public bool InsertMarkdownTableColumn(bool before) => _tableController.TryInsertColumn(before);
+
+    public bool DeleteMarkdownTableColumn() => _tableController.TryDeleteColumn();
+
+    public bool MoveMarkdownTableColumn(bool right) => _tableController.TryMoveColumn(right);
+
+    public bool SetMarkdownTableAlignment(MarkdownTableAlignment alignment) => _tableController.TrySetAlignment(alignment);
+
     public void SetDocumentDisplayMode(EditorDocumentDisplayMode mode)
     {
         var markdownFormattingEnabled = mode == EditorDocumentDisplayMode.Markdown;
         _themeController.SetMarkdownFormattingEnabled(markdownFormattingEnabled);
+        _tableController.SetMarkdownFormattingEnabled(markdownFormattingEnabled);
+        _textSyncController.TextNormalizer = markdownFormattingEnabled ? MarkdownTableFormatter.FormatAll : null;
         _listController.SetMarkdownFormattingEnabled(markdownFormattingEnabled);
     }
 
@@ -114,6 +149,7 @@ internal sealed class EditorHostController : IDisposable
     public void Dispose()
     {
         _listController.Dispose();
+        _tableController.Dispose();
         _vimController.Dispose();
         _themeController.Dispose();
     }

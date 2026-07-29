@@ -15,6 +15,8 @@ internal sealed class EditorTextSyncController
 
     public bool IsUpdatingViewModelFromEditor { get; private set; }
 
+    public Func<string, string>? TextNormalizer { get; set; }
+
     public string GetText()
     {
         return _editor.Document?.Text ?? string.Empty;
@@ -35,6 +37,11 @@ internal sealed class EditorTextSyncController
         }
 
         text ??= string.Empty;
+        if (TextNormalizer is not null)
+        {
+            text = TextNormalizer(text);
+        }
+
         var currentText = document.Text;
         if (string.Equals(currentText, text, StringComparison.Ordinal))
         {

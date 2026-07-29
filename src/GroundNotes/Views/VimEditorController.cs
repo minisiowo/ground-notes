@@ -42,6 +42,24 @@ internal sealed class VimEditorController : IDisposable
 
     public VimMode Mode => _engine.Mode;
 
+    public bool IsEnabled => _settings.IsEnabled;
+
+    internal void BeginExternalInsertUndoGroup()
+    {
+        if (_settings.IsEnabled && _engine.Mode == VimMode.Insert)
+        {
+            BeginInsertUndoGroup();
+        }
+    }
+
+    internal void EndExternalInsertUndoGroup()
+    {
+        if (_settings.IsEnabled && _engine.Mode == VimMode.Insert)
+        {
+            EndInsertUndoGroup();
+        }
+    }
+
     internal bool ProcessSpecialKey(VimKey key) => ProcessVimInput(VimInput.Special(key));
 
     public void SetSettings(VimModeSettings? settings)

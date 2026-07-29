@@ -24,6 +24,7 @@ internal sealed class EditorThemeController : IDisposable
     private readonly MarkdownImageVisualLineTransformer _imageVisualLineTransformer;
     private readonly MarkdownImagePreviewLayer _imagePreviewLayer;
     private readonly MarkdownVisualLineIndentationProvider _visualLineIndentationProvider;
+    private readonly MarkdownTableColorizingTransformer _tableColorizer;
     private EditorAppearanceSignature _lastAppearanceSignature;
     private Size _lastTextViewBounds;
     private bool _isResizeRefreshQueued;
@@ -43,6 +44,7 @@ internal sealed class EditorThemeController : IDisposable
         _imageVisualLineTransformer = new MarkdownImageVisualLineTransformer(_imagePreviewProvider);
         _imagePreviewLayer = new MarkdownImagePreviewLayer(_editor.TextArea.TextView, _imagePreviewProvider);
         _visualLineIndentationProvider = new MarkdownVisualLineIndentationProvider(colorizer);
+        _tableColorizer = new MarkdownTableColorizingTransformer();
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
         _imagePreviewProvider.DeferredBitmapLoadsCompleted += OnDeferredBitmapLoadsCompleted;
@@ -55,6 +57,7 @@ internal sealed class EditorThemeController : IDisposable
         _editor.TextArea.TextView.InsertLayer(_codeBlockCopyLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
         _editor.TextArea.TextView.LineTransformers.Add(_imageVisualLineTransformer);
         _editor.TextArea.TextView.LineTransformers.Add(_colorizer);
+        _editor.TextArea.TextView.LineTransformers.Add(_tableColorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Add(_codeBlockRenderer);
         _editor.ResourcesChanged += OnEditorResourcesChanged;
         _editor.SizeChanged += OnEditorSizeChanged;
@@ -90,6 +93,7 @@ internal sealed class EditorThemeController : IDisposable
     {
         _lastAppearanceSignature = CaptureAppearanceSignature();
         _colorizer.InvalidateResourceCache();
+        _tableColorizer.Invalidate();
         _codeBlockRenderer.InvalidateBrush();
         _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
@@ -206,6 +210,7 @@ internal sealed class EditorThemeController : IDisposable
         _lastAppearanceSignature = currentSignature;
         ApplyEditorOptions(currentSignature);
         _colorizer.InvalidateResourceCache();
+        _tableColorizer.Invalidate();
         _codeBlockRenderer.InvalidateBrush();
         _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
@@ -243,10 +248,12 @@ internal sealed class EditorThemeController : IDisposable
         _editor.TextArea.TextView.Layers.Remove(_imagePreviewLayer);
         _editor.TextArea.TextView.LineTransformers.Remove(_imageVisualLineTransformer);
         _editor.TextArea.TextView.LineTransformers.Remove(_colorizer);
+        _editor.TextArea.TextView.LineTransformers.Remove(_tableColorizer);
         _editor.TextArea.TextView.BackgroundRenderers.Remove(_codeBlockRenderer);
         _imagePreviewLayer.Dispose();
         _codeBlockCopyLayer.Dispose();
         _imagePreviewProvider.Dispose();
+        _tableColorizer.Dispose();
     }
 
     private void AttachMarkdownPresentation()
@@ -275,6 +282,11 @@ internal sealed class EditorThemeController : IDisposable
             textView.LineTransformers.Add(_colorizer);
         }
 
+        if (!textView.LineTransformers.Contains(_tableColorizer))
+        {
+            textView.LineTransformers.Add(_tableColorizer);
+        }
+
         if (!textView.BackgroundRenderers.Contains(_codeBlockRenderer))
         {
             textView.BackgroundRenderers.Add(_codeBlockRenderer);
@@ -296,6 +308,7 @@ internal sealed class EditorThemeController : IDisposable
         textView.Layers.Remove(_imagePreviewLayer);
         textView.LineTransformers.Remove(_imageVisualLineTransformer);
         textView.LineTransformers.Remove(_colorizer);
+        textView.LineTransformers.Remove(_tableColorizer);
         textView.BackgroundRenderers.Remove(_codeBlockRenderer);
         textView.InvalidateVisual();
     }
@@ -303,6 +316,7 @@ internal sealed class EditorThemeController : IDisposable
     private void RefreshPresentation()
     {
         _colorizer.InvalidateResourceCache();
+        _tableColorizer.Invalidate();
         _codeBlockRenderer.InvalidateBrush();
         _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
