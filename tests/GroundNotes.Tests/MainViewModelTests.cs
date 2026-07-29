@@ -30,6 +30,36 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task NewNoteCommand_ClearsPreviousSidebarSelection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "alpha body", createdAt: new DateTime(2026, 3, 9, 7, 33, 0));
+        await WriteNoteAsync("beta.md", "beta", "beta body", createdAt: new DateTime(2026, 3, 10, 7, 33, 0));
+
+        using var vm = await CreateViewModelAsync(folderOverride: _tempRoot);
+        var alphaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        vm.SelectOnlySidebarNote(alphaRow);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(alphaRow.Note);
+
+        Assert.Equal("alpha", vm.CurrentNote?.Title);
+        Assert.Same(alphaRow, vm.SelectedSidebarRow);
+        Assert.True(alphaRow.Note!.IsSelected);
+
+        await vm.NewNoteCommand.ExecuteAsync(null);
+
+        Assert.Null(vm.CurrentNote);
+        Assert.Null(vm.SelectedNoteSummary);
+        Assert.Null(vm.SelectedVisibleNote);
+        Assert.Null(vm.SelectedSidebarRow);
+        Assert.Empty(vm.SelectedSidebarNotes);
+        Assert.All(vm.VisibleNotes, note =>
+        {
+            Assert.False(note.IsActive);
+            Assert.False(note.IsSelected);
+        });
+    }
+
+    [Fact]
     public async Task OpenNotePickerCommand_WaitsForQueryOrDownArrowBeforeShowingResults()
     {
         Directory.CreateDirectory(_tempRoot);

@@ -541,6 +541,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             {
                 SelectedNoteSummary = null;
                 SelectedVisibleNote = null;
+                SelectedSidebarRow = null;
+                ClearSidebarSelection();
                 return;
             }
 
@@ -959,6 +961,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         {
             ClearPane(ActiveSecondaryPane);
             ActiveSecondaryPane.IsOpen = true;
+            SyncSelectionToFilePath(null);
             StatusMessage = "New note ready.";
             FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { PaneId = ActiveSecondaryPane.Id });
             return;
@@ -971,7 +974,6 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         try
         {
             CurrentNote = null;
-            SelectedNoteSummary = null;
             EditorTitle = string.Empty;
             EditorTags = string.Empty;
             EditorBody = string.Empty;
@@ -983,6 +985,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             _isApplyingSelection = false;
         }
 
+        SyncSelectionToFilePath(null);
+        UpdateActiveVisibleNote(null);
         StatusMessage = "New note ready.";
         FocusEditorRequested?.Invoke(this, new FocusEditorRequestEventArgs { MoveCaretToEndOfBody = true });
     }
