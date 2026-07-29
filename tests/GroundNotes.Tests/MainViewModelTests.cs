@@ -30,6 +30,47 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task OpenNotePickerCommand_WaitsForQueryOrDownArrowBeforeShowingResults()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        for (var index = 1; index <= 5; index++)
+        {
+            await WriteNoteAsync(
+                $"note-{index}.md",
+                $"note-{index}",
+                $"body {index}",
+                createdAt: new DateTime(2026, 3, index, 7, 33, 0));
+        }
+
+        using var vm = await CreateViewModelAsync(folderOverride: _tempRoot);
+
+        vm.OpenNotePickerCommand.Execute(null);
+
+        Assert.Empty(vm.NotePickerResults);
+        Assert.True(vm.IsNotePickerIdle);
+        Assert.Equal("Type to search or press ↓ for recent notes.", vm.NotePickerStatusText);
+
+        vm.MoveNotePickerSelectionCommand.Execute(1);
+
+        Assert.False(vm.IsNotePickerIdle);
+        Assert.Equal(3, vm.NotePickerResults.Count);
+        Assert.Equal(
+            new[] { "note-5", "note-4", "note-3" },
+            vm.NotePickerResults.Select(note => note.Title).ToArray());
+        Assert.Equal("Showing 3 of 5 matches", vm.NotePickerStatusText);
+
+        vm.NotePickerQuery = "note";
+
+        Assert.Equal(5, vm.NotePickerResults.Count);
+        Assert.Equal("5 matches", vm.NotePickerStatusText);
+
+        vm.NotePickerQuery = string.Empty;
+
+        Assert.Empty(vm.NotePickerResults);
+        Assert.True(vm.IsNotePickerIdle);
+    }
+
+    [Fact]
     public async Task ShowKeyboardShortcutsHelpCommand_UsesDialogService()
     {
         Directory.CreateDirectory(_tempRoot);

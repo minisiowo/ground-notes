@@ -1509,19 +1509,12 @@ public partial class MainWindow : Window
             if (vm.IsNotePickerOpen)
             {
                 FocusNotePickerSearchTextBox();
-                UpdateNotePickerHeight();
             }
             else
             {
                 FocusEditorAfterNotePickerClosed(vm);
             }
 
-            return;
-        }
-
-        if (e.PropertyName == nameof(MainViewModel.NotePickerResults))
-        {
-            UpdateNotePickerHeight();
             return;
         }
 
@@ -1920,35 +1913,7 @@ public partial class MainWindow : Window
             Lerp(from.Bottom, to.Bottom, progress));
     }
 
-    private void UpdateNotePickerHeight()
-    {
-        if (DataContext is not MainViewModel vm || !vm.IsNotePickerOpen)
-        {
-            return;
-        }
 
-        // Defer to let the ListBox items update first
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            try
-            {
-                // Measure the border with the current width and unlimited height
-                NotePickerBorder.InvalidateMeasure();
-                NotePickerBorder.UpdateLayout();
-                NotePickerBorder.Measure(new Size(NotePickerBorder.Bounds.Width, double.PositiveInfinity));
-
-                // Clamp to window height minus some margin to prevent cutting off
-                var maxAllowedHeight = Bounds.Height - 80;
-                var targetHeight = Math.Min(maxAllowedHeight, NotePickerBorder.DesiredSize.Height);
-
-                // Set the height to trigger the DoubleTransition
-                NotePickerBorder.Height = targetHeight;
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }, Avalonia.Threading.DispatcherPriority.Render);
-    }
 
     private void FocusNotePickerSearchTextBox()
     {

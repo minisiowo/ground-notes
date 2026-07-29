@@ -23,7 +23,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private const double MaxFileListFontSize = 18;
     private const int DefaultEditorIndentSize = EditorDisplaySettings.DefaultIndentSize;
     private const double DefaultEditorLineHeightFactor = EditorDisplaySettings.DefaultLineHeightFactor;
-    private const int NotePickerResultLimitValue = 10;
+    private const int InitialNotePickerResultLimit = 3;
+    private const int SearchNotePickerResultLimit = 10;
 
     private readonly INotesRepository _notesRepository;
     private readonly ISettingsService _settingsService;
@@ -220,6 +221,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private bool _isNotePickerOpen;
 
     [ObservableProperty]
+    private bool _isShowingRecentNotePickerResults;
+
+    [ObservableProperty]
     private string _notePickerQuery = string.Empty;
 
     [ObservableProperty]
@@ -394,21 +398,33 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     public bool HasNotePickerResults => NotePickerResults.Count > 0;
 
-    public int NotePickerResultLimit => NotePickerResultLimitValue;
+    public bool IsNotePickerIdle => string.IsNullOrWhiteSpace(NotePickerQuery) && !IsShowingRecentNotePickerResults;
+
+    public int NotePickerResultLimit => string.IsNullOrWhiteSpace(NotePickerQuery)
+        ? InitialNotePickerResultLimit
+        : SearchNotePickerResultLimit;
 
     public bool IsNotePickerTruncated => NotePickerTotalMatchCount > NotePickerResultLimit;
 
     public string NotePickerStatusText => NotePickerTotalMatchCount switch
     {
+        _ when IsNotePickerIdle => "Type to search or press ↓ for recent notes.",
+        0 when IsShowingRecentNotePickerResults => "No recent notes.",
         0 => "No matching notes.",
         _ when IsNotePickerTruncated => $"Showing {NotePickerResults.Count} of {NotePickerTotalMatchCount} matches",
         1 => "1 match",
         _ => $"{NotePickerTotalMatchCount} matches"
     };
 
-    public string NotePickerFooterHint => IsNotePickerTruncated
-        ? "Refine search. Ctrl/Cmd+Enter opens a window; add Shift for ZEN."
-        : "Enter opens here. Ctrl/Cmd+Enter opens a window; add Shift for ZEN. Esc closes.";
+    public string NotePickerEmptyText => IsShowingRecentNotePickerResults
+        ? "No recent notes."
+        : "No matching notes.";
+
+    public string NotePickerFooterHint => IsNotePickerIdle
+        ? "Type to search. ↓ shows recent notes. Esc closes."
+        : IsNotePickerTruncated
+            ? "Refine search. Ctrl/Cmd+Enter opens a window; add Shift for ZEN."
+            : "Enter opens here. Ctrl/Cmd+Enter opens a window; add Shift for ZEN. Esc closes.";
 
     public bool ShowFolderPrompt => !HasSelectedFolder;
 
@@ -639,10 +655,36 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     partial void OnNotePickerQueryChanged(string value)
     {
-        if (IsNotePickerOpen)
+        IsShowingRecentNotePickerResults = false;
+        OnPropertyChanged(nameof(NotePickerResultLimit));
+        OnPropertyChanged(nameof(IsNotePickerTruncated));
+        OnPropertyChanged(nameof(IsNotePickerIdle));
+        OnPropertyChanged(nameof(NotePickerStatusText));
+        OnPropertyChanged(nameof(NotePickerEmptyText));
+        OnPropertyChanged(nameof(NotePickerFooterHint));
+
+        if (!IsNotePickerOpen)
         {
-            RefreshNotePickerResults();
+            return;
         }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            NotePickerResults = [];
+            SelectedNotePickerSummary = null;
+            NotePickerTotalMatchCount = 0;
+            return;
+        }
+
+        RefreshNotePickerResults();
+    }
+
+    partial void OnIsShowingRecentNotePickerResultsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsNotePickerIdle));
+        OnPropertyChanged(nameof(NotePickerStatusText));
+        OnPropertyChanged(nameof(NotePickerEmptyText));
+        OnPropertyChanged(nameof(NotePickerFooterHint));
     }
     partial void OnNotesFolderChanged(string value)
     {
@@ -713,7 +755,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(FooterStatusText));
     }
 
-    partial void OnNotePickerResultsChanged(ObservableCollection<NoteSummary> value) => OnPropertyChanged(nameof(HasNotePickerResults));
+    partial void OnNotePickerResultsChanged(ObservableCollection<NoteSummary> value)
+    {
+        OnPropertyChanged(nameof(HasNotePickerResults));
+        OnPropertyChanged(nameof(NotePickerStatusText));
+    }
 
     partial void OnAiPromptsChanged(IReadOnlyList<AiPromptDefinition> value) => OnPropertyChanged(nameof(HasAiPrompts));
 
@@ -1055,13 +1101,15 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         if (IsNotePickerOpen)
         {
-            RefreshNotePickerResults();
             return;
         }
 
-        IsNotePickerOpen = true;
+        IsShowingRecentNotePickerResults = false;
         NotePickerQuery = string.Empty;
-        RefreshNotePickerResults();
+        NotePickerResults = [];
+        SelectedNotePickerSummary = null;
+        NotePickerTotalMatchCount = 0;
+        IsNotePickerOpen = true;
     }
 
     [RelayCommand]
@@ -1073,6 +1121,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         IsNotePickerOpen = false;
+        IsShowingRecentNotePickerResults = false;
         NotePickerQuery = string.Empty;
         NotePickerResults = [];
         SelectedNotePickerSummary = null;
@@ -1082,8 +1131,19 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void MoveNotePickerSelection(int delta)
     {
-        if (!IsNotePickerOpen || NotePickerResults.Count == 0)
+        if (!IsNotePickerOpen)
         {
+            return;
+        }
+
+        if (NotePickerResults.Count == 0)
+        {
+            if (delta > 0 && string.IsNullOrWhiteSpace(NotePickerQuery))
+            {
+                IsShowingRecentNotePickerResults = true;
+                RefreshNotePickerResults();
+            }
+
             return;
         }
 

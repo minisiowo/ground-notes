@@ -714,7 +714,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
     private void RefreshNotePickerResults()
     {
-        if (!IsNotePickerOpen)
+        if (!IsNotePickerOpen || IsNotePickerIdle)
         {
             return;
         }
