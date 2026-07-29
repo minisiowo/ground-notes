@@ -9,8 +9,15 @@ using GroundNotes.Editors;
 
 namespace GroundNotes.Views;
 
-internal sealed class SlashCommandPopupController
+internal sealed class SlashCommandPopupController : IDisposable
 {
+    private const double EdgePadding = 12;
+    private const double HorizontalPadding = 4;
+    private const double VerticalPadding = 8;
+    private const double PreferredPopupWidth = 400;
+    private const double PreferredListHeight = 220;
+    private const double PopupChromeHeight = 54;
+
     private readonly TextEditor _editor;
     private readonly Border _editorBorder;
     private readonly Popup _popup;
@@ -19,6 +26,10 @@ internal sealed class SlashCommandPopupController
     private readonly TextBlock _hintText;
     private bool _isRefreshQueued;
     private bool _isPositionUpdateQueued;
+    private bool _needsPlacementReset;
+    private bool _isDisposed;
+    private SlashPopupVerticalPlacement? _verticalPlacement;
+    private SlashPopupHorizontalPlacement? _horizontalPlacement;
 
     public SlashCommandPopupController(
         TextEditor editor,
@@ -129,7 +140,7 @@ internal sealed class SlashCommandPopupController
 
     public void ScheduleRefresh(DispatcherPriority? priority = null)
     {
-        if (_isRefreshQueued)
+        if (_isDisposed || _isRefreshQueued)
         {
             return;
         }
@@ -138,13 +149,22 @@ internal sealed class SlashCommandPopupController
         Dispatcher.UIThread.Post(() =>
         {
             _isRefreshQueued = false;
-            Update();
+            if (!_isDisposed)
+            {
+                Update();
+            }
         }, priority ?? DispatcherPriority.Render);
     }
 
     public void SchedulePositionUpdate(bool resetPlacement = false)
     {
-        if (!_popup.IsOpen || _isPositionUpdateQueued)
+        if (_isDisposed || !_popup.IsOpen)
+        {
+            return;
+        }
+
+        _needsPlacementReset |= resetPlacement;
+        if (_isPositionUpdateQueued)
         {
             return;
         }
@@ -153,18 +173,49 @@ internal sealed class SlashCommandPopupController
         Dispatcher.UIThread.Post(() =>
         {
             _isPositionUpdateQueued = false;
-            UpdatePosition(resetPlacement);
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            var shouldResetPlacement = _needsPlacementReset;
+            _needsPlacementReset = false;
+            UpdatePosition(shouldResetPlacement);
         }, DispatcherPriority.Render);
     }
 
     public void Close()
     {
+        var wasOpen = _popup.IsOpen;
         ActiveTrigger = null;
         ActiveCommands = [];
+        _verticalPlacement = null;
+        _horizontalPlacement = null;
+        _needsPlacementReset = false;
         _popup.IsOpen = false;
         _listBox.ItemsSource = null;
         _listBox.SelectedItem = null;
-        _editor.Focus();
+        if (wasOpen && !_isDisposed)
+        {
+            _editor.Focus();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+        ActiveTrigger = null;
+        ActiveCommands = [];
+        _verticalPlacement = null;
+        _horizontalPlacement = null;
+        _popup.IsOpen = false;
+        _listBox.ItemsSource = null;
+        _listBox.SelectedItem = null;
     }
 
     private void Update()
@@ -194,10 +245,16 @@ internal sealed class SlashCommandPopupController
 
         ActiveTrigger = trigger;
         ActiveCommands = commands;
-        _popup.IsOpen = true;
+        if (!wasVisible)
+        {
+            _popupContent.Width = Math.Max(1, Math.Min(PreferredPopupWidth, _editorBorder.Bounds.Width - (EdgePadding * 2)));
+            _listBox.MaxHeight = PreferredListHeight;
+        }
+
         _listBox.ItemsSource = commands;
         _listBox.SelectedItem = commands[0];
         _hintText.Text = string.IsNullOrWhiteSpace(trigger.Value.Query) ? "Formatting commands" : $"/{trigger.Value.Query}";
+        _popup.IsOpen = true;
         _editor.Focus();
         SchedulePositionUpdate(!wasVisible);
     }
@@ -241,50 +298,28 @@ internal sealed class SlashCommandPopupController
                 return;
             }
 
-            const double edgePadding = 12;
-            const double horizontalPadding = 4;
-            const double verticalPadding = 8;
-            const double preferredPopupWidth = 400;
-            const double minPopupWidth = 120;
-            const double preferredListHeight = 220;
-            const double minListHeight = 80;
-            const double popupChromeHeight = 54;
-
-            var availableWidth = Math.Max(minPopupWidth, _editorBorder.Bounds.Width - (edgePadding * 2));
-            var maxPopupWidth = Math.Clamp(preferredPopupWidth, minPopupWidth, availableWidth);
             var anchorLeft = popupTopLeft.Value.X;
-            var anchorRight = popupTopLeft.Value.X + Math.Max(1, caretRect.Width);
             var anchorTop = popupTopLeft.Value.Y;
-            var anchorBottom = popupTopLeft.Value.Y + Math.Max(1, caretRect.Height);
-            var availableBelow = Math.Max(0, _editorBorder.Bounds.Height - anchorBottom - verticalPadding - edgePadding);
-            var availableAbove = Math.Max(0, anchorTop - verticalPadding - edgePadding);
-            var maxViewportHeight = Math.Max(minListHeight, Math.Max(availableBelow, availableAbove) - popupChromeHeight);
-            _listBox.MaxHeight = Math.Min(preferredListHeight, maxViewportHeight);
+            var anchorWidth = Math.Max(1, caretRect.Width);
+            var anchorHeight = Math.Max(1, caretRect.Height);
+            var layout = CalculateLayout(
+                _editorBorder.Bounds.Width,
+                _editorBorder.Bounds.Height,
+                anchorLeft,
+                anchorTop,
+                anchorWidth,
+                anchorHeight,
+                _popupContent.DesiredSize.Height,
+                resetPlacement ? null : _verticalPlacement,
+                resetPlacement ? null : _horizontalPlacement);
 
-            _popupContent.Width = double.NaN;
+            _verticalPlacement = layout.VerticalPlacement;
+            _horizontalPlacement = layout.HorizontalPlacement;
+            _popupContent.Width = layout.PopupWidth;
             _popupContent.Height = double.NaN;
-            _popupContent.InvalidateMeasure();
-            _popupContent.UpdateLayout();
-            _popupContent.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            _listBox.MaxHeight = layout.ListMaxHeight;
 
-            var targetWidth = Math.Clamp(_popupContent.DesiredSize.Width + 2, minPopupWidth, maxPopupWidth);
-            var targetHeight = Math.Min(maxViewportHeight + popupChromeHeight, _popupContent.DesiredSize.Height);
-            _popupContent.Width = targetWidth;
-            _popupContent.Height = targetHeight;
-
-            var availableRight = Math.Max(0, _editorBorder.Bounds.Width - anchorRight - horizontalPadding - edgePadding);
-            var availableLeft = Math.Max(0, anchorLeft - horizontalPadding - edgePadding);
-
-            var (anchor, gravity, horizontalOffset, verticalOffset) = ChoosePlacement(
-                targetWidth,
-                targetHeight,
-                availableBelow,
-                availableAbove,
-                availableRight,
-                availableLeft,
-                horizontalPadding,
-                verticalPadding);
-
+            var (anchor, gravity, horizontalOffset, verticalOffset) = ToPopupPlacement(layout);
             if (resetPlacement)
             {
                 _popup.PlacementRect = default;
@@ -294,52 +329,93 @@ internal sealed class SlashCommandPopupController
             _popup.PlacementGravity = gravity;
             _popup.HorizontalOffset = horizontalOffset;
             _popup.VerticalOffset = verticalOffset;
-            _popup.PlacementRect = new Rect(anchorLeft, anchorTop, Math.Max(1, caretRect.Width), Math.Max(1, caretRect.Height));
+            _popup.PlacementRect = new Rect(anchorLeft, anchorTop, anchorWidth, anchorHeight);
         }
         catch (InvalidOperationException)
         {
         }
     }
 
-    private static (PopupAnchor anchor, PopupGravity gravity, double horizontalOffset, double verticalOffset) ChoosePlacement(
-        double targetWidth,
-        double targetHeight,
-        double availableBelow,
-        double availableAbove,
-        double availableRight,
-        double availableLeft,
-        double horizontalPadding,
-        double verticalPadding)
+    internal static SlashCommandPopupLayout CalculateLayout(
+        double editorWidth,
+        double editorHeight,
+        double anchorLeft,
+        double anchorTop,
+        double anchorWidth,
+        double anchorHeight,
+        double desiredPopupHeight,
+        SlashPopupVerticalPlacement? currentVerticalPlacement = null,
+        SlashPopupHorizontalPlacement? currentHorizontalPlacement = null)
     {
-        if (availableBelow >= targetHeight && availableRight >= targetWidth)
-        {
-            return (PopupAnchor.BottomRight, PopupGravity.BottomRight, horizontalPadding, verticalPadding);
-        }
+        var anchorRight = anchorLeft + Math.Max(1, anchorWidth);
+        var anchorBottom = anchorTop + Math.Max(1, anchorHeight);
+        var availableBelow = Math.Max(0, editorHeight - anchorBottom - VerticalPadding - EdgePadding);
+        var availableAbove = Math.Max(0, anchorTop - VerticalPadding - EdgePadding);
+        var availableRight = Math.Max(0, editorWidth - anchorRight - HorizontalPadding - EdgePadding);
+        var availableLeft = Math.Max(0, anchorLeft - HorizontalPadding - EdgePadding);
+        var popupWidth = Math.Max(1, Math.Min(PreferredPopupWidth, editorWidth - (EdgePadding * 2)));
+        var requiredHeight = desiredPopupHeight > 0
+            ? Math.Min(PopupChromeHeight + PreferredListHeight, desiredPopupHeight)
+            : PopupChromeHeight + PreferredListHeight;
 
-        if (availableBelow >= targetHeight && availableLeft >= targetWidth)
+        var verticalPlacement = currentVerticalPlacement switch
         {
-            return (PopupAnchor.BottomLeft, PopupGravity.BottomLeft, -horizontalPadding, verticalPadding);
-        }
+            SlashPopupVerticalPlacement.Below when availableBelow >= Math.Min(requiredHeight, PopupChromeHeight) => SlashPopupVerticalPlacement.Below,
+            SlashPopupVerticalPlacement.Above when availableAbove >= Math.Min(requiredHeight, PopupChromeHeight) => SlashPopupVerticalPlacement.Above,
+            _ when availableBelow >= requiredHeight => SlashPopupVerticalPlacement.Below,
+            _ when availableAbove >= requiredHeight => SlashPopupVerticalPlacement.Above,
+            _ when availableBelow >= availableAbove => SlashPopupVerticalPlacement.Below,
+            _ => SlashPopupVerticalPlacement.Above
+        };
 
-        if (availableAbove >= targetHeight && availableRight >= targetWidth)
+        var horizontalPlacement = currentHorizontalPlacement switch
         {
-            return (PopupAnchor.TopRight, PopupGravity.TopRight, horizontalPadding, -verticalPadding);
-        }
+            SlashPopupHorizontalPlacement.Right when availableRight >= Math.Min(popupWidth, 120) => SlashPopupHorizontalPlacement.Right,
+            SlashPopupHorizontalPlacement.Left when availableLeft >= Math.Min(popupWidth, 120) => SlashPopupHorizontalPlacement.Left,
+            _ when availableRight >= popupWidth => SlashPopupHorizontalPlacement.Right,
+            _ when availableLeft >= popupWidth => SlashPopupHorizontalPlacement.Left,
+            _ when availableRight >= availableLeft => SlashPopupHorizontalPlacement.Right,
+            _ => SlashPopupHorizontalPlacement.Left
+        };
 
-        if (availableAbove >= targetHeight && availableLeft >= targetWidth)
+        var availableHeight = verticalPlacement == SlashPopupVerticalPlacement.Below
+            ? availableBelow
+            : availableAbove;
+        var listMaxHeight = Math.Min(PreferredListHeight, Math.Max(0, availableHeight - PopupChromeHeight));
+
+        return new SlashCommandPopupLayout(popupWidth, listMaxHeight, verticalPlacement, horizontalPlacement);
+    }
+
+    private static (PopupAnchor anchor, PopupGravity gravity, double horizontalOffset, double verticalOffset) ToPopupPlacement(
+        SlashCommandPopupLayout layout)
+    {
+        return (layout.VerticalPlacement, layout.HorizontalPlacement) switch
         {
-            return (PopupAnchor.TopLeft, PopupGravity.TopLeft, -horizontalPadding, -verticalPadding);
-        }
-
-        if (availableBelow >= availableAbove)
-        {
-            return availableRight >= availableLeft
-                ? (PopupAnchor.BottomRight, PopupGravity.BottomRight, horizontalPadding, verticalPadding)
-                : (PopupAnchor.BottomLeft, PopupGravity.BottomLeft, -horizontalPadding, verticalPadding);
-        }
-
-        return availableRight >= availableLeft
-            ? (PopupAnchor.TopRight, PopupGravity.TopRight, horizontalPadding, -verticalPadding)
-            : (PopupAnchor.TopLeft, PopupGravity.TopLeft, -horizontalPadding, -verticalPadding);
+            (SlashPopupVerticalPlacement.Below, SlashPopupHorizontalPlacement.Right) =>
+                (PopupAnchor.BottomRight, PopupGravity.BottomRight, HorizontalPadding, VerticalPadding),
+            (SlashPopupVerticalPlacement.Below, SlashPopupHorizontalPlacement.Left) =>
+                (PopupAnchor.BottomLeft, PopupGravity.BottomLeft, -HorizontalPadding, VerticalPadding),
+            (SlashPopupVerticalPlacement.Above, SlashPopupHorizontalPlacement.Right) =>
+                (PopupAnchor.TopRight, PopupGravity.TopRight, HorizontalPadding, -VerticalPadding),
+            _ => (PopupAnchor.TopLeft, PopupGravity.TopLeft, -HorizontalPadding, -VerticalPadding)
+        };
     }
 }
+
+internal enum SlashPopupVerticalPlacement
+{
+    Below,
+    Above
+}
+
+internal enum SlashPopupHorizontalPlacement
+{
+    Right,
+    Left
+}
+
+internal readonly record struct SlashCommandPopupLayout(
+    double PopupWidth,
+    double ListMaxHeight,
+    SlashPopupVerticalPlacement VerticalPlacement,
+    SlashPopupHorizontalPlacement HorizontalPlacement);

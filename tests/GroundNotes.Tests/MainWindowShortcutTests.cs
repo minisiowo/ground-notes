@@ -204,6 +204,67 @@ public sealed class MainWindowShortcutTests
         Assert.Equal(expected, SlashCommandPopupController.ShouldHandleNavigationKey(key, modifiers));
     }
 
+    [Fact]
+    public void SlashCommandPopupLayout_KeepsPlacementWhileFilteringResults()
+    {
+        var initial = SlashCommandPopupController.CalculateLayout(
+            editorWidth: 800,
+            editorHeight: 600,
+            anchorLeft: 300,
+            anchorTop: 280,
+            anchorWidth: 2,
+            anchorHeight: 18,
+            desiredPopupHeight: 274);
+        var filtered = SlashCommandPopupController.CalculateLayout(
+            editorWidth: 800,
+            editorHeight: 600,
+            anchorLeft: 300,
+            anchorTop: 280,
+            anchorWidth: 2,
+            anchorHeight: 18,
+            desiredPopupHeight: 96,
+            initial.VerticalPlacement,
+            initial.HorizontalPlacement);
+
+        Assert.Equal(initial.VerticalPlacement, filtered.VerticalPlacement);
+        Assert.Equal(initial.HorizontalPlacement, filtered.HorizontalPlacement);
+        Assert.Equal(initial.PopupWidth, filtered.PopupWidth);
+    }
+
+    [Fact]
+    public void SlashCommandPopupLayout_SwitchesWhenCurrentSideNoLongerFitsHeader()
+    {
+        var layout = SlashCommandPopupController.CalculateLayout(
+            editorWidth: 800,
+            editorHeight: 600,
+            anchorLeft: 300,
+            anchorTop: 570,
+            anchorWidth: 2,
+            anchorHeight: 18,
+            desiredPopupHeight: 274,
+            currentVerticalPlacement: SlashPopupVerticalPlacement.Below,
+            currentHorizontalPlacement: SlashPopupHorizontalPlacement.Right);
+
+        Assert.Equal(SlashPopupVerticalPlacement.Above, layout.VerticalPlacement);
+        Assert.True(layout.ListMaxHeight > 0);
+    }
+
+    [Fact]
+    public void SlashCommandPopupLayout_UsesActualSpaceInSmallEditors()
+    {
+        var layout = SlashCommandPopupController.CalculateLayout(
+            editorWidth: 100,
+            editorHeight: 120,
+            anchorLeft: 45,
+            anchorTop: 50,
+            anchorWidth: 2,
+            anchorHeight: 18,
+            desiredPopupHeight: 274);
+
+        Assert.Equal(76, layout.PopupWidth);
+        Assert.InRange(layout.ListMaxHeight, 0, 220);
+    }
+
     [Theory]
     [InlineData(Key.Enter, KeyModifiers.Control, true)]
     [InlineData(Key.Enter, KeyModifiers.Meta, true)]

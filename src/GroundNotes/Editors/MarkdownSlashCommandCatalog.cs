@@ -1,3 +1,5 @@
+using GroundNotes.Services;
+
 namespace GroundNotes.Editors;
 
 internal static class MarkdownSlashCommandCatalog
@@ -67,10 +69,31 @@ internal static class MarkdownSlashCommandCatalog
         }
 
         return All
-            .Where(command => command.Id.StartsWith(query, StringComparison.OrdinalIgnoreCase)
-                || command.Label.StartsWith(query, StringComparison.OrdinalIgnoreCase)
-                || command.Aliases.Any(alias => alias.StartsWith(query, StringComparison.OrdinalIgnoreCase)))
+            .Select((command, index) => new
+            {
+                Command = command,
+                Index = index,
+                Score = ScoreMatch(command, query)
+            })
+            .Where(result => result.Score is not null)
+            .OrderByDescending(result => result.Score)
+            .ThenBy(result => result.Index)
+            .Select(result => result.Command)
             .ToList();
+    }
+
+    private static int? ScoreMatch(MarkdownSlashCommand command, string query)
+    {
+        return command.Aliases
+            .Prepend(command.Label)
+            .Prepend(command.Id)
+            .Select(candidate => TextMatchScorer.Score(candidate, query))
+            .Where(score => score is not null)
+            .Select(score => score!.Value)
+            .DefaultIfEmpty(int.MinValue)
+            .Max() is var score && score != int.MinValue
+                ? score
+                : null;
     }
 }
 

@@ -282,6 +282,7 @@ public partial class MainWindow : Window
         }
 
         _windowResourcesDisposed = true;
+        _slashCommandPopup.Dispose();
         HideSidebarDragGhost();
         SidebarNotesContainer.RemoveHandler(DragDrop.DragEnterEvent, OnSidebarDragPositionChanged);
         SidebarNotesContainer.RemoveHandler(DragDrop.DragOverEvent, OnSidebarDragPositionChanged);
@@ -1338,6 +1339,7 @@ public partial class MainWindow : Window
         }
 
         _lastBoundSecondaryPaneId = activePaneId;
+        _slashCommandPopup.Dispose();
         _slashCommandPopup = new SlashCommandPopupController(
             targetEditor,
             targetBorder,

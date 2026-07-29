@@ -34,6 +34,22 @@ public sealed class MarkdownSlashCommandCatalogTests
     }
 
     [Fact]
+    public void Filter_RanksExactAndPrefixMatchesAheadOfSubstrings()
+    {
+        var results = MarkdownSlashCommandCatalog.Filter("code");
+
+        Assert.Equal(new[] { "code", "codeblock" }, results.Select(command => command.Id).ToArray());
+    }
+
+    [Fact]
+    public void Filter_SupportsCompactSubsequenceMatches()
+    {
+        var results = MarkdownSlashCommandCatalog.Filter("cdb");
+
+        Assert.Equal("codeblock", Assert.Single(results).Id);
+    }
+
+    [Fact]
     public void Filter_IncludesCodeBlockCommand()
     {
         var results = MarkdownSlashCommandCatalog.Filter("fence");
