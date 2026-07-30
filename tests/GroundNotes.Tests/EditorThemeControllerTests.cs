@@ -3,11 +3,13 @@ using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Media;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
 using GroundNotes.Editors;
+using GroundNotes.Styles;
 using GroundNotes.Views;
 using Xunit;
 
@@ -31,6 +33,74 @@ public sealed class EditorThemeControllerTests
         Assert.False(options.EnableEmailHyperlinks);
         Assert.False(options.RequireControlModifierForHyperlinkClick);
         Assert.False(options.WordWrapIndentation > 0);
+    }
+
+    [Fact]
+    public void WideTable_DoesNotWrapWhileOrdinaryTextStillWrapsAndScrollsHorizontally()
+    {
+        EnsureApplication();
+
+        using var colorizer = new MarkdownColorizingTransformer();
+        var ordinaryLine = "ordinary text that should wrap across several visual rows in a narrow editor viewport";
+        var tableText = MarkdownTableFormatter.FormatAll(
+            "| Header | Description |\n|---|---|\n| value | this table cell is intentionally much wider than the viewport and must remain on one visual row |");
+        var editor = CreateEditor(new TextDocument(ordinaryLine + "\n" + tableText), 180, 260, colorizer, out _);
+        var textView = editor.TextArea.TextView;
+        var ordinaryVisualLine = textView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(1));
+        var table = Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text));
+
+        Assert.True(ordinaryVisualLine.TextLines.Count > 1);
+        var narrowOrdinaryRowCount = ordinaryVisualLine.TextLines.Count;
+        foreach (var row in table.Rows)
+        {
+            var visualLine = textView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(table.StartLineNumber + row.Index));
+            Assert.Single(visualLine.TextLines);
+        }
+
+        var scrollable = Assert.IsAssignableFrom<IScrollable>(textView);
+        Assert.True(scrollable.Extent.Width > scrollable.Viewport.Width);
+        scrollable.Offset = new Vector(40, scrollable.Offset.Y);
+        Assert.True(scrollable.Offset.X > 0);
+        Assert.Equal(ScrollBarVisibility.Auto, editor.HorizontalScrollBarVisibility);
+
+        editor.Width = 420;
+        ApplyTextViewLayout(textView, 420, 260);
+        var resizedOrdinaryLine = textView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(1));
+        Assert.True(resizedOrdinaryLine.TextLines.Count < narrowOrdinaryRowCount);
+        foreach (var row in table.Rows)
+        {
+            var visualLine = textView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(table.StartLineNumber + row.Index));
+            Assert.Single(visualLine.TextLines);
+        }
+    }
+
+    [Fact]
+    public void TableInlineCode_KeepsSeparatorsVisuallyAligned()
+    {
+        EnsureApplication();
+        var resources = Application.Current!.Resources;
+        var originalCodeFont = resources[ThemeKeys.CodeFont];
+        try
+        {
+            resources[ThemeKeys.CodeFont] = new FontFamily("serif");
+            using var colorizer = new MarkdownColorizingTransformer();
+            var text = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| `code` | first |\n| abcdef | second |");
+            var editor = CreateEditor(new TextDocument(text), 520, 240, colorizer, out _);
+            var table = Assert.Single(MarkdownTableParser.FindTables(text));
+            var codeRow = table.Rows[2];
+            var plainRow = table.Rows[3];
+            var codeLine = editor.TextArea.TextView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(codeRow.Index + table.StartLineNumber));
+            var plainLine = editor.TextArea.TextView.GetOrConstructVisualLine(editor.Document.GetLineByNumber(plainRow.Index + table.StartLineNumber));
+            var codeColumn = codeLine.GetVisualColumn(codeRow.Cells[0].SegmentStart + codeRow.Cells[0].SegmentLength - codeRow.Start);
+            var plainColumn = plainLine.GetVisualColumn(plainRow.Cells[0].SegmentStart + plainRow.Cells[0].SegmentLength - plainRow.Start);
+            var codeX = codeLine.GetVisualPosition(codeColumn, AvaloniaEdit.Rendering.VisualYPosition.TextMiddle).X;
+            var plainX = plainLine.GetVisualPosition(plainColumn, AvaloniaEdit.Rendering.VisualYPosition.TextMiddle).X;
+            Assert.True(Math.Abs(codeX - plainX) < 0.5);
+        }
+        finally
+        {
+            resources[ThemeKeys.CodeFont] = originalCodeFont;
+        }
     }
 
     [Fact]

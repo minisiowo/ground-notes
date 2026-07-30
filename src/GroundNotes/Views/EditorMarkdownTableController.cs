@@ -19,6 +19,7 @@ internal sealed class EditorMarkdownTableController : IDisposable
     private int _sessionColumnIndex;
     private int _sessionCaretOffset;
     private string? _sessionBuffer;
+    private (int TableStart, int RowIndex, int ColumnIndex)? _emptyCellSelectAllArmed;
 
     public EditorMarkdownTableController(TextEditor editor)
     {
@@ -36,11 +37,28 @@ internal sealed class EditorMarkdownTableController : IDisposable
            && _editor.Document is { } document
            && MarkdownTableEditingCommands.IsInTable(document.Text, _editor.CaretOffset);
 
-    public bool ShouldHandlePaste
-        => _markdownFormattingEnabled
-           && _editor.Document is { } document
-           && (MarkdownTableEditingCommands.IsInTable(document.Text, _editor.SelectionStart)
-               || MarkdownTableEditingCommands.IsInTable(document.Text, _editor.CaretOffset));
+    public bool ShouldHandlePaste => SelectionTouchesTable;
+
+    public bool SelectionTouchesTable
+    {
+        get
+        {
+            if (!_markdownFormattingEnabled || _editor.Document is not { } document)
+            {
+                return false;
+            }
+
+            if (_editor.SelectionLength == 0)
+            {
+                return MarkdownTableEditingCommands.IsInTable(document.Text, _editor.CaretOffset);
+            }
+
+            var selectionStart = _editor.SelectionStart;
+            var selectionEnd = selectionStart + _editor.SelectionLength;
+            return MarkdownTableParser.FindTables(document.Text)
+                .Any(table => selectionStart < table.Start + table.Length && selectionEnd > table.Start);
+        }
+    }
 
     public void SetMarkdownFormattingEnabled(bool enabled) => _markdownFormattingEnabled = enabled;
 
@@ -64,19 +82,37 @@ internal sealed class EditorMarkdownTableController : IDisposable
     public bool TryInsertText(string text)
     {
         CommitAndClearSession();
-        if (!_markdownFormattingEnabled
-            || _editor.Document is not { } document
-            || !MarkdownTableEditingCommands.TryInsertCellText(
-                document.Text,
-                _editor.SelectionStart,
-                _editor.SelectionLength,
-                text,
-                out var edit))
+        if (!_markdownFormattingEnabled || _editor.Document is not { } document)
         {
             return false;
         }
 
-        ApplyEdit(edit);
+        if (MarkdownTableEditingCommands.TryInsertCellText(
+            document.Text,
+            _editor.SelectionStart,
+            _editor.SelectionLength,
+            text,
+            out var cellEdit))
+        {
+            ApplyEdit(cellEdit);
+            return true;
+        }
+
+        if (!MarkdownTableEditingCommands.CanReplaceSelectionContainingTables(
+            document.Text,
+            _editor.SelectionStart,
+            _editor.SelectionLength))
+        {
+            return false;
+        }
+
+        var replacement = MarkdownTableFormatter.FormatAll(text);
+        ApplyEdit(new MarkdownEditResult(
+            _editor.SelectionStart,
+            _editor.SelectionLength,
+            replacement,
+            _editor.SelectionStart + replacement.Length,
+            0));
         return true;
     }
 
@@ -84,6 +120,82 @@ internal sealed class EditorMarkdownTableController : IDisposable
         => TryApply((string text, int offset, out MarkdownEditResult edit) => MarkdownTableEditingCommands.TryInsertRow(text, offset, above, out edit));
 
     public bool TryDeleteRow() => TryApply(MarkdownTableEditingCommands.TryDeleteRow);
+
+    public bool CanDeleteSelection
+        => _editor.SelectionLength != 0
+           && _editor.Document is { } document
+           && (MarkdownTableEditingCommands.TryDeleteCellSelection(
+                   document.Text,
+                   _editor.SelectionStart,
+                   _editor.SelectionLength,
+                   out _)
+               || MarkdownTableEditingCommands.CanReplaceSelectionContainingTables(
+                   document.Text,
+                   _editor.SelectionStart,
+                   _editor.SelectionLength));
+
+    public bool TryDeleteSelection()
+        => _editor.SelectionLength != 0 && TryHandleCellDeletion(backwards: true);
+
+    public bool TryApplyExternalTextEdit(int start, int length, string newText, int caretOffset)
+    {
+        if (!_markdownFormattingEnabled || _editor.Document is not { } document)
+        {
+            return false;
+        }
+
+        var editStart = Math.Clamp(start, 0, document.TextLength);
+        var editLength = Math.Clamp(length, 0, document.TextLength - editStart);
+        var end = editStart + editLength;
+        var touchedTables = MarkdownTableParser.FindTables(document.Text)
+            .Where(table => editLength == 0
+                ? editStart >= table.Start && editStart <= table.Start + table.Length
+                : editStart < table.Start + table.Length && end > table.Start)
+            .ToList();
+        if (touchedTables.Count == 0)
+        {
+            return false;
+        }
+
+        ClearSession();
+        if (MarkdownTableEditingCommands.CanReplaceSelectionContainingTables(
+            document.Text,
+            editStart,
+            editLength))
+        {
+            var replacement = MarkdownTableFormatter.FormatAll(newText);
+            ApplyEdit(new MarkdownEditResult(editStart, editLength, replacement, editStart + replacement.Length, 0));
+            return true;
+        }
+
+        if (touchedTables.Count == 1 && string.IsNullOrEmpty(newText))
+        {
+            var table = touchedTables[0];
+            var deletedRow = table.Rows.FirstOrDefault(row => row.Index >= 2
+                && editStart == row.Start
+                && end >= row.Start + row.Length);
+            if (deletedRow is not null
+                && MarkdownTableEditingCommands.TryDeleteRow(document.Text, deletedRow.Cells[0].EditableStart, out var rowEdit))
+            {
+                ApplyEdit(rowEdit);
+                return true;
+            }
+        }
+
+        var rawEdit = new MarkdownEditResult(
+            editStart,
+            editLength,
+            newText,
+            Math.Clamp(caretOffset, editStart, editStart + newText.Length),
+            0);
+        if (touchedTables.Count == 1
+            && MarkdownTableEditingCommands.TryAdaptCellEdit(document.Text, rawEdit, out var tableEdit))
+        {
+            ApplyEdit(tableEdit);
+        }
+
+        return true;
+    }
 
     public bool TryMoveRow(bool down)
         => TryApply((string text, int offset, out MarkdownEditResult edit) => MarkdownTableEditingCommands.TryMoveRow(text, offset, down, out edit));
@@ -96,8 +208,7 @@ internal sealed class EditorMarkdownTableController : IDisposable
     public bool TryMoveColumn(bool right)
         => TryApply((string text, int offset, out MarkdownEditResult edit) => MarkdownTableEditingCommands.TryMoveColumn(text, offset, right, out edit));
 
-    public bool TrySetAlignment(MarkdownTableAlignment alignment)
-        => TryApply((string text, int offset, out MarkdownEditResult edit) => MarkdownTableEditingCommands.TrySetAlignment(text, offset, alignment, out edit));
+
 
     public void Dispose()
     {
@@ -112,15 +223,31 @@ internal sealed class EditorMarkdownTableController : IDisposable
     {
         if (e.Handled
             || !_markdownFormattingEnabled
-            || _editor.Document is null
-            || _editor.SelectionLength != 0)
+            || _editor.Document is null)
         {
             return;
         }
 
-        if (e.Key is Key.Back or Key.Delete && e.KeyModifiers == KeyModifiers.None)
+        var isSelectAll = e.Key == Key.A
+                          && e.KeyModifiers is KeyModifiers.Control or KeyModifiers.Meta;
+        if (isSelectAll)
         {
-            if (TryHandleCellDeletion(backwards: e.Key == Key.Back))
+            if (_canHandleTextInput?.Invoke() != false && TryHandleSelectAll())
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        _emptyCellSelectAllArmed = null;
+
+        if (e.Key is Key.Back or Key.Delete
+            && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Control)
+        {
+            if (TryHandleCellDeletion(
+                backwards: e.Key == Key.Back,
+                byWord: e.KeyModifiers == KeyModifiers.Control))
             {
                 e.Handled = true;
             }
@@ -161,10 +288,84 @@ internal sealed class EditorMarkdownTableController : IDisposable
 
     private void OnEditorTextChanged(object? sender, EventArgs e)
     {
+        _emptyCellSelectAllArmed = null;
         if (!_isApplyingTableEdit)
         {
             ClearSession();
         }
+    }
+
+    internal bool TryHandleSelectAll()
+    {
+        if (!_markdownFormattingEnabled || _editor.Document is not { } document)
+        {
+            return false;
+        }
+
+        var tables = MarkdownTableParser.FindTables(document.Text);
+        if (_editor.SelectionStart == 0 && _editor.SelectionLength == document.TextLength)
+        {
+            return false;
+        }
+
+        foreach (var table in tables)
+        {
+            if (_editor.SelectionStart == table.Start && _editor.SelectionLength == table.Length)
+            {
+                _emptyCellSelectAllArmed = null;
+                _editor.Select(0, document.TextLength);
+                _editor.CaretOffset = document.TextLength;
+                return true;
+            }
+        }
+
+        foreach (var table in tables)
+        {
+            for (var rowIndex = 0; rowIndex < table.Rows.Count; rowIndex++)
+            {
+                var row = table.Rows[rowIndex];
+                if (row.IsDelimiter)
+                {
+                    continue;
+                }
+
+                for (var columnIndex = 0; columnIndex < row.Cells.Count; columnIndex++)
+                {
+                    var cell = row.Cells[columnIndex];
+                    var isArmedEmptyCell = cell.ContentLength == 0
+                                           && _editor.SelectionLength == 0
+                                           && _emptyCellSelectAllArmed == (table.Start, rowIndex, columnIndex)
+                                           && _editor.CaretOffset == cell.EditableStart;
+                    var isSelectedCell = cell.ContentLength > 0
+                                         && _editor.SelectionStart == cell.EditableStart
+                                         && _editor.SelectionLength == cell.ContentLength;
+                    if (!isArmedEmptyCell && !isSelectedCell)
+                    {
+                        continue;
+                    }
+
+                    _emptyCellSelectAllArmed = null;
+                    _editor.Select(table.Start, table.Length);
+                    _editor.CaretOffset = table.Start + table.Length;
+                    return true;
+                }
+            }
+        }
+
+        if (!MarkdownTableParser.TryFindTableAtOffset(document.Text, _editor.CaretOffset, out var caretTable)
+            || !caretTable.TryGetCellAtOffset(_editor.CaretOffset, out var position))
+        {
+            _emptyCellSelectAllArmed = null;
+            return false;
+        }
+
+        var caretCell = caretTable.Rows[position.RowIndex].Cells[position.ColumnIndex];
+        _editor.Select(caretCell.EditableStart, caretCell.ContentLength);
+        _editor.CaretOffset = caretCell.EditableStart + caretCell.ContentLength;
+        _emptyCellSelectAllArmed = caretCell.ContentLength == 0
+            ? (caretTable.Start, position.RowIndex, position.ColumnIndex)
+            : null;
+        return true;
     }
 
     private void OnCaretPositionChanged(object? sender, EventArgs e)
@@ -255,28 +456,38 @@ internal sealed class EditorMarkdownTableController : IDisposable
 
         if (_editor.SelectionLength != 0)
         {
-            if (_editor.Document is { } selectionDocument
-                && MarkdownTableEditingCommands.IsInTable(selectionDocument.Text, _editor.SelectionStart))
+            if (_editor.Document is not { } selectionDocument || !SelectionTouchesTable)
             {
-                e.Handled = true;
-                _beginHandledTextInput?.Invoke();
-                try
+                return;
+            }
+
+            if (MarkdownTableEditingCommands.CanReplaceSelectionContainingTables(
+                selectionDocument.Text,
+                _editor.SelectionStart,
+                _editor.SelectionLength))
+            {
+                ClearSession();
+                return;
+            }
+
+            e.Handled = true;
+            _beginHandledTextInput?.Invoke();
+            try
+            {
+                if (MarkdownTableEditingCommands.TryInsertCellText(
+                    selectionDocument.Text,
+                    _editor.SelectionStart,
+                    _editor.SelectionLength,
+                    e.Text,
+                    out var selectionEdit))
                 {
-                    if (MarkdownTableEditingCommands.TryInsertCellText(
-                        selectionDocument.Text,
-                        _editor.SelectionStart,
-                        _editor.SelectionLength,
-                        e.Text,
-                        out var selectionEdit))
-                    {
-                        ClearSession();
-                        ApplyEdit(selectionEdit);
-                    }
+                    ClearSession();
+                    ApplyEdit(selectionEdit);
                 }
-                finally
-                {
-                    _endHandledTextInput?.Invoke();
-                }
+            }
+            finally
+            {
+                _endHandledTextInput?.Invoke();
             }
 
             return;
@@ -360,15 +571,67 @@ internal sealed class EditorMarkdownTableController : IDisposable
         }
     }
 
-    private bool TryHandleCellDeletion(bool backwards)
+    internal bool TryHandleCellDeletion(bool backwards, bool byWord = false)
     {
-        if (!EnsureSession() || _sessionBuffer is null || _editor.Document is not { } document)
+        if (_editor.Document is not { } document)
+        {
+            return false;
+        }
+
+        if (_editor.SelectionLength != 0)
+        {
+            if (!SelectionTouchesTable)
+            {
+                return false;
+            }
+
+            ClearSession();
+            if (!MarkdownTableEditingCommands.TryDeleteCellSelection(
+                    document.Text,
+                    _editor.SelectionStart,
+                    _editor.SelectionLength,
+                    out var selectionEdit)
+                && MarkdownTableEditingCommands.CanReplaceSelectionContainingTables(
+                    document.Text,
+                    _editor.SelectionStart,
+                    _editor.SelectionLength))
+            {
+                selectionEdit = new MarkdownEditResult(
+                    _editor.SelectionStart,
+                    _editor.SelectionLength,
+                    string.Empty,
+                    _editor.SelectionStart,
+                    0);
+            }
+
+            if (selectionEdit.Length != 0 || selectionEdit.Replacement.Length != 0)
+            {
+                _beginHandledTextInput?.Invoke();
+                try
+                {
+                    ApplyEdit(selectionEdit);
+                }
+                finally
+                {
+                    _endHandledTextInput?.Invoke();
+                }
+            }
+
+            return true;
+        }
+
+        if (!EnsureSession() || _sessionBuffer is null)
         {
             return false;
         }
 
         if (_sessionCaretOffset == 0 && backwards)
         {
+            if (byWord)
+            {
+                return true;
+            }
+
             var table = MarkdownTableParser.FindTables(document.Text).FirstOrDefault(candidate => candidate.Start == _sessionTableStart);
             var isEmptyRow = table is not null
                              && _sessionRowIndex >= 2
@@ -389,29 +652,14 @@ internal sealed class EditorMarkdownTableController : IDisposable
             return true;
         }
 
-        var deleteAt = backwards ? _sessionCaretOffset - 1 : _sessionCaretOffset;
-        if (deleteAt < 0 || deleteAt >= _sessionBuffer.Length)
-        {
-            return true;
-        }
-
-        var deleteLength = 1;
-        if (backwards && deleteAt > 0 && char.IsLowSurrogate(_sessionBuffer[deleteAt]) && char.IsHighSurrogate(_sessionBuffer[deleteAt - 1]))
-        {
-            deleteAt--;
-            deleteLength = 2;
-        }
-        else if (!backwards && deleteAt + 1 < _sessionBuffer.Length && char.IsHighSurrogate(_sessionBuffer[deleteAt]) && char.IsLowSurrogate(_sessionBuffer[deleteAt + 1]))
-        {
-            deleteLength = 2;
-        }
-
-        _sessionBuffer = _sessionBuffer.Remove(deleteAt, deleteLength);
-        if (backwards)
-        {
-            _sessionCaretOffset -= deleteLength;
-        }
-
+        MarkdownTableEditingCommands.DeleteCellContent(
+            _sessionBuffer,
+            _sessionCaretOffset,
+            0,
+            backwards,
+            byWord,
+            out _sessionBuffer,
+            out _sessionCaretOffset);
         ApplySessionBufferWithUndoCoordination();
         return true;
     }

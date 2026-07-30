@@ -194,6 +194,155 @@ public sealed class EditorMarkdownTableControllerTests
     }
 
     [Fact]
+    public void CtrlBackspaceRepeatedlyKeepsTableStructureIntact()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one two | value |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var table = Assert.Single(MarkdownTableParser.FindTables(initial));
+        editor.CaretOffset = table.Rows[2].Cells[0].EditableEnd;
+
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.True(controller.TryHandleCellDeletion(true, true));
+            Assert.Equal(2, Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).ColumnCount);
+        }
+    }
+
+    [Fact]
+    public void DeleteWithCrossCellSelectionIsBlocked()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var table = Assert.Single(MarkdownTableParser.FindTables(initial));
+        editor.Select(table.Rows[2].Cells[0].EditableStart, table.Rows[2].Cells[1].EditableEnd - table.Rows[2].Cells[0].EditableStart);
+        Assert.True(controller.TryHandleCellDeletion(true));
+        Assert.Equal(initial, editor.Document.Text);
+    }
+
+    [Fact]
+    public void BackspaceDeletesFullySelectedTable()
+    {
+        EnsureApplication();
+        var tableText = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
+        var initial = "Before\n" + tableText + "\nAfter";
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var table = Assert.Single(MarkdownTableParser.FindTables(initial));
+        editor.Select(table.Start, table.Length);
+        Assert.True(controller.TryHandleCellDeletion(true));
+        Assert.Equal("Before\n\nAfter", editor.Document.Text);
+    }
+
+    [Fact]
+    public void BackspaceDeletesTextContainingCompleteTable()
+    {
+        EnsureApplication();
+        var tableText = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
+        var initial = "Before\n" + tableText + "\nAfter";
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        editor.Select(0, initial.Length);
+        Assert.True(controller.TryHandleCellDeletion(true));
+        Assert.Equal(string.Empty, editor.Document.Text);
+    }
+
+    [Fact]
+    public void BackspaceCannotExposeEscapedPipeAsSeparator()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| a\\|b | value |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var cell = Assert.Single(MarkdownTableParser.FindTables(initial)).Rows[2].Cells[0];
+        editor.CaretOffset = cell.EditableStart + cell.Content.IndexOf('|');
+        Assert.True(controller.TryHandleCellDeletion(true));
+        Assert.Equal("a\\|b", Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).Rows[2].Cells[0].Content);
+    }
+
+    [Fact]
+    public void ExternalTextEdit_ChangesCellContentWithoutExposingStructure()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var cell = Assert.Single(MarkdownTableParser.FindTables(initial)).Rows[2].Cells[0];
+        Assert.True(controller.TryApplyExternalTextEdit(cell.EditableStart, 1, string.Empty, cell.EditableStart));
+        Assert.Equal("ne", Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).Rows[2].Cells[0].Content);
+    }
+
+    [Fact]
+    public void ExternalTextEdit_BlocksSeparatorDeletion()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var cell = Assert.Single(MarkdownTableParser.FindTables(initial)).Rows[2].Cells[0];
+        var separator = cell.SegmentStart + cell.SegmentLength;
+        Assert.True(controller.TryApplyExternalTextEdit(separator, 1, string.Empty, separator));
+        Assert.Equal(initial, editor.Document.Text);
+    }
+
+    [Fact]
+    public void ExternalTextEdit_DeletesWholeBodyRowSemantically()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |\n| two | second |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var row = Assert.Single(MarkdownTableParser.FindTables(initial)).Rows[2];
+        Assert.True(controller.TryApplyExternalTextEdit(row.Start, row.Length + 1, string.Empty, row.Start));
+        Assert.Equal("two", Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).Rows[2].Cells[0].Content);
+    }
+
+    [Fact]
+    public void SelectAll_ExpandsFromCellToTableToDocument()
+    {
+        EnsureApplication();
+        var tableText = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
+        var initial = "Before\n" + tableText + "\nAfter";
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var table = Assert.Single(MarkdownTableParser.FindTables(initial));
+        var cell = table.Rows[2].Cells[0];
+        editor.CaretOffset = cell.EditableStart + 1;
+
+        Assert.True(controller.TryHandleSelectAll());
+        Assert.Equal(cell.EditableStart, editor.SelectionStart);
+        Assert.Equal(cell.ContentLength, editor.SelectionLength);
+
+        Assert.True(controller.TryHandleSelectAll());
+        Assert.Equal(table.Start, editor.SelectionStart);
+        Assert.Equal(table.Length, editor.SelectionLength);
+
+        Assert.True(controller.TryHandleSelectAll());
+        Assert.Equal(0, editor.SelectionStart);
+        Assert.Equal(initial.Length, editor.SelectionLength);
+    }
+
+    [Fact]
+    public void SelectAll_EmptyCellStillAdvancesToWholeTableOnSecondInvocation()
+    {
+        EnsureApplication();
+        var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| | two |");
+        var editor = new TextEditor { Document = new TextDocument(initial) };
+        using var controller = new EditorMarkdownTableController(editor);
+        var table = Assert.Single(MarkdownTableParser.FindTables(initial));
+        editor.CaretOffset = table.Rows[2].Cells[0].EditableStart;
+
+        Assert.True(controller.TryHandleSelectAll());
+        Assert.Equal(0, editor.SelectionLength);
+        Assert.True(controller.TryHandleSelectAll());
+        Assert.Equal(table.Start, editor.SelectionStart);
+        Assert.Equal(table.Length, editor.SelectionLength);
+    }
+
+    [Fact]
     public void HostController_LiveFormattingWorksInVimInsertMode()
     {
         EnsureApplication();

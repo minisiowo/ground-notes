@@ -6,33 +6,21 @@ using GroundNotes.Styles;
 
 namespace GroundNotes.Editors;
 
-internal sealed class MarkdownTableColorizingTransformer : DocumentColorizingTransformer, IDisposable
+internal sealed class MarkdownTableColorizingTransformer : DocumentColorizingTransformer
 {
-    private TextDocument? _document;
-    private IReadOnlyList<MarkdownTable>? _tables;
+    private readonly MarkdownTablePresentationIndex _tableIndex;
 
-    public void Invalidate()
+    public MarkdownTableColorizingTransformer(MarkdownTablePresentationIndex tableIndex)
     {
-        _tables = null;
+        _tableIndex = tableIndex;
     }
 
-    public void Dispose()
-    {
-        if (_document is not null)
-        {
-            _document.Changed -= OnDocumentChanged;
-            _document = null;
-        }
 
-        _tables = null;
-    }
 
     protected override void ColorizeLine(DocumentLine line)
     {
         var document = CurrentContext.Document;
-        Attach(document);
-        _tables ??= MarkdownTableParser.FindTables(document.Text);
-        var table = _tables.FirstOrDefault(candidate => line.LineNumber >= candidate.StartLineNumber && line.LineNumber <= candidate.EndLineNumber);
+        var table = _tableIndex.GetTableForLine(document, line.LineNumber);
         if (table is null)
         {
             return;
@@ -44,15 +32,18 @@ internal sealed class MarkdownTableColorizingTransformer : DocumentColorizingTra
             return;
         }
 
+        var tableFontFamily = GetTableFontFamily();
+        ApplyStyle(line.Offset, line.EndOffset, null, null, tableFontFamily);
+
         if (row.IsDelimiter)
         {
-            ApplyStyle(line.Offset, line.EndOffset, GetBrush(ThemeKeys.MarkdownRuleBrush), FontWeight.SemiBold);
+            ApplyStyle(line.Offset, line.EndOffset, GetBrush(ThemeKeys.MarkdownRuleBrush), FontWeight.SemiBold, tableFontFamily);
             return;
         }
 
         if (row.Index == 0)
         {
-            ApplyStyle(line.Offset, line.EndOffset, null, FontWeight.SemiBold);
+            ApplyStyle(line.Offset, line.EndOffset, null, FontWeight.SemiBold, tableFontFamily);
         }
 
         var lineText = document.GetText(line.Offset, line.Length);
@@ -66,26 +57,9 @@ internal sealed class MarkdownTableColorizingTransformer : DocumentColorizingTra
         }
     }
 
-    private void Attach(TextDocument document)
-    {
-        if (ReferenceEquals(_document, document))
-        {
-            return;
-        }
 
-        if (_document is not null)
-        {
-            _document.Changed -= OnDocumentChanged;
-        }
 
-        _document = document;
-        _document.Changed += OnDocumentChanged;
-        _tables = null;
-    }
-
-    private void OnDocumentChanged(object? sender, DocumentChangeEventArgs e) => _tables = null;
-
-    private void ApplyStyle(int start, int end, IBrush? foreground, FontWeight? weight)
+    private void ApplyStyle(int start, int end, IBrush? foreground, FontWeight? weight, FontFamily? fontFamily = null)
     {
         if (end <= start)
         {
@@ -99,13 +73,22 @@ internal sealed class MarkdownTableColorizingTransformer : DocumentColorizingTra
                 element.TextRunProperties.SetForegroundBrush(foreground);
             }
 
-            if (weight is FontWeight fontWeight)
+            if (fontFamily is null && weight is null)
             {
-                var current = element.TextRunProperties.Typeface;
-                element.TextRunProperties.SetTypeface(new Typeface(current.FontFamily, current.Style, fontWeight, current.Stretch));
+                return;
             }
+
+            var current = element.TextRunProperties.Typeface;
+            element.TextRunProperties.SetTypeface(new Typeface(
+                fontFamily ?? current.FontFamily,
+                current.Style,
+                weight ?? current.Weight,
+                current.Stretch));
         });
     }
+
+    private static FontFamily? GetTableFontFamily()
+        => Application.Current?.Resources[ThemeKeys.TerminalFont] as FontFamily;
 
     private static bool IsEscaped(string text, int index)
     {

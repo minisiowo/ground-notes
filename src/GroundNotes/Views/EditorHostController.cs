@@ -32,6 +32,7 @@ internal sealed class EditorHostController : IDisposable
         _layoutController = new EditorLayoutController(editor);
         _tableController = new EditorMarkdownTableController(editor);
         _vimController = new VimEditorController(editor, vimWorkspaceState ?? new VimWorkspaceState());
+        _vimController.SetExternalTextEditHandler(_tableController.TryApplyExternalTextEdit);
         _tableController.SetTextInputCoordination(
             () => !_vimController.IsEnabled || _vimController.Mode == VimMode.Insert,
             _vimController.BeginExternalInsertUndoGroup,
@@ -91,6 +92,8 @@ internal sealed class EditorHostController : IDisposable
 
     public bool ShouldHandleMarkdownTablePaste => _tableController.ShouldHandlePaste;
 
+    public bool DoesSelectionTouchMarkdownTable => _tableController.SelectionTouchesTable;
+
     public bool FormatMarkdownTable() => _tableController.TryFormat();
 
     public bool TryInsertMarkdownTableText(string text) => _tableController.TryInsertText(text);
@@ -98,6 +101,10 @@ internal sealed class EditorHostController : IDisposable
     public bool InsertMarkdownTableRow(bool above) => _tableController.TryInsertRow(above);
 
     public bool DeleteMarkdownTableRow() => _tableController.TryDeleteRow();
+
+    public bool CanDeleteMarkdownTableSelection => _tableController.CanDeleteSelection;
+
+    public bool DeleteMarkdownTableSelection() => _tableController.TryDeleteSelection();
 
     public bool MoveMarkdownTableRow(bool down) => _tableController.TryMoveRow(down);
 
@@ -107,7 +114,7 @@ internal sealed class EditorHostController : IDisposable
 
     public bool MoveMarkdownTableColumn(bool right) => _tableController.TryMoveColumn(right);
 
-    public bool SetMarkdownTableAlignment(MarkdownTableAlignment alignment) => _tableController.TrySetAlignment(alignment);
+
 
     public void SetDocumentDisplayMode(EditorDocumentDisplayMode mode)
     {

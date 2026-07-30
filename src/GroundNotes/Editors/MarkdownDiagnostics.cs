@@ -26,6 +26,9 @@ internal static class MarkdownDiagnostics
     private static int _deferredBitmapLoadRequests;
     private static int _deferredBitmapLoads;
     private static int _deferredBitmapLoadSkips;
+    private static int _tableParses;
+    private static int _tableLayoutRefreshRequests;
+    private static int _tableLayoutRefreshPosts;
 
     public static MarkdownDiagnosticsSnapshot Snapshot()
         => new(
@@ -52,7 +55,10 @@ internal static class MarkdownDiagnostics
             _previewLayerDrawnPreviews,
             _deferredBitmapLoadRequests,
             _deferredBitmapLoads,
-            _deferredBitmapLoadSkips);
+            _deferredBitmapLoadSkips,
+            _tableParses,
+            _tableLayoutRefreshRequests,
+            _tableLayoutRefreshPosts);
 
     public static void Reset()
     {
@@ -80,6 +86,9 @@ internal static class MarkdownDiagnostics
         _deferredBitmapLoadRequests = 0;
         _deferredBitmapLoads = 0;
         _deferredBitmapLoadSkips = 0;
+        _tableParses = 0;
+        _tableLayoutRefreshRequests = 0;
+        _tableLayoutRefreshPosts = 0;
     }
 
     public static void RecordLineAnalyzed() => Interlocked.Increment(ref _linesAnalyzed);
@@ -129,6 +138,12 @@ internal static class MarkdownDiagnostics
     public static void RecordDeferredBitmapLoad() => Interlocked.Increment(ref _deferredBitmapLoads);
 
     public static void RecordDeferredBitmapLoadSkip() => Interlocked.Increment(ref _deferredBitmapLoadSkips);
+
+    public static void RecordTableParse() => Interlocked.Increment(ref _tableParses);
+
+    public static void RecordTableLayoutRefreshRequest() => Interlocked.Increment(ref _tableLayoutRefreshRequests);
+
+    public static void RecordTableLayoutRefreshPost() => Interlocked.Increment(ref _tableLayoutRefreshPosts);
 }
 
 internal readonly record struct MarkdownDiagnosticsSnapshot(
@@ -155,4 +170,7 @@ internal readonly record struct MarkdownDiagnosticsSnapshot(
     int PreviewLayerDrawnPreviews,
     int DeferredBitmapLoadRequests,
     int DeferredBitmapLoads,
-    int DeferredBitmapLoadSkips);
+    int DeferredBitmapLoadSkips,
+    int TableParses,
+    int TableLayoutRefreshRequests,
+    int TableLayoutRefreshPosts);

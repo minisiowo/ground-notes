@@ -68,6 +68,12 @@ internal sealed record MarkdownTable(
             return false;
         }
 
+        var finalCell = row.Cells[^1];
+        if (clampedOffset > finalCell.SegmentStart + finalCell.SegmentLength)
+        {
+            return false;
+        }
+
         var columnIndex = row.Cells.Count - 1;
         for (var i = 0; i < row.Cells.Count; i++)
         {

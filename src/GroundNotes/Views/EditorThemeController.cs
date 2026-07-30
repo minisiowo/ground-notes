@@ -24,7 +24,9 @@ internal sealed class EditorThemeController : IDisposable
     private readonly MarkdownImageVisualLineTransformer _imageVisualLineTransformer;
     private readonly MarkdownImagePreviewLayer _imagePreviewLayer;
     private readonly MarkdownVisualLineIndentationProvider _visualLineIndentationProvider;
+    private readonly MarkdownTablePresentationIndex _tablePresentationIndex;
     private readonly MarkdownTableColorizingTransformer _tableColorizer;
+    private readonly MarkdownTableWrappingProvider _tableWrappingProvider;
     private EditorAppearanceSignature _lastAppearanceSignature;
     private Size _lastTextViewBounds;
     private bool _isResizeRefreshQueued;
@@ -33,6 +35,9 @@ internal sealed class EditorThemeController : IDisposable
     private bool _isDisposed;
     private bool _markdownFormattingEnabled = true;
     private bool _isPointerOverInteractiveMarkdownTarget;
+    private bool _isTablePresentationRefreshQueued;
+    private int _pendingTablePresentationStartLine = int.MaxValue;
+    private int _pendingTablePresentationEndLine;
 
     public EditorThemeController(TextEditor editor, MarkdownColorizingTransformer colorizer, Func<string, Task>? copyCodeBlockAsync = null)
     {
@@ -44,15 +49,21 @@ internal sealed class EditorThemeController : IDisposable
         _imageVisualLineTransformer = new MarkdownImageVisualLineTransformer(_imagePreviewProvider);
         _imagePreviewLayer = new MarkdownImagePreviewLayer(_editor.TextArea.TextView, _imagePreviewProvider);
         _visualLineIndentationProvider = new MarkdownVisualLineIndentationProvider(colorizer);
-        _tableColorizer = new MarkdownTableColorizingTransformer();
+        _tablePresentationIndex = new MarkdownTablePresentationIndex();
+        _tableColorizer = new MarkdownTableColorizingTransformer(_tablePresentationIndex);
+        _tableWrappingProvider = new MarkdownTableWrappingProvider(_tablePresentationIndex);
 
         _colorizer.RedrawRequested += OnColorizerRedrawRequested;
+        _tablePresentationIndex.Invalidated += OnTablePresentationInvalidated;
         _imagePreviewProvider.DeferredBitmapLoadsCompleted += OnDeferredBitmapLoadsCompleted;
 
         ConfigureEditorOptions(_editor.Options);
         _editor.Options.WordWrapIndentation = 0;
         _editor.Options.InheritWordWrapIndentation = true;
+        _editor.HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+        _editor.TextArea.TextView.DefaultTextWrapping = _editor.WordWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
         _editor.TextArea.TextView.VisualLineIndentationProvider = _visualLineIndentationProvider;
+        _editor.TextArea.TextView.VisualLineWrappingProvider = _tableWrappingProvider;
         _editor.TextArea.TextView.InsertLayer(_imagePreviewLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
         _editor.TextArea.TextView.InsertLayer(_codeBlockCopyLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
         _editor.TextArea.TextView.LineTransformers.Add(_imageVisualLineTransformer);
@@ -93,7 +104,6 @@ internal sealed class EditorThemeController : IDisposable
     {
         _lastAppearanceSignature = CaptureAppearanceSignature();
         _colorizer.InvalidateResourceCache();
-        _tableColorizer.Invalidate();
         _codeBlockRenderer.InvalidateBrush();
         _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
@@ -210,7 +220,6 @@ internal sealed class EditorThemeController : IDisposable
         _lastAppearanceSignature = currentSignature;
         ApplyEditorOptions(currentSignature);
         _colorizer.InvalidateResourceCache();
-        _tableColorizer.Invalidate();
         _codeBlockRenderer.InvalidateBrush();
         _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
@@ -242,8 +251,10 @@ internal sealed class EditorThemeController : IDisposable
         _editor.TextArea.TextView.PointerMoved -= OnTextViewPointerMoved;
         _editor.TextArea.TextView.PointerExited -= OnTextViewPointerExited;
         _colorizer.RedrawRequested -= OnColorizerRedrawRequested;
+        _tablePresentationIndex.Invalidated -= OnTablePresentationInvalidated;
         _imagePreviewProvider.DeferredBitmapLoadsCompleted -= OnDeferredBitmapLoadsCompleted;
         _editor.TextArea.TextView.VisualLineIndentationProvider = null;
+        _editor.TextArea.TextView.VisualLineWrappingProvider = null;
         _editor.TextArea.TextView.Layers.Remove(_codeBlockCopyLayer);
         _editor.TextArea.TextView.Layers.Remove(_imagePreviewLayer);
         _editor.TextArea.TextView.LineTransformers.Remove(_imageVisualLineTransformer);
@@ -253,7 +264,7 @@ internal sealed class EditorThemeController : IDisposable
         _imagePreviewLayer.Dispose();
         _codeBlockCopyLayer.Dispose();
         _imagePreviewProvider.Dispose();
-        _tableColorizer.Dispose();
+        _tablePresentationIndex.Dispose();
     }
 
     private void AttachMarkdownPresentation()
@@ -262,6 +273,7 @@ internal sealed class EditorThemeController : IDisposable
 
         _codeBlockCopyLayer.SetEnabled(true);
         textView.VisualLineIndentationProvider = _visualLineIndentationProvider;
+        textView.VisualLineWrappingProvider = _tableWrappingProvider;
         if (!textView.Layers.Contains(_imagePreviewLayer))
         {
             textView.InsertLayer(_imagePreviewLayer, AvaloniaEdit.Rendering.KnownLayer.Text, AvaloniaEdit.Rendering.LayerInsertionPosition.Above);
@@ -301,6 +313,7 @@ internal sealed class EditorThemeController : IDisposable
     {
         var textView = _editor.TextArea.TextView;
         textView.VisualLineIndentationProvider = null;
+        textView.VisualLineWrappingProvider = null;
         _codeBlockCopyLayer.SetEnabled(false);
         _codeBlockCopyLayer.ClearState();
         _imagePreviewLayer.ClearRenderedState();
@@ -316,7 +329,6 @@ internal sealed class EditorThemeController : IDisposable
     private void RefreshPresentation()
     {
         _colorizer.InvalidateResourceCache();
-        _tableColorizer.Invalidate();
         _codeBlockRenderer.InvalidateBrush();
         _codeBlockCopyLayer.InvalidateResources();
         ApplySelectionTheme();
@@ -335,6 +347,45 @@ internal sealed class EditorThemeController : IDisposable
         _editor.InvalidateMeasure();
         _editor.InvalidateArrange();
         _editor.InvalidateVisual();
+    }
+
+    private void OnTablePresentationInvalidated(object? sender, MarkdownTablePresentationInvalidatedEventArgs e)
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        MarkdownDiagnostics.RecordTableLayoutRefreshRequest();
+        _pendingTablePresentationStartLine = Math.Min(_pendingTablePresentationStartLine, e.StartLine);
+        _pendingTablePresentationEndLine = Math.Max(_pendingTablePresentationEndLine, e.EndLine);
+        if (_isTablePresentationRefreshQueued)
+        {
+            return;
+        }
+
+        _isTablePresentationRefreshQueued = true;
+        MarkdownDiagnostics.RecordTableLayoutRefreshPost();
+        Dispatcher.UIThread.Post(() =>
+        {
+            _isTablePresentationRefreshQueued = false;
+            if (_isDisposed || !_markdownFormattingEnabled || _editor.Document is not { } document)
+            {
+                _pendingTablePresentationStartLine = int.MaxValue;
+                _pendingTablePresentationEndLine = 0;
+                return;
+            }
+
+            var startLineNumber = Math.Clamp(_pendingTablePresentationStartLine, 1, document.LineCount);
+            var endLineNumber = Math.Clamp(_pendingTablePresentationEndLine, startLineNumber, document.LineCount);
+            _pendingTablePresentationStartLine = int.MaxValue;
+            _pendingTablePresentationEndLine = 0;
+            var startLine = document.GetLineByNumber(startLineNumber);
+            var endLine = document.GetLineByNumber(endLineNumber);
+            var textView = _editor.TextArea.TextView;
+            textView.Redraw(startLine.Offset, endLine.EndOffset - startLine.Offset);
+            textView.InvalidateMeasure();
+        }, DispatcherPriority.Render);
     }
 
     private void OnColorizerRedrawRequested(object? sender, int startLine)

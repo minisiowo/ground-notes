@@ -4,21 +4,34 @@ namespace GroundNotes.Editors;
 
 internal static class MarkdownTableFormatter
 {
-    public static string FormatAll(string text)
+    public static bool TryFormatPastedText(string text, out string formattedText)
     {
-        var result = text;
+        var result = FormatAllWithMetadata(text);
+        formattedText = result.Text;
+        return result.ContainsTables;
+    }
+
+    public static string FormatAll(string text) => FormatAllWithMetadata(text).Text;
+
+    public static MarkdownTableFormatResult FormatAllWithMetadata(string text)
+    {
         var tables = MarkdownTableParser.FindTables(text);
-        for (var i = tables.Count - 1; i >= 0; i--)
+        if (tables.Count == 0)
         {
-            var table = tables[i];
-            var formatted = Format(table);
-            if (!string.Equals(text.Substring(table.Start, table.Length), formatted, StringComparison.Ordinal))
-            {
-                result = result.Remove(table.Start, table.Length).Insert(table.Start, formatted);
-            }
+            return new MarkdownTableFormatResult(text, tables, text.Length);
         }
 
-        return result;
+        var builder = new StringBuilder(text.Length);
+        var sourceOffset = 0;
+        foreach (var table in tables)
+        {
+            builder.Append(text, sourceOffset, table.Start - sourceOffset);
+            builder.Append(Format(table));
+            sourceOffset = table.Start + table.Length;
+        }
+
+        builder.Append(text, sourceOffset, text.Length - sourceOffset);
+        return new MarkdownTableFormatResult(builder.ToString(), tables, text.Length);
     }
 
     public static string Format(MarkdownTable table)
@@ -137,4 +150,12 @@ internal static class MarkdownTableFormatter
             or >= 0x1F300 and <= 0x1FAFF
             or >= 0x20000 and <= 0x3FFFD;
     }
+}
+
+internal sealed record MarkdownTableFormatResult(
+    string Text,
+    IReadOnlyList<MarkdownTable> SourceTables,
+    int SourceLength)
+{
+    public bool ContainsTables => SourceTables.Count > 0;
 }

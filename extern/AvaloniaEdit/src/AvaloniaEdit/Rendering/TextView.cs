@@ -875,7 +875,9 @@ namespace AvaloniaEdit.Rendering
             if (availableSize.Width > 32000)
                 availableSize = availableSize.WithWidth(32000);
 
-            if (!_canHorizontallyScroll && !availableSize.Width.IsClose(_lastAvailableSize.Width))
+            var defaultWrappingDependsOnWidth = DefaultTextWrapping == TextWrapping.Wrap
+                                                || (DefaultTextWrapping is null && !_canHorizontallyScroll);
+            if (defaultWrappingDependsOnWidth && !availableSize.Width.IsClose(_lastAvailableSize.Width))
             {
                 ClearVisualLines();
             }
@@ -1029,13 +1031,17 @@ namespace AvaloniaEdit.Rendering
             return p;
         }
 
-        private VisualLineTextParagraphProperties CreateParagraphProperties(TextRunProperties defaultTextRunProperties)
+        private VisualLineTextParagraphProperties CreateParagraphProperties(
+            TextRunProperties defaultTextRunProperties,
+            DocumentLine documentLine)
         {
+            var defaultTextWrapping = DefaultTextWrapping
+                                      ?? (_canHorizontallyScroll ? TextWrapping.NoWrap : TextWrapping.Wrap);
             return new VisualLineTextParagraphProperties
             {
                 defaultTextRunProperties = defaultTextRunProperties,
                 firstLineInParagraph = true,
-                textWrapping = _canHorizontallyScroll ? TextWrapping.NoWrap : TextWrapping.Wrap,
+                textWrapping = VisualLineWrappingProvider?.GetTextWrapping(this, documentLine) ?? defaultTextWrapping,
                 tabSize = Options.IndentationSize * WideSpaceWidth
             };
         }
@@ -1081,7 +1087,7 @@ namespace AvaloniaEdit.Rendering
             visualLine.RunTransformers(textSource, lineTransformersArray);
 
             // now construct textLines:
-            var paragraphProperties = CreateParagraphProperties(globalTextRunProperties);
+            var paragraphProperties = CreateParagraphProperties(globalTextRunProperties, documentLine);
             TextLineBreak lastLineBreak = null;
             var textOffset = 0;
             var textLines = new List<TextLine>();
@@ -1301,6 +1307,43 @@ namespace AvaloniaEdit.Rendering
         /// for a document line before wrapped continuation indentation is calculated.
         /// </summary>
         public IVisualLineIndentationProvider VisualLineIndentationProvider { get; set; }
+
+        private TextWrapping? _defaultTextWrapping;
+
+        /// <summary>
+        /// Gets or sets the default wrapping mode independently from horizontal scrolling.
+        /// A null value preserves the legacy behavior based on whether horizontal scrolling is enabled.
+        /// </summary>
+        public TextWrapping? DefaultTextWrapping
+        {
+            get => _defaultTextWrapping;
+            set
+            {
+                if (_defaultTextWrapping == value)
+                    return;
+                _defaultTextWrapping = value;
+                ClearVisualLines();
+                InvalidateMeasure();
+            }
+        }
+
+        private IVisualLineWrappingProvider _visualLineWrappingProvider;
+
+        /// <summary>
+        /// Gets or sets the optional provider that can override wrapping for individual document lines.
+        /// </summary>
+        public IVisualLineWrappingProvider VisualLineWrappingProvider
+        {
+            get => _visualLineWrappingProvider;
+            set
+            {
+                if (ReferenceEquals(_visualLineWrappingProvider, value))
+                    return;
+                _visualLineWrappingProvider = value;
+                ClearVisualLines();
+                InvalidateMeasure();
+            }
+        }
 
         private void BackgroundRenderer_Added(IBackgroundRenderer renderer)
         {

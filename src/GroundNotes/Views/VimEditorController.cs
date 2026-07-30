@@ -22,6 +22,7 @@ internal sealed class VimEditorController : IDisposable
     private KeySequenceResolution? _pendingLeaderResolution;
     private Func<KeyEventArgs, bool>? _preVimKeyHandler;
     private Func<string, Task>? _leaderCommandHandler;
+    private Func<int, int, string, int, bool>? _externalTextEditHandler;
     private object? _insertUndoDescriptor;
     private bool _insertUndoGroupOpen;
     private bool _leaderCommandExecuting;
@@ -85,6 +86,11 @@ internal sealed class VimEditorController : IDisposable
     public void SetLeaderCommandHandler(Func<string, Task>? handler)
     {
         _leaderCommandHandler = handler;
+    }
+
+    public void SetExternalTextEditHandler(Func<int, int, string, int, bool>? handler)
+    {
+        _externalTextEditHandler = handler;
     }
 
     public void ResetState()
@@ -382,6 +388,12 @@ internal sealed class VimEditorController : IDisposable
 
                     try
                     {
+                        if (_externalTextEditHandler?.Invoke(edit.Start, edit.Length, edit.NewText, edit.NewCaretOffset) == true)
+                        {
+                            activeCaretOffset = _editor.CaretOffset;
+                            break;
+                        }
+
                         using (document.RunUpdate())
                         {
                             var start = Math.Clamp(edit.Start, 0, document.TextLength);

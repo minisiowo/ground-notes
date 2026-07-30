@@ -6,6 +6,61 @@ namespace GroundNotes.Tests;
 
 public sealed class MainWindowShortcutTests
 {
+    [Fact]
+    public void BuildAiResultEdit_FormatsGeneratedTablesBeforeReplacingSelection()
+    {
+        const string document = "Before\nselected text\nAfter";
+        var start = document.IndexOf("selected text", StringComparison.Ordinal);
+        const string result = "Summary\n\n| A | Long header |\n|---|---|\n| x | value |";
+        var edit = MainWindow.BuildAiResultEdit(document, start, "selected text".Length, result);
+        Assert.Contains("|-----|-------------|", edit.Replacement, StringComparison.Ordinal);
+        Assert.Equal(edit.Start + edit.Replacement.Length, edit.SelectionStart);
+    }
+
+    [Fact]
+    public void BuildInlineMarkdownEdit_FormatsTableAndPreservesSelection()
+    {
+        var text = GroundNotes.Editors.MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |");
+        var table = Assert.Single(GroundNotes.Editors.MarkdownTableParser.FindTables(text));
+        var cell = table.Rows[2].Cells[0];
+        var edit = MainWindow.BuildInlineMarkdownEdit(text, cell.EditableStart, cell.ContentLength, "`");
+        var updated = text[..edit.Start] + edit.Replacement + text[(edit.Start + edit.Length)..];
+        Assert.Equal("one", updated.Substring(edit.SelectionStart, edit.SelectionLength));
+    }
+
+    [Fact]
+    public void BuildInlineMarkdownEdit_BlocksCrossCellSelection()
+    {
+        var text = GroundNotes.Editors.MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |");
+        var table = Assert.Single(GroundNotes.Editors.MarkdownTableParser.FindTables(text));
+        var start = table.Rows[2].Cells[0].EditableStart;
+        var end = table.Rows[2].Cells[1].EditableEnd;
+        var edit = MainWindow.BuildInlineMarkdownEdit(text, start, end - start, "`");
+        Assert.Equal(0, edit.Length);
+        Assert.Equal(string.Empty, edit.Replacement);
+    }
+
+    [Fact]
+    public void BuildTableFragmentEdit_SeparatesTableFromSurroundingLines()
+    {
+        const string document = "BeforeAfter";
+        const string table = "| A | Long |\n|---|---|\n| x | value |";
+        var edit = MainWindow.BuildTableFragmentEdit(document, "Before".Length, 0, table);
+        Assert.StartsWith("\n| A", edit.Replacement, StringComparison.Ordinal);
+        Assert.EndsWith("|\n", edit.Replacement, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildTableFragmentEdit_DoesNotSeparateTableInsideLargerFragment()
+    {
+        const string document = "BeforeAfter";
+        const string fragment = "intro\n| A | Long |\n|---|---|\n| x | value |\noutro";
+
+        var edit = MainWindow.BuildTableFragmentEdit(document, "Before".Length, 0, fragment);
+
+        Assert.StartsWith("intro\n| A", edit.Replacement, StringComparison.Ordinal);
+        Assert.EndsWith("|\noutro", edit.Replacement, StringComparison.Ordinal);
+    }
 
 
     [Fact]

@@ -1,3 +1,5 @@
+using AvaloniaEdit.Document;
+
 namespace GroundNotes.Editors;
 
 internal static class MarkdownTableEditingCommands
@@ -243,22 +245,42 @@ internal static class MarkdownTableEditingCommands
         return true;
     }
 
-    public static bool TrySetAlignment(string text, int caretOffset, MarkdownTableAlignment alignment, out MarkdownEditResult edit)
+
+
+    public static bool IsInTable(string text, int caretOffset)
+        => MarkdownTableParser.TryFindTableAtOffset(text, caretOffset, out var table)
+           && table.TryGetCellAtOffset(caretOffset, out _);
+
+    public static bool DoesRangeTouchTable(string text, int start, int length)
     {
-        if (!TryGetContext(text, caretOffset, out var table, out var position))
+        var clampedStart = Math.Clamp(start, 0, text.Length);
+        var clampedLength = Math.Clamp(length, 0, text.Length - clampedStart);
+        if (clampedLength == 0)
         {
-            edit = default;
+            return IsInTable(text, clampedStart);
+        }
+
+        var end = clampedStart + clampedLength;
+        return MarkdownTableParser.FindTables(text)
+            .Any(table => clampedStart < table.Start + table.Length && end > table.Start);
+    }
+
+    public static bool CanReplaceSelectionContainingTables(string text, int selectionStart, int selectionLength)
+    {
+        var start = Math.Clamp(selectionStart, 0, text.Length);
+        var length = Math.Clamp(selectionLength, 0, text.Length - start);
+        if (length == 0)
+        {
             return false;
         }
 
-        var alignments = table.Alignments.ToList();
-        alignments[position.ColumnIndex] = alignment;
-        edit = BuildEdit(table, GetRows(table), alignments, position);
-        return true;
+        var end = start + length;
+        var touchedTables = MarkdownTableParser.FindTables(text)
+            .Where(table => start < table.Start + table.Length && end > table.Start)
+            .ToList();
+        return touchedTables.Count > 0
+               && touchedTables.All(table => start <= table.Start && end >= table.Start + table.Length);
     }
-
-    public static bool IsInTable(string text, int caretOffset)
-        => MarkdownTableParser.TryFindTableAtOffset(text, caretOffset, out _);
 
     public static bool TryGetEditableCaretOffset(string text, int caretOffset, out int editableOffset)
     {
@@ -275,6 +297,25 @@ internal static class MarkdownTableEditingCommands
     }
 
     public static bool TryInsertCellText(string text, int selectionStart, int selectionLength, string insertedText, out MarkdownEditResult edit)
+        => TryInsertCellText(text, selectionStart, selectionLength, insertedText, insertedText.Length, 0, out edit);
+
+    public static bool TryInsertCellText(
+        string text,
+        int selectionStart,
+        int selectionLength,
+        string insertedText,
+        int caretOffsetInInsertedText,
+        out MarkdownEditResult edit)
+        => TryInsertCellText(text, selectionStart, selectionLength, insertedText, caretOffsetInInsertedText, 0, out edit);
+
+    public static bool TryInsertCellText(
+        string text,
+        int selectionStart,
+        int selectionLength,
+        string insertedText,
+        int caretOffsetInInsertedText,
+        int selectionLengthInInsertedText,
+        out MarkdownEditResult edit)
     {
         if (!TryGetContext(text, selectionStart, out var table, out var startPosition))
         {
@@ -297,13 +338,44 @@ internal static class MarkdownTableEditingCommands
         var contentStart = Math.Clamp(startPosition.ContentOffset, 0, content.Length);
         var contentEnd = Math.Clamp(endPosition.ContentOffset, contentStart, content.Length);
         var normalizedInput = NormalizeCellInput(insertedText);
+        var insertedCaret = Math.Clamp(caretOffsetInInsertedText, 0, insertedText.Length);
+        var insertedSelectionLength = Math.Clamp(selectionLengthInInsertedText, 0, insertedText.Length - insertedCaret);
+        var normalizedCaretPrefix = NormalizeCellInput(insertedText[..insertedCaret]);
+        var normalizedSelection = NormalizeCellInput(insertedText.Substring(insertedCaret, insertedSelectionLength));
         rows[logicalRow][startPosition.ColumnIndex] = content[..contentStart] + normalizedInput + content[contentEnd..];
         edit = BuildEdit(
             table,
             rows,
             table.Alignments,
-            startPosition with { ContentOffset = contentStart + normalizedInput.Length });
+            startPosition with { ContentOffset = contentStart + normalizedCaretPrefix.Length });
+        edit = edit with { SelectionLength = normalizedSelection.Length };
         return true;
+    }
+
+    public static bool TryAdaptCellEdit(string text, MarkdownEditResult rawEdit, out MarkdownEditResult tableEdit)
+    {
+        tableEdit = default;
+        if (!TryGetContext(text, rawEdit.Start, out var table, out var position))
+        {
+            return false;
+        }
+
+        var cell = table.Rows[position.RowIndex].Cells[position.ColumnIndex];
+        var rawEnd = Math.Clamp(rawEdit.Start + rawEdit.Length, rawEdit.Start, text.Length);
+        if (rawEdit.Start < cell.EditableStart || rawEnd > cell.EditableEnd)
+        {
+            return false;
+        }
+
+        var caretInReplacement = Math.Clamp(rawEdit.SelectionStart - rawEdit.Start, 0, rawEdit.Replacement.Length);
+        return TryInsertCellText(
+            text,
+            rawEdit.Start,
+            rawEdit.Length,
+            rawEdit.Replacement,
+            caretInReplacement,
+            rawEdit.SelectionLength,
+            out tableEdit);
     }
 
     public static bool TryDeleteCharacter(string text, int caretOffset, bool backwards, out MarkdownEditResult edit)
@@ -317,34 +389,81 @@ internal static class MarkdownTableEditingCommands
         var rows = GetRows(table);
         var logicalRow = ToLogicalRow(position.RowIndex);
         var content = rows[logicalRow][position.ColumnIndex];
-        var deleteAt = backwards ? position.ContentOffset - 1 : position.ContentOffset;
-        if (deleteAt < 0 || deleteAt >= content.Length)
-        {
-            edit = BuildEdit(table, rows, table.Alignments, position);
-            return true;
-        }
-
-        var deleteLength = 1;
-        if (backwards
-            && deleteAt > 0
-            && char.IsLowSurrogate(content[deleteAt])
-            && char.IsHighSurrogate(content[deleteAt - 1]))
-        {
-            deleteAt--;
-            deleteLength = 2;
-        }
-        else if (!backwards
-                 && deleteAt + 1 < content.Length
-                 && char.IsHighSurrogate(content[deleteAt])
-                 && char.IsLowSurrogate(content[deleteAt + 1]))
-        {
-            deleteLength = 2;
-        }
-
-        rows[logicalRow][position.ColumnIndex] = EscapeUnescapedPipes(content.Remove(deleteAt, deleteLength));
-        var targetOffset = backwards ? position.ContentOffset - deleteLength : position.ContentOffset;
-        edit = BuildEdit(table, rows, table.Alignments, position with { ContentOffset = Math.Max(0, targetOffset) });
+        DeleteCellContent(content, position.ContentOffset, 0, backwards, byWord: false, out var updatedContent, out var updatedCaretOffset);
+        rows[logicalRow][position.ColumnIndex] = updatedContent;
+        edit = BuildEdit(table, rows, table.Alignments, position with { ContentOffset = updatedCaretOffset });
         return true;
+    }
+
+    public static bool TryDeleteCellSelection(string text, int selectionStart, int selectionLength, out MarkdownEditResult edit)
+    {
+        edit = default;
+        if (selectionLength <= 0 || !TryGetContext(text, selectionStart, out var table, out var position))
+        {
+            return false;
+        }
+
+        var selectionEnd = Math.Clamp(selectionStart + selectionLength, selectionStart, text.Length);
+        var cell = table.Rows[position.RowIndex].Cells[position.ColumnIndex];
+        if (selectionStart < cell.EditableStart
+            || selectionEnd > cell.EditableEnd
+            || !table.TryGetCellAtOffset(selectionEnd, out var endPosition)
+            || endPosition.RowIndex != position.RowIndex
+            || endPosition.ColumnIndex != position.ColumnIndex)
+        {
+            return false;
+        }
+
+        var rows = GetRows(table);
+        var logicalRow = ToLogicalRow(position.RowIndex);
+        var content = rows[logicalRow][position.ColumnIndex];
+        var contentStart = selectionStart - cell.EditableStart;
+        DeleteCellContent(content, contentStart, selectionLength, backwards: true, byWord: false, out var updatedContent, out var updatedCaretOffset);
+        rows[logicalRow][position.ColumnIndex] = updatedContent;
+        edit = BuildEdit(table, rows, table.Alignments, position with { ContentOffset = updatedCaretOffset });
+        return true;
+    }
+
+    internal static void DeleteCellContent(
+        string content,
+        int caretOffset,
+        int selectionLength,
+        bool backwards,
+        bool byWord,
+        out string updatedContent,
+        out int updatedCaretOffset)
+    {
+        var clampedCaret = Math.Clamp(caretOffset, 0, content.Length);
+        var clampedSelectionLength = Math.Clamp(selectionLength, 0, content.Length - clampedCaret);
+        var deleteStart = clampedCaret;
+        var deleteLength = clampedSelectionLength;
+
+        if (deleteLength == 0)
+        {
+            var direction = backwards ? LogicalDirection.Backward : LogicalDirection.Forward;
+            var mode = byWord ? CaretPositioningMode.WordStart : CaretPositioningMode.EveryCodepoint;
+            var boundary = TextUtilities.GetNextCaretPosition(new StringTextSource(content), clampedCaret, direction, mode);
+            if (boundary < 0)
+            {
+                updatedContent = content;
+                updatedCaretOffset = clampedCaret;
+                return;
+            }
+
+            deleteStart = Math.Min(clampedCaret, boundary);
+            deleteLength = Math.Abs(clampedCaret - boundary);
+        }
+
+        if (deleteLength == 0)
+        {
+            updatedContent = content;
+            updatedCaretOffset = clampedCaret;
+            return;
+        }
+
+        var unescaped = content.Remove(deleteStart, deleteLength);
+        var caretAfterDeletion = backwards || clampedSelectionLength > 0 ? deleteStart : clampedCaret;
+        updatedContent = EscapeUnescapedPipes(unescaped, caretAfterDeletion, out updatedCaretOffset);
     }
 
     private static bool TryGetContext(string text, int caretOffset, out MarkdownTable table, out MarkdownTableCellPosition position)
@@ -375,7 +494,23 @@ internal static class MarkdownTableEditingCommands
         MarkdownTableCellPosition target)
     {
         var replacement = MarkdownTableFormatter.Format(rows, alignments, original.NewLine);
-        var formatted = MarkdownTableParser.FindTables(replacement).Single();
+        var formattedTables = MarkdownTableParser.FindTables(replacement);
+        if (formattedTables.Count != 1)
+        {
+            var originalRowIndex = Math.Clamp(target.RowIndex, 0, original.Rows.Count - 1);
+            if (originalRowIndex == 1)
+            {
+                originalRowIndex = original.Rows.Count > 2 ? 2 : 0;
+            }
+
+            var originalRow = original.Rows[originalRowIndex];
+            var originalColumn = Math.Clamp(target.ColumnIndex, 0, originalRow.Cells.Count - 1);
+            var originalCell = originalRow.Cells[originalColumn];
+            var originalCaret = originalCell.EditableStart + Math.Clamp(target.ContentOffset, 0, originalCell.ContentLength);
+            return new MarkdownEditResult(original.Start, 0, string.Empty, originalCaret, 0);
+        }
+
+        var formatted = formattedTables[0];
         var targetRowIndex = Math.Clamp(target.RowIndex, 0, formatted.Rows.Count - 1);
         if (targetRowIndex == 1)
         {
@@ -412,7 +547,11 @@ internal static class MarkdownTableEditingCommands
     }
 
     private static string EscapeUnescapedPipes(string text)
+        => EscapeUnescapedPipes(text, text.Length, out _);
+
+    private static string EscapeUnescapedPipes(string text, int caretOffset, out int escapedCaretOffset)
     {
+        escapedCaretOffset = Math.Clamp(caretOffset, 0, text.Length);
         if (!text.Contains('|'))
         {
             return text;
@@ -432,6 +571,10 @@ internal static class MarkdownTableEditingCommands
                 if (backslashes % 2 == 0)
                 {
                     builder.Append('\\');
+                    if (i < escapedCaretOffset)
+                    {
+                        escapedCaretOffset++;
+                    }
                 }
             }
 

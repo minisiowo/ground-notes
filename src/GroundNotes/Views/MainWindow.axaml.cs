@@ -2816,30 +2816,35 @@ public partial class MainWindow : Window
             return;
         }
 
-        _editorContextFlyout.Items.Add(new MenuItem { Header = "Table", IsEnabled = false });
-        AddTableAction("Format table", host.FormatMarkdownTable);
-        AddTableAction("Insert row above", () => host.InsertMarkdownTableRow(above: true));
-        AddTableAction("Insert row below", () => host.InsertMarkdownTableRow(above: false));
-        AddTableAction("Move row up", () => host.MoveMarkdownTableRow(down: false));
-        AddTableAction("Move row down", () => host.MoveMarkdownTableRow(down: true));
-        AddTableAction("Delete row", host.DeleteMarkdownTableRow);
-        AddTableAction("Insert column left", () => host.InsertMarkdownTableColumn(before: true));
-        AddTableAction("Insert column right", () => host.InsertMarkdownTableColumn(before: false));
-        AddTableAction("Move column left", () => host.MoveMarkdownTableColumn(right: false));
-        AddTableAction("Move column right", () => host.MoveMarkdownTableColumn(right: true));
-        AddTableAction("Delete column", host.DeleteMarkdownTableColumn);
-        AddTableAction("Align column left", () => host.SetMarkdownTableAlignment(MarkdownTableAlignment.Left));
-        AddTableAction("Align column center", () => host.SetMarkdownTableAlignment(MarkdownTableAlignment.Center));
-        AddTableAction("Align column right", () => host.SetMarkdownTableAlignment(MarkdownTableAlignment.Right));
+        var tableMenu = new MenuItem { Header = "Table" };
+        tableMenu.Items.Add(CreateTableActionItem("Format table", host.FormatMarkdownTable));
+
+        var rowsMenu = new MenuItem { Header = "Rows" };
+        rowsMenu.Items.Add(CreateTableActionItem("Insert above", () => host.InsertMarkdownTableRow(above: true)));
+        rowsMenu.Items.Add(CreateTableActionItem("Insert below", () => host.InsertMarkdownTableRow(above: false)));
+        rowsMenu.Items.Add(CreateTableActionItem("Move up", () => host.MoveMarkdownTableRow(down: false)));
+        rowsMenu.Items.Add(CreateTableActionItem("Move down", () => host.MoveMarkdownTableRow(down: true)));
+        rowsMenu.Items.Add(CreateTableActionItem("Delete row", host.DeleteMarkdownTableRow));
+        tableMenu.Items.Add(rowsMenu);
+
+        var columnsMenu = new MenuItem { Header = "Columns" };
+        columnsMenu.Items.Add(CreateTableActionItem("Insert left", () => host.InsertMarkdownTableColumn(before: true)));
+        columnsMenu.Items.Add(CreateTableActionItem("Insert right", () => host.InsertMarkdownTableColumn(before: false)));
+        columnsMenu.Items.Add(CreateTableActionItem("Move left", () => host.MoveMarkdownTableColumn(right: false)));
+        columnsMenu.Items.Add(CreateTableActionItem("Move right", () => host.MoveMarkdownTableColumn(right: true)));
+        columnsMenu.Items.Add(CreateTableActionItem("Delete column", host.DeleteMarkdownTableColumn));
+        tableMenu.Items.Add(columnsMenu);
+
+        _editorContextFlyout.Items.Add(tableMenu);
     }
 
-    private void AddTableAction(string header, Func<bool> action)
+    private MenuItem CreateTableActionItem(string header, Func<bool> action)
     {
-        _editorContextFlyout.Items.Add(CreateEditorMenuItem(header, true, (_, _) =>
+        return CreateEditorMenuItem(header, true, (_, _) =>
         {
-            DismissEditorContextFlyout();
             action();
-        }));
+            DismissEditorContextFlyout();
+        });
     }
 
     private void AddAiMenuSection()
@@ -2945,21 +2950,62 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var start = Math.Clamp(selectionStart, 0, document.TextLength);
-            var length = Math.Clamp(selectionLength, 0, document.TextLength - start);
-            document.Replace(start, length, result);
-
-            var caretPosition = start + result.Length;
-            targetEditor.Select(caretPosition, 0);
-            targetEditor.CaretOffset = caretPosition;
+            ApplyEditorEdit(
+                targetEditor,
+                BuildAiResultEdit(document.Text, selectionStart, selectionLength, result));
 
             vm.StatusMessage = $"{prompt.Name} applied.";
-            targetEditor.Focus();
         }
         finally
         {
             targetEditor.Focus();
         }
+    }
+
+    internal static MarkdownEditResult BuildAiResultEdit(
+        string documentText,
+        int selectionStart,
+        int selectionLength,
+        string result)
+        => BuildTableFragmentEdit(documentText, selectionStart, selectionLength, result);
+
+    internal static MarkdownEditResult BuildTableFragmentEdit(
+        string documentText,
+        int selectionStart,
+        int selectionLength,
+        string fragment)
+        => BuildTableFragmentEdit(
+            documentText,
+            selectionStart,
+            selectionLength,
+            MarkdownTableFormatter.FormatAllWithMetadata(fragment));
+
+    private static MarkdownEditResult BuildTableFragmentEdit(
+        string documentText,
+        int selectionStart,
+        int selectionLength,
+        MarkdownTableFormatResult fragment)
+    {
+        var start = Math.Clamp(selectionStart, 0, documentText.Length);
+        var length = Math.Clamp(selectionLength, 0, documentText.Length - start);
+        if (!fragment.ContainsTables)
+        {
+            return new MarkdownEditResult(start, length, fragment.Text, start + fragment.Text.Length, 0);
+        }
+
+        var newLine = documentText.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var needsLeadingBreak = fragment.SourceTables[0].Start == 0
+                                && start > 0
+                                && documentText[start - 1] is not ('\r' or '\n');
+        var followingOffset = start + length;
+        var lastTable = fragment.SourceTables[^1];
+        var needsTrailingBreak = lastTable.Start + lastTable.Length == fragment.SourceLength
+                                 && followingOffset < documentText.Length
+                                 && documentText[followingOffset] is not ('\r' or '\n');
+        var replacement = (needsLeadingBreak ? newLine : string.Empty)
+                          + fragment.Text
+                          + (needsTrailingBreak ? newLine : string.Empty);
+        return new MarkdownEditResult(start, length, replacement, start + replacement.Length, 0);
     }
 
     private void DismissEditorContextFlyout()
@@ -2982,6 +3028,8 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 return;
             }
+
+            SetEditorContextCaret(editor, e);
         }
 
         e.Handled = true;
@@ -2994,6 +3042,50 @@ public partial class MainWindow : Window
         }
 
         _editorContextFlyout.ShowAt(control);
+    }
+
+    private static void SetEditorContextCaret(TextEditor editor, ContextRequestedEventArgs e)
+    {
+        var document = editor.Document;
+        if (document is null
+            || !e.TryGetPosition(editor.TextArea.TextView, out var point)
+            || editor.TextArea.TextView.GetPosition(point) is not TextViewPosition position)
+        {
+            return;
+        }
+
+        var offset = document.GetOffset(position.Location);
+        var selectionStart = editor.SelectionStart;
+        var selectionEnd = selectionStart + editor.SelectionLength;
+        if (editor.SelectionLength != 0 && offset >= selectionStart && offset <= selectionEnd)
+        {
+            return;
+        }
+
+        if (MarkdownTableParser.TryFindTableAtOffset(document.Text, offset, out var table))
+        {
+            var delimiter = table.Rows.FirstOrDefault(row => row.IsDelimiter
+                && offset >= row.Start
+                && offset <= row.Start + row.Length);
+            if (delimiter is not null)
+            {
+                var column = delimiter.Cells.Count - 1;
+                for (var index = 0; index < delimiter.Cells.Count; index++)
+                {
+                    var cell = delimiter.Cells[index];
+                    if (offset <= cell.SegmentStart + cell.SegmentLength)
+                    {
+                        column = index;
+                        break;
+                    }
+                }
+
+                offset = table.Header.Cells[Math.Clamp(column, 0, table.ColumnCount - 1)].EditableStart;
+            }
+        }
+
+        editor.Select(offset, 0);
+        editor.CaretOffset = offset;
     }
 
     private bool TryShowImageContextFlyout(TextEditor editor, ContextRequestedEventArgs e)
@@ -3872,6 +3964,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        var host = GetEditorHost(editor);
+        if (host.DoesSelectionTouchMarkdownTable && !host.CanDeleteMarkdownTableSelection)
+        {
+            return;
+        }
+
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.Clipboard is null)
         {
@@ -3879,6 +3977,12 @@ public partial class MainWindow : Window
         }
 
         await ClipboardTextService.SetTextAsync(topLevel.Clipboard, selectedText);
+        if (host.DoesSelectionTouchMarkdownTable)
+        {
+            host.DeleteMarkdownTableSelection();
+            return;
+        }
+
         editor.SelectedText = string.Empty;
     }
 
@@ -3895,10 +3999,26 @@ public partial class MainWindow : Window
 #pragma warning disable CS0618 // Compatibility fallback for Avalonia clipboard text API.
         var clipboardText = await topLevel.Clipboard.GetTextAsync();
 #pragma warning restore CS0618
-        if (clipboardText is not null && host.ShouldHandleMarkdownTablePaste)
+        if (clipboardText is not null)
         {
-            host.TryInsertMarkdownTableText(clipboardText);
-            return;
+            if (host.ShouldHandleMarkdownTablePaste)
+            {
+                host.TryInsertMarkdownTableText(clipboardText);
+                return;
+            }
+
+            var formattedClipboard = MarkdownTableFormatter.FormatAllWithMetadata(clipboardText);
+            if (formattedClipboard.ContainsTables)
+            {
+                ApplyEditorEdit(
+                    editor,
+                    BuildTableFragmentEdit(
+                        editor.Document?.Text ?? string.Empty,
+                        editor.SelectionStart,
+                        editor.SelectionLength,
+                        formattedClipboard));
+                return;
+            }
         }
 
         using var data = await topLevel.Clipboard.TryGetDataAsync();
@@ -4037,28 +4157,32 @@ public partial class MainWindow : Window
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Bold, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
+            ApplyEditorEdit(textEditor, BuildInlineMarkdownEdit(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "**"));
             return;
         }
 
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.Italic, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
+            ApplyEditorEdit(textEditor, BuildInlineMarkdownEdit(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "*"));
             return;
         }
 
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.InlineCode, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleWrap(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
+            ApplyEditorEdit(textEditor, BuildInlineMarkdownEdit(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, "`"));
             return;
         }
 
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleCodeBlock, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleCodeBlock(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            var host = GetEditorHost(textEditor);
+            if (!host.DoesSelectionTouchMarkdownTable)
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleCodeBlock(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            }
             return;
         }
 
@@ -4110,14 +4234,22 @@ public partial class MainWindow : Window
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleTaskList, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleTaskList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            var host = GetEditorHost(textEditor);
+            if (!host.DoesSelectionTouchMarkdownTable)
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleTaskList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            }
             return;
         }
 
         if (vm is not null && vm.KeyboardShortcuts.Matches(KeyboardShortcutActionIds.ToggleBulletList, e.Key, e.KeyModifiers))
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleBulletList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            var host = GetEditorHost(textEditor);
+            if (!host.DoesSelectionTouchMarkdownTable)
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleBulletList(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength));
+            }
             return;
         }
 
@@ -4128,7 +4260,11 @@ public partial class MainWindow : Window
         if (headingLevel != 0)
         {
             e.Handled = true;
-            ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, headingLevel));
+            var host = GetEditorHost(textEditor);
+            if (!host.DoesSelectionTouchMarkdownTable)
+            {
+                ApplyEditorEdit(textEditor, MarkdownEditingCommands.ToggleHeading(GetEditorText(textEditor), textEditor.SelectionStart, textEditor.SelectionLength, headingLevel));
+            }
             return;
         }
 
@@ -4283,6 +4419,19 @@ public partial class MainWindow : Window
 
         e.Handled = true;
         await vm.GenerateTitleSuggestionsCommand.ExecuteAsync(null);
+    }
+
+    internal static MarkdownEditResult BuildInlineMarkdownEdit(string text, int selectionStart, int selectionLength, string marker)
+    {
+        var rawEdit = MarkdownEditingCommands.ToggleWrap(text, selectionStart, selectionLength, marker);
+        if (MarkdownTableEditingCommands.TryAdaptCellEdit(text, rawEdit, out var tableEdit))
+        {
+            return tableEdit;
+        }
+
+        return MarkdownTableEditingCommands.DoesRangeTouchTable(text, rawEdit.Start, rawEdit.Length)
+            ? new MarkdownEditResult(rawEdit.Start, 0, string.Empty, rawEdit.Start, 0)
+            : rawEdit;
     }
 
     private string GetEditorText(TextEditor editor) => GetEditorHost(editor).GetText();

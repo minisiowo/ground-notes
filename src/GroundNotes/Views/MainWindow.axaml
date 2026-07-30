@@ -674,7 +674,7 @@
                                        ScrollViewer.BringIntoViewOnFocusChange="False"
                                        Padding="12"
                                        ShowLineNumbers="False"
-                                       HorizontalScrollBarVisibility="Disabled"
+                                       HorizontalScrollBarVisibility="Auto"
                                        VerticalScrollBarVisibility="Auto"
                                        WordWrap="True" />
                         <TextBlock Margin="12"
@@ -882,7 +882,7 @@
                                            ScrollViewer.BringIntoViewOnFocusChange="False"
                                            Padding="12"
                                            ShowLineNumbers="False"
-                                           HorizontalScrollBarVisibility="Disabled"
+                                           HorizontalScrollBarVisibility="Auto"
                                            VerticalScrollBarVisibility="Auto"
                                            WordWrap="True"
                                            GotFocus="OnSecondaryEditorGotFocus"

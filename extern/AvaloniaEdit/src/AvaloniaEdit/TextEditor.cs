@@ -213,6 +213,7 @@ namespace AvaloniaEdit
 
             if (change.Property == WordWrapProperty)
             {
+                TextArea.TextView.DefaultTextWrapping = WordWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
                 if (WordWrap)
                 {
                     _horizontalScrollBarVisibilityBck = HorizontalScrollBarVisibility;

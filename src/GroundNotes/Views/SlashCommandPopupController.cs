@@ -122,6 +122,41 @@ internal sealed class SlashCommandPopupController : IDisposable
             return;
         }
 
+        var triggerIsInTable = MarkdownTableEditingCommands.IsInTable(document.Text, trigger.Start);
+        if (triggerIsInTable
+            && command.Action is SlashCommandAction.CodeBlock
+                or SlashCommandAction.TaskList
+                or SlashCommandAction.BulletList
+                or SlashCommandAction.Table
+                or SlashCommandAction.Heading1
+                or SlashCommandAction.Heading2
+                or SlashCommandAction.Heading3)
+        {
+            Close();
+            return;
+        }
+
+        var inlineMarker = command.Action switch
+        {
+            SlashCommandAction.Bold => "**",
+            SlashCommandAction.Italic => "*",
+            SlashCommandAction.InlineCode => "`",
+            _ => null
+        };
+        if (inlineMarker is not null
+            && MarkdownTableEditingCommands.TryInsertCellText(
+                document.Text,
+                trigger.Start,
+                trigger.Length,
+                inlineMarker + inlineMarker,
+                inlineMarker.Length,
+                out var inlineTableEdit))
+        {
+            Close();
+            applyEdit(inlineTableEdit);
+            return;
+        }
+
         document.Replace(trigger.Start, trigger.Length, string.Empty);
         _editor.CaretOffset = trigger.Start;
         _editor.Select(trigger.Start, 0);
