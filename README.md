@@ -151,7 +151,7 @@ Before building the project, make sure you have:
 
 1. Git
 2. .NET SDK `10.0.103` or a compatible newer SDK in the same feature band
-3. A graphical desktop session to run the app
+3. A graphical desktop session to run the app (tests use Avalonia's headless test platform and can run without one)
 
 The repository pins the SDK in `global.json`:
 
@@ -245,8 +245,10 @@ The app needs a graphical desktop session. In a headless shell you can build and
 Install prerequisites:
 
 ```bash
-sudo pacman -S --needed git dotnet-sdk
+sudo pacman -S --needed git dotnet-sdk libice
 ```
+
+The `libice` package is required by the graphical app runtime; it is not required by the headless test platform.
 
 Then build and run from source:
 

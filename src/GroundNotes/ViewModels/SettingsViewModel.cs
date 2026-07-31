@@ -35,6 +35,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
         PromptsDirectory = string.IsNullOrWhiteSpace(model.PromptsDirectory)
             ? "Choose a notes folder first."
             : model.PromptsDirectory;
+        SlashCommandsDirectory = string.IsNullOrWhiteSpace(model.SlashCommandsDirectory)
+            ? "Choose a notes folder first."
+            : model.SlashCommandsDirectory;
         var keyboardShortcuts = KeyboardShortcutSettings.Normalize(model.KeyboardShortcuts);
         AvailableShortcutKeys = BuildAvailableShortcutKeys(keyboardShortcuts);
         ShortcutActions = new ObservableCollection<KeyboardShortcutActionViewModel>(
@@ -82,6 +85,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             : model.TitleGenerationModel.Trim();
         TitleGenerationReasoningEffort = AiReasoningEffortCatalog.Normalize(model.TitleGenerationReasoningEffort);
         SetAiPrompts(model.AiPrompts);
+        SetSlashCommands(model.SlashCommands ?? []);
+        SetSlashCommandWarnings(model.SlashCommandWarnings ?? []);
         InitializeVimModeSettings(model.VimModeSettings);
         _isInitializing = false;
     }
@@ -109,6 +114,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public IReadOnlyList<string> ReasoningEfforts { get; }
 
     public string PromptsDirectory { get; }
+
+    public string SlashCommandsDirectory { get; }
+
+    public bool CanManageSlashCommands => !string.IsNullOrWhiteSpace(SlashCommandsDirectory)
+        && !string.Equals(SlashCommandsDirectory, "Choose a notes folder first.", StringComparison.Ordinal);
 
     public IReadOnlyList<string> AvailableShortcutKeys { get; }
 
@@ -227,6 +237,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(HasPrompts))]
     private ObservableCollection<AiPromptListItemViewModel> _promptItems = [];
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSlashCommands))]
+    [NotifyPropertyChangedFor(nameof(HasSelectedSlashCommand))]
+    private ObservableCollection<CustomSlashCommandListItemViewModel> _slashCommandItems = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSlashCommandWarnings))]
+    private ObservableCollection<CustomSlashCommandCatalogWarning> _slashCommandWarnings = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelectedSlashCommand))]
+    private CustomSlashCommandListItemViewModel? _selectedSlashCommand;
+
     public bool HasPrompts => PromptItems.Count > 0;
 
     public bool HasSelectedPrompt => SelectedPrompt is not null;
@@ -234,6 +257,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
     public bool CanEditSelectedPrompt => SelectedPrompt?.CanEdit == true;
 
     public bool CanDeleteSelectedPrompt => SelectedPrompt?.CanDelete == true;
+
+    public bool HasSlashCommands => SlashCommandItems.Count > 0;
+    public bool HasSlashCommandWarnings => SlashCommandWarnings.Count > 0;
+    public bool HasSelectedSlashCommand => SelectedSlashCommand is not null;
 
     public SettingsDialogModel BuildModel()
     {
@@ -269,7 +296,10 @@ public sealed partial class SettingsViewModel : ViewModelBase
             PromptsDirectory,
             PromptItems.Select(item => item.Definition).ToList(),
             _appliedKeyboardShortcuts,
-            BuildVimModeSettings());
+            BuildVimModeSettings(),
+             SlashCommandsDirectory,
+             SlashCommandItems.Select(item => item.Definition).ToList(),
+             SlashCommandWarnings.ToList());
     }
 
     partial void OnSelectedThemeNameChanged(string value) => RaisePreviewRequested();
@@ -372,6 +402,18 @@ public sealed partial class SettingsViewModel : ViewModelBase
                 string.IsNullOrWhiteSpace(DefaultModel) ? AiModelCatalog.DefaultChatModel : DefaultModel,
                 AiReasoningEffortCatalog.Normalize(DefaultReasoningEffort))));
         SelectedPrompt = null;
+    }
+
+    public void SetSlashCommands(IReadOnlyList<CustomSlashCommandDefinition>? commands)
+    {
+        SlashCommandItems = new ObservableCollection<CustomSlashCommandListItemViewModel>(
+            (commands ?? []).Select(command => new CustomSlashCommandListItemViewModel(command)));
+        SelectedSlashCommand = null;
+    }
+
+    public void SetSlashCommandWarnings(IReadOnlyList<CustomSlashCommandCatalogWarning>? warnings)
+    {
+        SlashCommandWarnings = new ObservableCollection<CustomSlashCommandCatalogWarning>(warnings ?? []);
     }
 
     private void RefreshShortcutFilter()

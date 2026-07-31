@@ -1097,13 +1097,14 @@ namespace AvaloniaEdit.Rendering
             {
                 formattedWidth = Math.Max(GetMinimumFormattedWidth(documentLine, trailingInset), availableSize.Width - trailingInset);
             }
+            var continuationFormattedWidth = formattedWidth;
 
             while (textOffset <= visualLine.VisualLengthWithEndOfLineMarker)
             {
                 var textLine = _formatter.FormatLine(
                     textSource,
                     textOffset,
-                    formattedWidth,
+                    continuationFormattedWidth,
                     paragraphProperties,
                     lastLineBreak
                 );
@@ -1130,6 +1131,10 @@ namespace AvaloniaEdit.Rendering
                     {
                         paragraphProperties.indent = indentation;
                         visualLine.WrappedLineContinuationIndent = indentation;
+                        // TextFormatter applies paragraph continuation indent outside the formatted run width, so reserve the explicit trailing inset for wrapped rows.
+                        continuationFormattedWidth = Math.Max(
+                            GetMinimumFormattedWidth(documentLine, trailingInset),
+                            formattedWidth - indentation - trailingInset);
                     }
                 }
 

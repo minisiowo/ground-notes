@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using GroundNotes.Editors;
@@ -11,13 +12,9 @@ namespace GroundNotes.Tests;
 
 public sealed class EditorMarkdownTableControllerTests
 {
-    private static readonly object ApplicationLock = new();
-    private static bool s_applicationInitialized;
-
-    [Fact]
+    [AvaloniaFact]
     public void TextInput_InEmptyCellKeepsCaretAtContentAndFormatsImmediately()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| Agent | Description |\n|---|---|\n| oracle | |\n| delegate | text |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -34,10 +31,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(table.Rows[2].Cells[1].SegmentLength, table.Rows[3].Cells[1].SegmentLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TextInput_TypedCharacterByCharacterPreservesSpaces()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | Description |\n|---|---|\n| x | |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -55,10 +51,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(formatted.Rows[2].Cells[1].EditableEnd, editor.CaretOffset);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TextInput_FromRightPaddingIsCoercedToContentEnd()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | Long header |\n|---|---|\n| x | value |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -75,10 +70,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(formatted.Rows[2].Cells[0].EditableEnd, editor.CaretOffset);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TextInput_ReplacesSelectionInsideCellAndBlocksCrossCellSelection()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -97,10 +91,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(beforeBlockedInput, editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TextInput_EscapesPipesAndFlattensPastedNewlines()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| x | |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -115,10 +108,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(formatted.Rows[2].Cells[1].EditableEnd, editor.CaretOffset);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TextInputAndLiveFormattingUndoAsSingleOperation()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| x | |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -133,10 +125,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(initial, editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ExternalDocumentReplacementInvalidatesActiveCellBuffer()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| old | |");
         var replacement = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| new | |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
@@ -156,10 +147,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("c", result.Rows[2].Cells[1].Content);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void LeavingCellWithTrailingSpacePreservesRequestedTargetCell()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -175,10 +165,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(committed.Rows[2].Cells[1].EditableStart, editor.CaretOffset);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DeleteRowRepeatedlyDoesNotReenterCaretHandlingOrCrash()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | first |\n| two | second |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -193,10 +182,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.True(editor.CaretOffset >= remaining.Start + remaining.Length);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CtrlBackspaceRepeatedlyKeepsTableStructureIntact()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one two | value |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -210,10 +198,9 @@ public sealed class EditorMarkdownTableControllerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DeleteWithCrossCellSelectionIsBlocked()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -223,10 +210,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(initial, editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void BackspaceDeletesFullySelectedTable()
     {
-        EnsureApplication();
         var tableText = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
         var initial = "Before\n" + tableText + "\nAfter";
         var editor = new TextEditor { Document = new TextDocument(initial) };
@@ -237,10 +223,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("Before\n\nAfter", editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void BackspaceDeletesTextContainingCompleteTable()
     {
-        EnsureApplication();
         var tableText = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
         var initial = "Before\n" + tableText + "\nAfter";
         var editor = new TextEditor { Document = new TextDocument(initial) };
@@ -250,10 +235,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(string.Empty, editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void BackspaceCannotExposeEscapedPipeAsSeparator()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| a\\|b | value |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -263,10 +247,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("a\\|b", Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).Rows[2].Cells[0].Content);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ExternalTextEdit_ChangesCellContentWithoutExposingStructure()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -275,10 +258,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("ne", Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).Rows[2].Cells[0].Content);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ExternalTextEdit_BlocksSeparatorDeletion()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -288,10 +270,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(initial, editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ExternalTextEdit_DeletesWholeBodyRowSemantically()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | value |\n| two | second |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -300,10 +281,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("two", Assert.Single(MarkdownTableParser.FindTables(editor.Document.Text)).Rows[2].Cells[0].Content);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SelectAll_ExpandsFromCellToTableToDocument()
     {
-        EnsureApplication();
         var tableText = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| one | two |");
         var initial = "Before\n" + tableText + "\nAfter";
         var editor = new TextEditor { Document = new TextDocument(initial) };
@@ -325,10 +305,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(initial.Length, editor.SelectionLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SelectAll_EmptyCellStillAdvancesToWholeTableOnSecondInvocation()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| | two |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var controller = new EditorMarkdownTableController(editor);
@@ -342,10 +321,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal(table.Length, editor.SelectionLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void HostController_LiveFormattingWorksInVimInsertMode()
     {
-        EnsureApplication();
         var initial = MarkdownTableFormatter.FormatAll("| A | B |\n|---|---|\n| x | |");
         var editor = new TextEditor { Document = new TextDocument(initial) };
         using var tableController = new EditorMarkdownTableController(editor);
@@ -377,10 +355,9 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("c", afterUndoEdit.Rows[2].Cells[1].Content);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SyncFromViewModel_NormalizesTablesBeforeTheyReachEditor()
     {
-        EnsureApplication();
         var editor = new TextEditor { Document = new TextDocument() };
         var sync = new EditorTextSyncController(editor)
         {
@@ -392,25 +369,4 @@ public sealed class EditorMarkdownTableControllerTests
         Assert.Equal("| A     | Long |\n|-------|------|\n| value | x    |", editor.Document.Text);
     }
 
-    private static void EnsureApplication()
-    {
-        lock (ApplicationLock)
-        {
-            if (s_applicationInitialized || Application.Current is not null)
-            {
-                s_applicationInitialized = true;
-                return;
-            }
-
-            try
-            {
-                GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Setup was already called", StringComparison.Ordinal))
-            {
-            }
-
-            s_applicationInitialized = true;
-        }
-    }
 }

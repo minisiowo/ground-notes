@@ -30,4 +30,7 @@ public sealed record SettingsDialogModel(
     string PromptsDirectory,
     IReadOnlyList<AiPromptDefinition> AiPrompts,
     KeyboardShortcutSettings KeyboardShortcuts,
-    VimModeSettings? VimModeSettings = null);
+    VimModeSettings? VimModeSettings = null,
+    string SlashCommandsDirectory = "",
+     IReadOnlyList<CustomSlashCommandDefinition>? SlashCommands = null,
+     IReadOnlyList<CustomSlashCommandCatalogWarning>? SlashCommandWarnings = null);

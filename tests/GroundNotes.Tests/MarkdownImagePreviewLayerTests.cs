@@ -1,6 +1,7 @@
 using System.Reflection;
 
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
@@ -16,15 +17,11 @@ namespace GroundNotes.Tests;
 
 public sealed class MarkdownImagePreviewLayerTests : IDisposable
 {
-    private static readonly Lock ApplicationLock = new();
-    private static bool _applicationInitialized;
-
     private readonly string _tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
 
-    [Fact]
+    [AvaloniaFact]
     public void Refresh_RepositionsPreviewOnHorizontalScrollWithoutNewPreviewRequest()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
@@ -77,10 +74,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.True(diagnostics.PreviewLayerLineStateReuses > 0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ClearRenderedState_RemovesRenderedPreviews()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
@@ -123,10 +119,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Equal(0, GetRenderedPreviewCount(previewLayer));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryHitTestPreview_ReturnsPreviewForPointInsideRenderedBounds()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
@@ -175,10 +170,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Equal(relativeImagePath.Length, hit.Value.UrlLength);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryHitTestPreview_ReturnsNullOutsideRenderedBoundsAndAfterClear()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
@@ -222,10 +216,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Null(previewLayer.TryHitTestPreview(bounds.Center));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Refresh_DoesNotReuseRenderedPreviewWhenLineTextChanges()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 6, 3);
@@ -271,10 +264,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Equal(0, GetRenderedPreviewCount(previewLayer));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Refresh_RendersTwoPreviewsSideBySideForColumnLayout()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 6, 3);
@@ -320,10 +312,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.True(firstBounds.X < secondBounds.X, $"First X={firstBounds.X}, Second X={secondBounds.X}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TryHitTestPreview_HitsCorrectPreviewInColumnLayout()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 6, 3);
@@ -373,10 +364,9 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         Assert.Equal(imagePathB, hitSecond.Value.ResolvedPath);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void Refresh_RepositionsColumnPreviewsOnHorizontalScroll()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
 
         var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 6, 3);
@@ -435,28 +425,6 @@ public sealed class MarkdownImagePreviewLayerTests : IDisposable
         if (Directory.Exists(_tempDirectory))
         {
             Directory.Delete(_tempDirectory, recursive: true);
-        }
-    }
-
-    private static void EnsureApplication()
-    {
-        lock (ApplicationLock)
-        {
-            if (_applicationInitialized || Application.Current is not null)
-            {
-                _applicationInitialized = true;
-                return;
-            }
-
-            try
-            {
-                GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Setup was already called", StringComparison.Ordinal))
-            {
-            }
-
-            _applicationInitialized = true;
         }
     }
 

@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using AvaloniaEdit.Editing;
@@ -12,13 +13,9 @@ namespace GroundNotes.Tests;
 
 public sealed class VimEditorControllerTests
 {
-    private static readonly object ApplicationLock = new();
-    private static bool s_applicationInitialized;
-
-    [Fact]
+    [AvaloniaFact]
     public void NormalAndInsertModes_RouteTextThroughExpectedLayer()
     {
-        EnsureApplication();
         var editor = new TextEditor
         {
             Document = new TextDocument("one two")
@@ -51,10 +48,9 @@ public sealed class VimEditorControllerTests
         Assert.Equal(CaretShape.Bar, editor.TextArea.CaretShape);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void InsertSession_IsSingleUndoStep()
     {
-        EnsureApplication();
         var editor = new TextEditor { Document = new TextDocument("base") };
         using var controller = new VimEditorController(editor, new VimWorkspaceState());
         controller.SetSettings(VimModeSettings.Default with { IsEnabled = true });
@@ -69,10 +65,9 @@ public sealed class VimEditorControllerTests
         Assert.Equal("base", editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void LeaderSequence_EmitsGroundNotesCommandWithoutEditingDocument()
     {
-        EnsureApplication();
         var editor = new TextEditor
         {
             Document = new TextDocument("note")
@@ -99,10 +94,9 @@ public sealed class VimEditorControllerTests
         Assert.Equal(VimMode.Normal, controller.Mode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CustomLeader_UsesConfiguredCharacterInsteadOfSpace()
     {
-        EnsureApplication();
         var editor = new TextEditor { Document = new TextDocument("note") };
         using var controller = new VimEditorController(editor, new VimWorkspaceState());
         controller.SetSettings(VimModeSettings.Default with
@@ -126,10 +120,9 @@ public sealed class VimEditorControllerTests
         Assert.Equal("note", editor.Document.Text);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void OperatorPending_DoesNotStartApplicationLeader()
     {
-        EnsureApplication();
         var editor = new TextEditor { Document = new TextDocument("one two") };
         using var controller = new VimEditorController(editor, new VimWorkspaceState());
         controller.SetSettings(VimModeSettings.Default with { IsEnabled = true });
@@ -150,10 +143,9 @@ public sealed class VimEditorControllerTests
         Assert.Equal(VimMode.Normal, controller.Mode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void VisualMode_UpdatesAvaloniaSelectionAndStatus()
     {
-        EnsureApplication();
         var editor = new TextEditor { Document = new TextDocument("alpha") };
         using var controller = new VimEditorController(editor, new VimWorkspaceState());
         controller.SetSettings(VimModeSettings.Default with { IsEnabled = true });
@@ -173,10 +165,9 @@ public sealed class VimEditorControllerTests
         Assert.Equal(VimMode.Normal, controller.Mode);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SharedWorkspaceRegister_AllowsPasteInAnotherEditor()
     {
-        EnsureApplication();
         var workspace = new VimWorkspaceState();
         var source = new TextEditor { Document = new TextDocument("alpha\nbeta") };
         var target = new TextEditor { Document = new TextDocument("gamma") };
@@ -193,25 +184,4 @@ public sealed class VimEditorControllerTests
         Assert.Equal("gamma\nalpha", target.Document.Text);
     }
 
-    private static void EnsureApplication()
-    {
-        lock (ApplicationLock)
-        {
-            if (s_applicationInitialized || Application.Current is not null)
-            {
-                s_applicationInitialized = true;
-                return;
-            }
-
-            try
-            {
-                GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Setup was already called", StringComparison.Ordinal))
-            {
-            }
-
-            s_applicationInitialized = true;
-        }
-    }
 }

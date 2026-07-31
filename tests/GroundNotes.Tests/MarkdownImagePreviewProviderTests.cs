@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using AvaloniaEdit.Document;
 using GroundNotes.Editors;
@@ -9,15 +10,11 @@ namespace GroundNotes.Tests;
 
 public sealed class MarkdownImagePreviewProviderTests : IDisposable
 {
-    private static readonly Lock ApplicationLock = new();
-    private static bool _applicationInitialized;
-
     private readonly string _tempDirectory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_ReturnsStandaloneImageAndReusesPreviewCaches()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|400");
@@ -44,10 +41,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(1, diagnostics.BitmapCacheMisses);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_RecomputesScaledSizeWhenAvailableWidthChanges()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|400");
@@ -72,10 +68,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(2, diagnostics.ImagePreviewRenderCacheMisses);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_ReturnsNullForImageInsideFence()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"before\n```\n![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|400\n```\nafter");
@@ -88,10 +83,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Empty(preview);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_InvalidatesPreviewAndBitmapCachesWhenImageFileChanges()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})");
@@ -120,10 +114,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(2, diagnostics.BitmapCacheMisses);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void InvalidateImage_RemovesPreviewAndBitmapCachesForPath()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})");
@@ -145,10 +138,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(2, diagnostics.BitmapCacheMisses);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_EvictsLeastRecentlyUsedBitmapWhenCacheLimitIsExceeded()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var firstImagePath = CreateImageAsset(_tempDirectory, "first.png", 2, 1);
         var secondImagePath = CreateImageAsset(_tempDirectory, "second.png", 3, 1);
@@ -293,10 +285,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         destination[3] = (byte)(value & 0xFF);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_ReturnsColumnLayoutWithTwoImages()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 1000, 1);
         var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 1000, 1);
@@ -317,10 +308,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.True(preview[1].Width <= 102);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_ColumnLayoutSkipsBrokenImage()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "valid.png", 1000, 1);
         var relValid = Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/');
@@ -336,10 +326,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(imagePath, preview[0].ResolvedPath);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_ColumnLayoutRecomputesWhenWidthChanges()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePathA = CreateImageAsset(_tempDirectory, "a.png", 1000, 1);
         var imagePathB = CreateImageAsset(_tempDirectory, "b.png", 1000, 1);
@@ -361,10 +350,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.True(narrowPreview[1].Width < widePreview[1].Width);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetPreview_QueuesColdBitmapLoadWhenDeferred()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|100");
@@ -393,10 +381,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
             $"Expected bitmap to be cached after deferred load. Hits={finalDiagnostics.BitmapCacheHits}, Misses={finalDiagnostics.BitmapCacheMisses}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DeferredBitmapLoad_IsDiscardedAfterBaseDirectoryChanges()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var document = new TextDocument($"![]({Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/')})|100");
@@ -417,10 +404,9 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(1, diagnostics.DeferredBitmapLoadRequests);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void DeferredBitmapLoad_CoalescesDuplicateVisibleLines()
     {
-        EnsureApplication();
         Directory.CreateDirectory(_tempDirectory);
         var imagePath = CreateImageAsset(_tempDirectory, "photo.png", 2, 1);
         var rel = Path.GetRelativePath(_tempDirectory, imagePath).Replace('\\', '/');
@@ -444,25 +430,4 @@ public sealed class MarkdownImagePreviewProviderTests : IDisposable
         Assert.Equal(1, diagnostics.DeferredBitmapLoads);
     }
 
-    private static void EnsureApplication()
-    {
-        lock (ApplicationLock)
-        {
-            if (_applicationInitialized || Application.Current is not null)
-            {
-                _applicationInitialized = true;
-                return;
-            }
-
-            try
-            {
-                GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Setup was already called", StringComparison.Ordinal))
-            {
-            }
-
-            _applicationInitialized = true;
-        }
-    }
 }

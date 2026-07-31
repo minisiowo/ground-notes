@@ -17,6 +17,7 @@ public partial class SettingsWindow : Window
     public Action<SettingsDialogModel>? OnSettingsChanged { get; set; }
 
     public SettingsPromptActions? PromptActions { get; set; }
+    public SettingsSlashCommandActions? SlashCommandActions { get; set; }
 
     public IKeyboardShortcutService? KeyboardShortcuts { get; set; }
 
@@ -94,6 +95,55 @@ public partial class SettingsWindow : Window
 
         e.Handled = true;
         await EditPromptAsync(selectedPrompt.Definition, duplicate: false);
+    }
+
+    private void OnSlashCommandSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_viewModel is not null && sender is ListBox listBox)
+            _viewModel.SelectedSlashCommand = listBox.SelectedItem as CustomSlashCommandListItemViewModel;
+    }
+
+    private async void OnSlashCommandDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_viewModel?.SelectedSlashCommand is { } item) { e.Handled = true; await EditSlashCommandAsync(item.Definition, false); }
+    }
+
+    private async void OnAddSlashCommandClick(object? sender, RoutedEventArgs e) => await EditSlashCommandAsync(null, false);
+    private async void OnEditSlashCommandClick(object? sender, RoutedEventArgs e)
+    { if (_viewModel?.SelectedSlashCommand is { } item) await EditSlashCommandAsync(item.Definition, false); }
+    private async void OnDuplicateSlashCommandClick(object? sender, RoutedEventArgs e)
+    { if (_viewModel?.SelectedSlashCommand is { } item) await EditSlashCommandAsync(item.Definition, true); }
+    private async void OnDeleteSlashCommandClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel?.SelectedSlashCommand is not { } item || SlashCommandActions is null) return;
+        var confirmation = new ConfirmDeleteWindow("Delete slash command", "Delete slash command?", $"Delete custom command '{item.Name}' permanently?", "Delete");
+        if (!await confirmation.ShowDialog<bool>(this)) return;
+        var result = await SlashCommandActions.DeleteCommandAsync(item.Definition);
+         _viewModel.SetSlashCommands(result.Commands);
+         _viewModel.SetSlashCommandWarnings(result.Warnings);
+        if (result.Succeeded) OnSettingsChanged?.Invoke(_viewModel.BuildModel());
+    }
+    private async void OnReloadSlashCommandsClick(object? sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null || SlashCommandActions is null) return;
+         var result = await SlashCommandActions.ReloadCommandsAsync();
+         _viewModel.SetSlashCommands(result.Commands);
+         _viewModel.SetSlashCommandWarnings(result.Warnings);
+        OnSettingsChanged?.Invoke(_viewModel.BuildModel());
+    }
+
+    private async Task EditSlashCommandAsync(CustomSlashCommandDefinition? command, bool duplicate)
+    {
+        if (_viewModel is null || SlashCommandActions is null) return;
+         var unavailable = _viewModel.SlashCommandItems.Where(item => command is null || !string.Equals(item.Id, command.Id, StringComparison.OrdinalIgnoreCase)).SelectMany(item => new[] { item.Id }.Concat(item.Definition.Aliases ?? []))
+             .Concat(GroundNotes.Editors.MarkdownSlashCommandCatalog.ReservedTokens);
+        var dialog = new CustomSlashCommandEditorWindow(new CustomSlashCommandEditorViewModel(command, duplicate, unavailable));
+        if (!await dialog.ShowDialog<bool>(this) || dialog.Command is null) return;
+         var save = await SlashCommandActions.SaveCommandAsync(dialog.Command, command is not null && !duplicate ? command.Id : null);
+         if (!save.Succeeded) { _viewModel.SetSlashCommands(save.Commands); _viewModel.SetSlashCommandWarnings(save.Warnings); return; }
+         _viewModel.SetSlashCommands(save.Commands);
+         _viewModel.SetSlashCommandWarnings(save.Warnings);
+        OnSettingsChanged?.Invoke(_viewModel.BuildModel());
     }
 
     private void OnRecordShortcutClick(object? sender, RoutedEventArgs e)

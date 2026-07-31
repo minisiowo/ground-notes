@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using AvaloniaEdit;
 using AvaloniaEdit.Document;
 using GroundNotes.Editors;
@@ -8,11 +9,9 @@ namespace GroundNotes.Tests;
 
 public sealed class MarkdownVisualLineIndentationProviderTests
 {
-    [Fact]
+    [AvaloniaFact]
     public void GetVisualIndentationColumns_ReturnsIndentForFencedLinesOnly()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
         var editor = new TextEditor
@@ -30,11 +29,9 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Equal(0, provider.GetVisualIndentationColumns(textView, document.GetLineByNumber(5)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetTrailingVisualInsetColumns_ReturnsInsetForFencedLinesOnly()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
         var editor = new TextEditor
@@ -52,11 +49,9 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(5)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetWrappedLineContinuationStartColumn_ReturnsHangingIndentForLists()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
         var editor = new TextEditor
@@ -77,11 +72,9 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Equal(0, provider.GetTrailingVisualInsetColumns(textView, document.GetLineByNumber(4)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetWrappedLineContinuationStartColumn_InheritsIndentForMarkerlessListContinuationLines()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
         var editor = new TextEditor
@@ -99,11 +92,9 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Null(provider.GetWrappedLineContinuationStartColumn(textView, document.GetLineByNumber(6)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetVisualIndentationColumns_TopsUpMarkerlessListContinuationLinesToOwnerTextColumn()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
         var editor = new TextEditor
@@ -121,11 +112,9 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Equal(0, provider.GetVisualIndentationColumns(textView, document.GetLineByNumber(6)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void GetVisualIndentationColumns_DoesNotTopUpWhitespaceOnlyMarkerlessContinuationLines()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
         var editor = new TextEditor
@@ -140,11 +129,9 @@ public sealed class MarkdownVisualLineIndentationProviderTests
         Assert.Equal(2, provider.GetWrappedLineContinuationStartColumn(textView, document.GetLineByNumber(3)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SuppressedMarkerlessLine_DoesNotReceiveListContinuationIndentation()
     {
-        EnsureApplication();
-
         using var colorizer = new MarkdownColorizingTransformer();
         colorizer.SuppressListContinuationForLine(3);
         var provider = new MarkdownVisualLineIndentationProvider(colorizer);
@@ -211,13 +198,4 @@ public sealed class MarkdownVisualLineIndentationProviderTests
             "plain paragraph after explicit list exit");
     }
 
-    private static void EnsureApplication()
-    {
-        if (Application.Current is not null)
-        {
-            return;
-        }
-
-        GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
-    }
 }

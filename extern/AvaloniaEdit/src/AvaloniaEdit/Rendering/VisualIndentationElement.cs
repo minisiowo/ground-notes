@@ -12,7 +12,7 @@ internal sealed class VisualIndentationElement : VisualLineElement
     {
         if (visualLength <= 0)
             throw new ArgumentOutOfRangeException(nameof(visualLength), visualLength, "Value must be positive.");
-        _indentationText = new string(' ', visualLength);
+        _indentationText = new string('\u00A0', visualLength);
     }
 
     public override TextRun CreateTextRun(int startVisualColumn, ITextRunConstructionContext context)

@@ -26,5 +26,5 @@ public interface IWorkspaceDialogService
 
     Task ShowKeyboardShortcutsHelpAsync(Window? owner = null);
 
-    Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange, SettingsPromptActions promptActions);
+    Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange, SettingsPromptActions promptActions, SettingsSlashCommandActions? slashCommandActions = null);
 }

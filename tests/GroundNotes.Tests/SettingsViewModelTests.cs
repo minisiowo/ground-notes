@@ -337,6 +337,31 @@ public sealed class SettingsViewModelTests
         Assert.Equal(1.3, model.EditorLineHeightFactor);
     }
 
+    [Fact]
+    public void SlashCommands_InitializeResetAndRoundTrip()
+    {
+        var model = CreateModel() with
+        {
+            SlashCommandsDirectory = "/tmp/commands",
+            SlashCommands = [new CustomSlashCommandDefinition("rewrite", "Rewrite", "template", "desc", 4)]
+        };
+        var vm = new SettingsViewModel(model);
+        var item = Assert.Single(vm.SlashCommandItems);
+        Assert.Equal("rewrite", item.Id);
+        vm.SelectedSlashCommand = item;
+        vm.SetSlashCommands([new CustomSlashCommandDefinition("other", "Other", "x")]);
+        Assert.Null(vm.SelectedSlashCommand);
+        Assert.Equal("other", Assert.Single(vm.BuildModel().SlashCommands!).Id);
+        Assert.True(vm.CanManageSlashCommands);
+    }
+
+    [Fact]
+    public void SlashCommands_CannotBeManagedWithoutFolder()
+    {
+        var vm = new SettingsViewModel(CreateModel() with { SlashCommandsDirectory = "" });
+        Assert.False(vm.CanManageSlashCommands);
+    }
+
     private static SettingsDialogModel CreateModel()
     {
         return new SettingsDialogModel(

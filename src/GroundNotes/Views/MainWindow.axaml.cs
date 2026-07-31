@@ -120,7 +120,8 @@ public partial class MainWindow : Window
             SlashCommandPopup,
             SlashCommandPopupContent,
             SlashCommandListBox,
-            SlashCommandHintText);
+            SlashCommandHintText,
+            GetCustomSlashCommands);
         ConfigureVimHost(_editorHost, EditorTextEditor, PrimaryVimStatusText);
         _titleSuggestionsPopup = new ToolPopupController(TitleSuggestionsPopup, TitleSuggestionsPopupContent);
         _tagSuggestionsPopup = new ToolPopupController(TagSuggestionsPopup, TagSuggestionsPopupContent);
@@ -1346,7 +1347,8 @@ public partial class MainWindow : Window
             SlashCommandPopup,
             SlashCommandPopupContent,
             SlashCommandListBox,
-            SlashCommandHintText);
+            SlashCommandHintText,
+            GetCustomSlashCommands);
     }
 
     private double GetEffectiveEditorCanvasWidth()
@@ -1545,6 +1547,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (e.PropertyName == nameof(MainViewModel.CustomSlashCommands))
+        {
+            _slashCommandPopup.ScheduleRefresh();
+            return;
+        }
+
         if (e.PropertyName == nameof(MainViewModel.SelectedThemeName))
         {
             _editorHost.RefreshVisualResources();
@@ -1636,6 +1644,9 @@ public partial class MainWindow : Window
 
         AnimateSidebar(vm.SidebarCollapsed);
     }
+
+    private IReadOnlyList<GroundNotes.Models.CustomSlashCommandDefinition> GetCustomSlashCommands()
+        => (DataContext as MainViewModel)?.CustomSlashCommands ?? [];
 
     private void OnSecondaryPaneViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {

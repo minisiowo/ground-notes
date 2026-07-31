@@ -586,11 +586,13 @@ internal sealed class EditorMarkdownTableController : IDisposable
             }
 
             ClearSession();
-            if (!MarkdownTableEditingCommands.TryDeleteCellSelection(
+            var hasSelectionEdit = MarkdownTableEditingCommands.TryDeleteCellSelection(
                     document.Text,
                     _editor.SelectionStart,
                     _editor.SelectionLength,
-                    out var selectionEdit)
+                    out var selectionEdit);
+            var hasWholeTableReplacement = false;
+            if (!hasSelectionEdit
                 && MarkdownTableEditingCommands.CanReplaceSelectionContainingTables(
                     document.Text,
                     _editor.SelectionStart,
@@ -602,9 +604,10 @@ internal sealed class EditorMarkdownTableController : IDisposable
                     string.Empty,
                     _editor.SelectionStart,
                     0);
+                hasWholeTableReplacement = true;
             }
 
-            if (selectionEdit.Length != 0 || selectionEdit.Replacement.Length != 0)
+            if (hasSelectionEdit || hasWholeTableReplacement)
             {
                 _beginHandledTextInput?.Invoke();
                 try

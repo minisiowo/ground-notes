@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using GroundNotes.Models;
+using GroundNotes.Editors;
 using GroundNotes.Services;
 using GroundNotes.ViewModels;
 using GroundNotes.Views;
@@ -89,6 +90,8 @@ public partial class App : Application
         var themeLoader = new ThemeLoaderService();
         var aiPromptCatalog = new AiPromptCatalogService();
         var aiPromptEditorService = new AiPromptEditorService(aiPromptCatalog);
+        var slashCatalog = new CustomSlashCommandCatalogService(MarkdownSlashCommandCatalog.ReservedTokens);
+        var slashEditor = new CustomSlashCommandEditorService(MarkdownSlashCommandCatalog.ReservedTokens, slashCatalog);
         _openAiHttpClient = new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(60)
@@ -122,7 +125,9 @@ public partial class App : Application
                 chatViewModelFactory,
                 keyboardShortcutService,
                 noteSearchServiceFactory,
-                tagFolderCatalogService);
+                 tagFolderCatalogService,
+                 slashCatalog,
+                 slashEditor);
         }
 
         var workspaceWindowManager = new WorkspaceWindowManager(

@@ -9,6 +9,39 @@ namespace GroundNotes.Tests;
 
 public sealed class MainViewModelTests : IDisposable
 {
+    [Fact]
+    public async Task InitializeForFolderAsync_LoadsCurrentFolderSlashCommands()
+    {
+        var catalog = new FakeCustomSlashCommandCatalogService();
+        var folder = Path.Combine(Path.GetTempPath(), "GroundNotes.Tests", Guid.NewGuid().ToString("N"));
+        catalog.Results[folder] = new([new CustomSlashCommandDefinition("rewrite", "Rewrite", "x")], []);
+        var vm = await CreateViewModelAsync(slashCatalog: catalog, initialize: false);
+        await vm.InitializeForFolderAsync(folder);
+        Assert.Equal("rewrite", Assert.Single(vm.CustomSlashCommands).Id);
+    }
+
+    [Fact]
+    public async Task SlashCommandLoadFromOldFolderCannotReplaceNewFolder()
+    {
+        var catalog = new FakeCustomSlashCommandCatalogService();
+        var first = Path.Combine(Path.GetTempPath(), "GroundNotes.Tests", Guid.NewGuid().ToString("N"));
+        var second = Path.Combine(Path.GetTempPath(), "GroundNotes.Tests", Guid.NewGuid().ToString("N"));
+        catalog.Pending[first] = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        catalog.Pending[second] = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = await CreateViewModelAsync(slashCatalog: catalog, initialize: false);
+        vm.NotesFolder = first;
+        var loadMethod = typeof(MainViewModel).GetMethod("LoadCustomSlashCommandsAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var oldLoad = (Task)loadMethod.Invoke(vm, [first])!;
+        vm.NotesFolder = second;
+        Assert.Empty(vm.CustomSlashCommands);
+        var newLoad = (Task)loadMethod.Invoke(vm, [second])!;
+        catalog.Pending[second].SetResult(new([new CustomSlashCommandDefinition("new", "New", "x")], []));
+        await newLoad;
+        Assert.Equal("new", Assert.Single(vm.CustomSlashCommands).Id);
+        catalog.Pending[first].SetResult(new([new CustomSlashCommandDefinition("old", "Old", "x")], []));
+        await oldLoad;
+        Assert.Equal("new", Assert.Single(vm.CustomSlashCommands).Id);
+    }
     private readonly string _tempRoot = Path.Combine(Path.GetTempPath(), "GroundNotes.Tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
@@ -1771,7 +1804,10 @@ public sealed class MainViewModelTests : IDisposable
         FakeAiTitleSuggestionService? aiTitleSuggestionService = null,
         INotesRepository? repository = null,
         INoteMutationService? noteMutationService = null,
-        string? folderOverride = null)
+        string? folderOverride = null,
+        ICustomSlashCommandCatalogService? slashCatalog = null,
+        ICustomSlashCommandEditorService? slashEditor = null,
+        bool initialize = true)
     {
         dialogService ??= new FakeWorkspaceDialogService();
         chatViewModelFactory ??= new FakeChatViewModelFactory();
@@ -1784,6 +1820,8 @@ public sealed class MainViewModelTests : IDisposable
         var fileWatcherService = new FakeFileWatcherService();
         noteMutationService ??= new NoteMutationService(repository);
         var noteSearchServiceFactory = new NoteSearchServiceFactory(repository);
+        slashCatalog ??= new FakeCustomSlashCommandCatalogService();
+        slashEditor ??= new FakeCustomSlashCommandEditorService();
         var vm = new MainViewModel(
             repository,
             settingsService,
@@ -1801,8 +1839,14 @@ public sealed class MainViewModelTests : IDisposable
             chatViewModelFactory,
             new KeyboardShortcutService(),
             noteSearchServiceFactory,
-            new TagFolderCatalogService());
+             new TagFolderCatalogService(),
+             slashCatalog,
+             slashEditor);
 
+        if (!initialize)
+        {
+            return vm;
+        }
         if (string.IsNullOrWhiteSpace(folderOverride))
         {
             await vm.InitializeAsync();
@@ -1939,7 +1983,7 @@ public sealed class MainViewModelTests : IDisposable
             return Task.CompletedTask;
         }
 
-        public Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange, SettingsPromptActions promptActions)
+        public Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange, SettingsPromptActions promptActions, SettingsSlashCommandActions? slashCommandActions = null)
         {
             return Task.CompletedTask;
         }
@@ -2181,6 +2225,27 @@ public sealed class MainViewModelTests : IDisposable
         {
             return Task.FromResult(new AiPromptCatalogLoadResult([], []));
         }
+    }
+
+    private sealed class FakeCustomSlashCommandCatalogService : ICustomSlashCommandCatalogService
+    {
+        public Dictionary<string, CustomSlashCommandCatalogLoadResult> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, TaskCompletionSource<CustomSlashCommandCatalogLoadResult>> Pending { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public string GetNotesFolderCommandsDirectory(string notesFolder) => Path.Combine(notesFolder, ".groundnotes", "slash-commands");
+
+        public async Task<CustomSlashCommandCatalogLoadResult> LoadCommandsAsync(string notesFolder, CancellationToken cancellationToken = default)
+        {
+            if (Pending.TryGetValue(notesFolder, out var pending)) return await pending.Task;
+            return Results.TryGetValue(notesFolder, out var result) ? result : CustomSlashCommandCatalogLoadResult.Empty;
+        }
+    }
+
+    private sealed class FakeCustomSlashCommandEditorService : ICustomSlashCommandEditorService
+    {
+        public Task SaveCustomCommandAsync(string notesFolder, CustomSlashCommandDefinition command, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task DeleteCustomCommandAsync(string notesFolder, string commandId, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public string GetCustomCommandFilePath(string notesFolder, string commandId) => Path.Combine(notesFolder, ".groundnotes", "slash-commands", commandId + ".json");
     }
 
     private sealed class FakeAiPromptEditorService : IAiPromptEditorService

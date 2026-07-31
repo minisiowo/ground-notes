@@ -43,6 +43,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private readonly IKeyboardShortcutService _keyboardShortcutService;
     private readonly INoteSearchService _noteSearchService;
     private readonly ITagFolderCatalogService _tagFolderCatalogService;
+    private readonly ICustomSlashCommandCatalogService? _customSlashCommandCatalogService;
+    private readonly ICustomSlashCommandEditorService? _customSlashCommandEditorService;
     private readonly ObservableCollection<NoteSummary> _allNotes = [];
     private HashSet<DateTime> _calendarNoteDates = [];
     private readonly Dictionary<string, bool> _sidebarTreeExpansionStates = new(StringComparer.OrdinalIgnoreCase);
@@ -239,6 +241,12 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private IReadOnlyList<AiPromptDefinition> _aiPrompts = [];
 
     [ObservableProperty]
+    private IReadOnlyList<CustomSlashCommandDefinition> _customSlashCommands = [];
+
+    [ObservableProperty]
+    private IReadOnlyList<CustomSlashCommandCatalogWarning> _customSlashCommandWarnings = [];
+
+    [ObservableProperty]
     private string _openAiApiKey = string.Empty;
 
     [ObservableProperty]
@@ -308,7 +316,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         IChatViewModelFactory chatViewModelFactory,
         IKeyboardShortcutService keyboardShortcutService,
         INoteSearchServiceFactory noteSearchServiceFactory,
-        ITagFolderCatalogService tagFolderCatalogService)
+        ITagFolderCatalogService tagFolderCatalogService,
+        ICustomSlashCommandCatalogService? customSlashCommandCatalogService = null,
+        ICustomSlashCommandEditorService? customSlashCommandEditorService = null)
     {
         _notesRepository = notesRepository;
         _settingsService = settingsService;
@@ -327,6 +337,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         _keyboardShortcutService = keyboardShortcutService;
         _noteSearchService = noteSearchServiceFactory.Create(() => _allNotes);
         _tagFolderCatalogService = tagFolderCatalogService;
+        _customSlashCommandCatalogService = customSlashCommandCatalogService;
+        _customSlashCommandEditorService = customSlashCommandEditorService;
         _fileWatcherService.NoteChanged += OnNoteChanged;
         _noteMutationService.NoteMutated += OnNoteMutated;
         SecondaryPanes.CollectionChanged += OnSecondaryPanesCollectionChanged;
@@ -698,6 +710,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
 
         OnPropertyChanged(nameof(HasSelectedFolder));
         OnPropertyChanged(nameof(CurrentAiPromptsDirectory));
+        OnPropertyChanged(nameof(CurrentSlashCommandsDirectory));
+        Interlocked.Increment(ref _slashCommandLoadGeneration);
+        CustomSlashCommands = [];
+        CustomSlashCommandWarnings = [];
         OnPropertyChanged(nameof(ShowFolderPrompt));
         OnPropertyChanged(nameof(ShowTitleWatermark));
         OnPropertyChanged(nameof(ShowTagsWatermark));
@@ -1502,6 +1518,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         ApplyAiSettings(settings.AiSettings);
         _keyboardShortcutService.ApplySettings(KeyboardShortcutSettings.Normalize(settings.KeyboardShortcuts));
         var promptLoad = await LoadAiPromptsAsync();
+        await LoadCustomSlashCommandsAsync();
         if (promptLoad.Warnings.Count > 0 && !HasSelectedFolder)
         {
             StatusMessage = BuildPromptLoadStatus(promptLoad);
@@ -1578,9 +1595,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         LastSavedText = "GroundNotes";
         await RefreshFromDiskAsync();
         var promptLoad = await LoadAiPromptsAsync();
-        StatusMessage = promptLoad.Warnings.Count > 0
-            ? BuildPromptLoadStatus(promptLoad)
-            : "Ready.";
+        var slashLoad = await LoadCustomSlashCommandsAsync(folderPath);
+        StatusMessage = BuildFolderLoadStatus(promptLoad, slashLoad);
 
         if (focusEditorWhenReady)
         {

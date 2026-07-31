@@ -43,7 +43,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     {
         var model = BuildSettingsDialogModel();
         IsSettingsPreviewActive = true;
-        await _workspaceDialogService.ShowSettingsAsync(model, ApplySettingsLive, BuildSettingsPromptActions());
+        await _workspaceDialogService.ShowSettingsAsync(model, ApplySettingsLive, BuildSettingsPromptActions(), BuildSettingsSlashCommandActions());
         IsSettingsPreviewActive = false;
     }
 
@@ -79,7 +79,10 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             CurrentAiPromptsDirectory,
             AiPrompts,
             _keyboardShortcutService.Settings,
-            VimModeSettings);
+            VimModeSettings,
+            CurrentSlashCommandsDirectory,
+             CustomSlashCommands,
+             CustomSlashCommandWarnings);
     }
 
 

@@ -1,4 +1,5 @@
 using GroundNotes.Services;
+using GroundNotes.Models;
 
 namespace GroundNotes.Editors;
 
@@ -18,6 +19,9 @@ internal static class MarkdownSlashCommandCatalog
         new("h2", "Heading 2", "Toggle heading level 2", SlashCommandAction.Heading2, ["heading2"]),
         new("h3", "Heading 3", "Toggle heading level 3", SlashCommandAction.Heading3, ["heading3"]),
     ];
+
+    internal static IReadOnlySet<string> ReservedTokens { get; } =
+        All.SelectMany(command => command.Aliases.Prepend(command.Id)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     public static MarkdownSlashTrigger? TryGetTrigger(string text, int caretOffset)
     {
@@ -64,13 +68,53 @@ internal static class MarkdownSlashCommandCatalog
     }
 
     public static IReadOnlyList<MarkdownSlashCommand> Filter(string query)
+        => Filter(query, []);
+
+    public static IReadOnlyList<MarkdownSlashCommand> Filter(
+        string query,
+        IReadOnlyList<CustomSlashCommandDefinition> customCommands)
     {
-        if (string.IsNullOrWhiteSpace(query))
+        var occupiedTokens = new HashSet<string>(ReservedTokens, StringComparer.OrdinalIgnoreCase);
+        var accepted = new List<CustomSlashCommandDefinition>();
+        foreach (var command in customCommands)
         {
-            return All;
+            if (command is null || !IsValidToken(command.Id))
+            {
+                continue;
+            }
+
+            var tokens = new[] { command.Id }.Concat(command.Aliases ?? []).ToList();
+            var commandTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (tokens.Any(token => !IsValidToken(token) || !commandTokens.Add(token))
+                || tokens.Any(token => occupiedTokens.Contains(token)))
+            {
+                continue;
+            }
+
+            accepted.Add(command);
+            occupiedTokens.UnionWith(tokens);
         }
 
-        return All
+        var custom = accepted
+            .OrderBy(command => command.Order)
+            .ThenBy(command => command.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(command => command.Id, StringComparer.Ordinal)
+            .Select(command => new MarkdownSlashCommand(
+                command.Id,
+                command.Name,
+                command.Description ?? "Insert custom template",
+                SlashCommandAction.InsertTemplate,
+                command.Aliases ?? [],
+                command.Template))
+            .ToList();
+        var source = All.Concat(custom).ToList();
+
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return source;
+        }
+
+        return source
             .Select((command, index) => new
             {
                 Command = command,
@@ -95,13 +139,29 @@ internal static class MarkdownSlashCommandCatalog
             .DefaultIfEmpty(int.MinValue)
             .Max() is var score && score != int.MinValue
                 ? score
-                : null;
+            : null;
+    }
+
+    private static bool IsValidToken(string? token)
+    {
+        if (string.IsNullOrEmpty(token) || token[0] is not (>= 'a' and <= 'z') and not (>= '0' and <= '9'))
+        {
+            return false;
+        }
+
+        return token.Skip(1).All(c => c is >= 'a' and <= 'z' or >= '0' and <= '9' or '_' or '-');
     }
 }
 
 internal readonly record struct MarkdownSlashTrigger(int Start, int Length, string Query);
 
-internal sealed record MarkdownSlashCommand(string Id, string Label, string Description, SlashCommandAction Action, IReadOnlyList<string> Aliases);
+internal sealed record MarkdownSlashCommand(
+    string Id,
+    string Label,
+    string Description,
+    SlashCommandAction Action,
+    IReadOnlyList<string> Aliases,
+    string? Template = null);
 
 internal enum SlashCommandAction
 {
@@ -116,4 +176,5 @@ internal enum SlashCommandAction
     Heading1,
     Heading2,
     Heading3,
+    InsertTemplate,
 }

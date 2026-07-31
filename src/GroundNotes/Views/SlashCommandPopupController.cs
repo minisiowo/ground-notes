@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using AvaloniaEdit;
 using GroundNotes.Editors;
+using GroundNotes.Models;
 
 namespace GroundNotes.Views;
 
@@ -24,6 +25,7 @@ internal sealed class SlashCommandPopupController : IDisposable
     private readonly Border _popupContent;
     private readonly ListBox _listBox;
     private readonly TextBlock _hintText;
+    private readonly Func<IReadOnlyList<CustomSlashCommandDefinition>> _customCommandsProvider;
     private bool _isRefreshQueued;
     private bool _isPositionUpdateQueued;
     private bool _needsPlacementReset;
@@ -37,7 +39,8 @@ internal sealed class SlashCommandPopupController : IDisposable
         Popup popup,
         Border popupContent,
         ListBox listBox,
-        TextBlock hintText)
+        TextBlock hintText,
+        Func<IReadOnlyList<CustomSlashCommandDefinition>>? customCommandsProvider = null)
     {
         _editor = editor;
         _editorBorder = editorBorder;
@@ -45,6 +48,7 @@ internal sealed class SlashCommandPopupController : IDisposable
         _popupContent = popupContent;
         _listBox = listBox;
         _hintText = hintText;
+        _customCommandsProvider = customCommandsProvider ?? (() => []);
     }
 
     public MarkdownSlashTrigger? ActiveTrigger { get; private set; }
@@ -112,6 +116,24 @@ internal sealed class SlashCommandPopupController : IDisposable
         if (document is null)
         {
             Close();
+            return;
+        }
+
+        if (command.Action == SlashCommandAction.InsertTemplate)
+        {
+            var template = command.Template ?? string.Empty;
+            var markerIndex = template.IndexOf("{cursor}", StringComparison.Ordinal);
+            var replacement = markerIndex >= 0
+                ? template.Remove(markerIndex, "{cursor}".Length)
+                : template;
+            var templateEdit = new MarkdownEditResult(
+                trigger.Start,
+                trigger.Length,
+                replacement,
+                markerIndex >= 0 ? trigger.Start + markerIndex : trigger.Start + replacement.Length,
+                0);
+            Close();
+            applyEdit(templateEdit);
             return;
         }
 
@@ -271,7 +293,9 @@ internal sealed class SlashCommandPopupController : IDisposable
             return;
         }
 
-        var commands = MarkdownSlashCommandCatalog.Filter(trigger.Value.Query);
+        var commands = MarkdownSlashCommandCatalog.Filter(
+            trigger.Value.Query,
+            _customCommandsProvider() ?? []);
         if (commands.Count == 0)
         {
             Close();

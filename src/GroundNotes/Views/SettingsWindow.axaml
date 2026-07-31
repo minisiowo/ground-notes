@@ -402,6 +402,28 @@
         </ScrollViewer>
       </TabItem>
 
+      <TabItem Header="Slash Commands">
+        <StackPanel Margin="24,16" Spacing="12">
+          <TextBlock Classes="settingsHeader" Text="Slash Commands" />
+          <TextBlock Classes="metaText" Text="{Binding SlashCommandsDirectory}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Content="Add" IsEnabled="{Binding CanManageSlashCommands}" Click="OnAddSlashCommandClick" />
+            <Button Content="Edit" IsEnabled="{Binding HasSelectedSlashCommand}" Click="OnEditSlashCommandClick" />
+            <Button Content="Duplicate" IsEnabled="{Binding HasSelectedSlashCommand}" Click="OnDuplicateSlashCommandClick" />
+            <Button Content="Delete" IsEnabled="{Binding HasSelectedSlashCommand}" Click="OnDeleteSlashCommandClick" />
+            <Button Content="Reload" IsEnabled="{Binding CanManageSlashCommands}" Click="OnReloadSlashCommandsClick" />
+          </StackPanel>
+          <Border BorderBrush="{DynamicResource BorderBrushBase}" BorderThickness="1,1,1,0" MaxHeight="360">
+             <ListBox Classes="aiPromptList" ItemsSource="{Binding SlashCommandItems}" SelectedItem="{Binding SelectedSlashCommand, Mode=TwoWay}" SelectionChanged="OnSlashCommandSelectionChanged" DoubleTapped="OnSlashCommandDoubleTapped">
+               <ListBox.ItemTemplate><DataTemplate><Border Classes="aiPromptRow" Padding="8"><Grid ColumnDefinitions="2*,*,3*,Auto" ColumnSpacing="8"><StackPanel><TextBlock Classes="settingsLabel" Text="{Binding Name}" /><StackPanel Orientation="Horizontal"><TextBlock Classes="metaText" Text="/" /><TextBlock Classes="metaText" Text="{Binding Id}" /></StackPanel><TextBlock Classes="metaText" Text="{Binding Aliases, StringFormat='Aliases: {0}'}" TextWrapping="Wrap" /></StackPanel><TextBlock Grid.Column="1" Classes="metaText" Text="{Binding Description}" TextWrapping="Wrap" /><TextBlock Grid.Column="2" Classes="metaText" Text="{Binding Definition.Template}" TextWrapping="Wrap" MaxLines="2" /><TextBlock Grid.Column="3" Classes="metaText" Text="{Binding Order}" /></Grid></Border></DataTemplate></ListBox.ItemTemplate>
+             </ListBox>
+           </Border>
+           <Border IsVisible="{Binding HasSlashCommandWarnings}" BorderBrush="{DynamicResource BorderBrushBase}" BorderThickness="1" Padding="8" MaxHeight="180">
+             <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel Spacing="4"><TextBlock Classes="settingsLabel" Text="Skipped files" /><ItemsControl ItemsSource="{Binding SlashCommandWarnings}"><ItemsControl.ItemTemplate><DataTemplate><StackPanel Spacing="1"><TextBlock Classes="metaText" Text="{Binding Path}" TextWrapping="Wrap" /><TextBlock Classes="settingsDescription" Text="{Binding Reason}" TextWrapping="Wrap" /></StackPanel></DataTemplate></ItemsControl.ItemTemplate></ItemsControl></StackPanel></ScrollViewer>
+           </Border>
+        </StackPanel>
+      </TabItem>
+
       <!-- Tab 3: Vim Mode -->
       <TabItem Header="Vim Mode">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">

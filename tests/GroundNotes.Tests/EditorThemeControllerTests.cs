@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Reflection;
 using Avalonia;
+using Avalonia.Headless.XUnit;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media;
@@ -17,10 +18,7 @@ namespace GroundNotes.Tests;
 
 public sealed class EditorThemeControllerTests
 {
-    private static readonly Lock ApplicationLock = new();
-    private static bool _applicationInitialized;
-
-    [Fact]
+    [AvaloniaFact]
     public void ConfigureEditorOptions_DisablesBuiltInHyperlinkRendering()
     {
         var options = new TextEditorOptions();
@@ -35,10 +33,9 @@ public sealed class EditorThemeControllerTests
         Assert.False(options.WordWrapIndentation > 0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WideTable_DoesNotWrapWhileOrdinaryTextStillWrapsAndScrollsHorizontally()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var ordinaryLine = "ordinary text that should wrap across several visual rows in a narrow editor viewport";
@@ -74,10 +71,9 @@ public sealed class EditorThemeControllerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TableInlineCode_KeepsSeparatorsVisuallyAligned()
     {
-        EnsureApplication();
         var resources = Application.Current!.Resources;
         var originalCodeFont = resources[ThemeKeys.CodeFont];
         try
@@ -103,10 +99,9 @@ public sealed class EditorThemeControllerTests
         }
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SetMarkdownFormattingEnabled_DisablesMarkdownPresentationButKeepsWordWrap()
     {
-        EnsureApplication();
         FlushUiDispatcher();
         MarkdownDiagnostics.Reset();
 
@@ -132,10 +127,9 @@ public sealed class EditorThemeControllerTests
         MarkdownDiagnostics.Reset();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void SetMarkdownFormattingEnabled_ReEnablesMarkdownPresentation()
     {
-        EnsureApplication();
         FlushUiDispatcher();
         MarkdownDiagnostics.Reset();
 
@@ -162,10 +156,9 @@ public sealed class EditorThemeControllerTests
         MarkdownDiagnostics.Reset();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_PreservesHookIndentAcrossSegments()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = new TextEditor
@@ -202,10 +195,9 @@ public sealed class EditorThemeControllerTests
         AssertIndentedWrappedCode(textView, editor.Document);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_PreservesHookIndentAfterResize()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = new TextEditor
@@ -245,10 +237,9 @@ public sealed class EditorThemeControllerTests
         AssertIndentedWrappedCode(textView, editor.Document);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_ReflowsWithHookOnResizeWithoutManualTextViewRedraw()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = new TextEditor
@@ -289,10 +280,9 @@ public sealed class EditorThemeControllerTests
         AssertIndentedWrappedCode(textView, editor.Document);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ImagePreviewLayer_SkipsIdenticalRefreshes()
     {
-        EnsureApplication();
 
         using var tempDirectory = new TempDirectory();
         var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
@@ -338,10 +328,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(1, diagnostics.ImagePreviewRequests);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ImagePreviewLayer_ReusesImageControlsAfterRefreshStateInvalidation()
     {
-        EnsureApplication();
 
         using var tempDirectory = new TempDirectory();
         var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
@@ -388,10 +377,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(2, diagnostics.ImagePreviewRequests);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ImagePreviewLayer_ReusesRenderedLineStateDuringForcedRefresh()
     {
-        EnsureApplication();
 
         using var tempDirectory = new TempDirectory();
         var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
@@ -438,10 +426,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(0, diagnostics.ImagePreviewRequests);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void RefreshAfterDocumentReplace_DefersColdImageBitmapDecodeUntilAfterInitialRefresh()
     {
-        EnsureApplication();
 
         using var tempDirectory = new TempDirectory();
         var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
@@ -491,10 +478,9 @@ public sealed class EditorThemeControllerTests
         Assert.True(finalDiagnostics.DeferredBitmapLoads > 0, "Expected deferred bitmap loads to complete.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ResetViewportToDocumentStart_AfterReplacementWithMarkdownImageLine_ClearsCaretSelectionAndScrollOffset()
     {
-        EnsureApplication();
 
         using var tempDirectory = new TempDirectory();
         var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 1, 1);
@@ -546,10 +532,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(0, textView.ScrollOffset.Y);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void ImagePreviewLayer_CoalescesQueuedRefreshRequests()
     {
-        EnsureApplication();
 
         using var tempDirectory = new TempDirectory();
         var imagePath = CreateImageAsset(tempDirectory.DirectoryPath, "photo.png", 6, 3);
@@ -601,10 +586,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(1, diagnostics.ImagePreviewRequests);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void PlainLine_DoesNotReceiveHookIndentFromStaleFenceSnapshot()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         SeedStaleFencedLine(colorizer, 5);
@@ -641,10 +625,9 @@ public sealed class EditorThemeControllerTests
         Assert.All(plainStarts.Skip(1), start => Assert.True(start < 1.0, $"Plain starts: {string.Join(", ", plainStarts)}; Elements: {DescribeElements(plainLine)}"));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_ContinuationCaretRoundTripsThroughVisualPosition()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateWrappedEditor(colorizer, 100, 480);
@@ -667,10 +650,9 @@ public sealed class EditorThemeControllerTests
         Assert.True(Math.Abs(caretPoint.X - codeLine.GetVisualPosition(targetVisualColumn, AvaloniaEdit.Rendering.VisualYPosition.TextMiddle).X) < 1.0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_ContinuationHitTestingProducesCopyableSelection()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateWrappedEditor(colorizer, 100, 480);
@@ -694,10 +676,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(editor.Document.GetText(startOffset, endOffset - startOffset), editor.SelectedText);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_ReservesRightInsetWhenWrapping()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var longText = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau";
@@ -733,10 +714,9 @@ public sealed class EditorThemeControllerTests
             rightEdge => rightEdge > rightLimit + 1.0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void NarrowCodeBlock_KeepsTextAfterVisualIndentation()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(
@@ -764,10 +744,9 @@ public sealed class EditorThemeControllerTests
             $"First text X {firstTextX} should remain at or after code text start. Elements: {DescribeElements(visualLine)}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockSelection_DoesNotExtendIntoTrailingInsetForLineEndSelection()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(
@@ -807,10 +786,9 @@ public sealed class EditorThemeControllerTests
                 $"Selection right {rect.Right} should stay within trailing inset limit {rightLimit}. Rects: {string.Join(", ", codeLineSelectionRects)}; Elements: {DescribeElements(visualLine)}"));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockHitTesting_RightInsetMapsToWrappedRowEnd()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(
@@ -843,10 +821,9 @@ public sealed class EditorThemeControllerTests
             $"Hit-tested caret X {caretPoint.X} should stay within trailing inset. Elements: {DescribeElements(visualLine)}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockSelection_ClampsFullSelectedLinesToVisualIndentation()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateMultiLineCodeSelectionSample()), 520, 240, colorizer, out _);
@@ -909,10 +886,9 @@ public sealed class EditorThemeControllerTests
                 $"Indent-only selection left {rect.Left} should clamp to code text start {firstExpectedLeft}. Rects: {string.Join(", ", indentOnlyRects)}; Elements: {DescribeElements(firstVisualLine)}"));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockCaret_ClampsToVisualIndentationOnContentAndBlankLines()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateMultiLineCodeSelectionSample()), 520, 240, colorizer, out _);
@@ -942,10 +918,9 @@ public sealed class EditorThemeControllerTests
         Assert.True(Math.Abs(blankCaretRect.Top - blankTextTop) < 1.0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockHitTesting_NormalizesLeadingVisualIndentation()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateMultiLineCodeSelectionSample()), 520, 240, colorizer, out _);
@@ -970,10 +945,9 @@ public sealed class EditorThemeControllerTests
         Assert.Equal(firstSelectableColumn, floorPosition.VisualColumn);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockCaretAndSelection_AreCoincidentAtLineStart()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateMultiLineCodeSelectionSample()), 520, 240, colorizer, out _);
@@ -1013,10 +987,9 @@ public sealed class EditorThemeControllerTests
             $"Selection left {firstSelectionRect.Left} should be within code text start {expectedLeft}.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockSelection_BackwardWordSelectionDoesNotShiftByVisualIndentation()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(
@@ -1070,10 +1043,9 @@ public sealed class EditorThemeControllerTests
             $"Rect: {selectionRect}; Segment: {segment}; Elements: {DescribeElements(visualLine)}");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void CodeBlockSelection_ForwardWordSelectionCaretMatchesSelectionEnd()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(
@@ -1145,10 +1117,9 @@ public sealed class EditorThemeControllerTests
         textView.EnsureVisualLines();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlockSelection_ForwardWordSelectionDoesNotShiftByVisualIndentation()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var codeText = "aaaa aaaa aaaa aaaa aaaa aaaa aaaa aaaa obiekt, dalej";
@@ -1216,10 +1187,9 @@ public sealed class EditorThemeControllerTests
         textView.EnsureVisualLines();
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void EditorCaret_UsesTextHeightInsteadOfLineHeight()
     {
-        EnsureApplication();
 
         var editor = new TextEditor
         {
@@ -1263,10 +1233,9 @@ public sealed class EditorThemeControllerTests
         Assert.True(caretRect.Height < lineHeight - 1.0, $"Caret height {caretRect.Height} should be less than line height {lineHeight}.");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void EditorCaret_BlockShapeUsesGlyphWidthWithoutEnablingOverstrike()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument("block caret"), 320, 120, colorizer, out _);
@@ -1283,10 +1252,9 @@ public sealed class EditorThemeControllerTests
         Assert.True(Math.Abs(blockRectangle.Height - barRectangle.Height) < 1.0);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void OrdinaryIndentedLine_PreservesWhitespaceIndentAcrossSegments()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateWrappedIndentedPlainSample()), 110, 480, colorizer, out _);
@@ -1296,10 +1264,9 @@ public sealed class EditorThemeControllerTests
         AssertWrappedLinePreservesIndent(indentedLine);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void OrdinaryIndentedLine_PreservesWhitespaceIndentAfterFullDocumentReplace()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = new TextEditor
@@ -1336,10 +1303,9 @@ public sealed class EditorThemeControllerTests
         AssertWrappedLinePreservesIndent(indentedLine);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void WrappedCodeBlock_PreservesHookIndentAtNarrowWidth()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateWrappedEditor(colorizer, 40, 480);
@@ -1350,10 +1316,9 @@ public sealed class EditorThemeControllerTests
         AssertWrappedLinePreservesIndent(codeLine);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void BulletList_WrappedContinuationAlignsToListText()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateWrappedListSample()), 120, 480, colorizer, out _);
@@ -1362,10 +1327,9 @@ public sealed class EditorThemeControllerTests
         AssertWrappedLineAlignsToMarkdownTextStart(visualLine, editor.Document.GetText(editor.Document.GetLineByNumber(2)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void OrderedList_WrappedContinuationAlignsToListText()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateWrappedListSample()), 120, 480, colorizer, out _);
@@ -1374,10 +1338,9 @@ public sealed class EditorThemeControllerTests
         AssertWrappedLineAlignsToMarkdownTextStart(visualLine, editor.Document.GetText(editor.Document.GetLineByNumber(3)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TaskList_WrappedContinuationAlignsAfterCheckbox()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateWrappedListSample()), 120, 480, colorizer, out _);
@@ -1386,10 +1349,9 @@ public sealed class EditorThemeControllerTests
         AssertWrappedLineAlignsToMarkdownTextStart(visualLine, editor.Document.GetText(editor.Document.GetLineByNumber(4)));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void MarkerlessListContinuationLine_AlignsToOwningListText()
     {
-        EnsureApplication();
 
         using var colorizer = new MarkdownColorizingTransformer();
         var editor = CreateEditor(new TextDocument(CreateSoftBreakListSample()), 120, 480, colorizer, out _);
@@ -1402,28 +1364,6 @@ public sealed class EditorThemeControllerTests
         AssertWrappedContinuationLineAlignsToPreviousListText(
             taskLine,
             editor.Document.GetText(editor.Document.GetLineByNumber(4)));
-    }
-
-    private static void EnsureApplication()
-    {
-        lock (ApplicationLock)
-        {
-            if (_applicationInitialized || Application.Current is not null)
-            {
-                _applicationInitialized = true;
-                return;
-            }
-
-            try
-            {
-                GroundNotes.Program.BuildAvaloniaApp().SetupWithoutStarting();
-            }
-            catch (InvalidOperationException ex) when (ex.Message.Contains("Setup was already called", StringComparison.Ordinal))
-            {
-            }
-
-            _applicationInitialized = true;
-        }
     }
 
     private static string CreateWrappedCodeSample()
@@ -1527,26 +1467,37 @@ public sealed class EditorThemeControllerTests
             Content = editor
         };
 
+        window.Show();
         window.ApplyTemplate();
         window.Measure(new Size(window.Width, window.Height));
         window.Arrange(new Rect(0, 0, window.Width, window.Height));
         editor.ApplyTemplate();
         editor.Measure(new Size(editor.Width, editor.Height));
         editor.Arrange(new Rect(0, 0, editor.Width, editor.Height));
-        ApplyTextViewLayout(editor.TextArea.TextView, width, height);
+        ApplyTextViewLayout(editor.TextArea.TextView, width, height, window);
 
         return editor;
     }
 
-    private static void ApplyTextViewLayout(AvaloniaEdit.Rendering.TextView textView, double width, double height)
+    private static void ApplyTextViewLayout(
+        AvaloniaEdit.Rendering.TextView textView,
+        double width,
+        double height,
+        Window? window = null)
     {
+        window?.ApplyTemplate();
+        FlushUiDispatcher();
         textView.Measure(new Size(width, height));
         textView.Arrange(new Rect(0, 0, width, height));
         textView.InvalidateMeasure();
         textView.InvalidateArrange();
         textView.InvalidateVisual();
         textView.Redraw();
+        FlushUiDispatcher();
         textView.EnsureVisualLines();
+        textView.Redraw();
+        Dispatcher.UIThread.Post(textView.EnsureVisualLines, DispatcherPriority.Render);
+        FlushUiDispatcher();
     }
 
     private static int GetContinuationVisualColumn(AvaloniaEdit.Rendering.VisualLine visualLine, Avalonia.Media.TextFormatting.TextLine continuationTextLine, int columnOffset)

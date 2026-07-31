@@ -1,4 +1,5 @@
 using Avalonia.Input;
+using GroundNotes.Editors;
 using GroundNotes.Views;
 using Xunit;
 
@@ -15,8 +16,7 @@ public sealed class MainWindowShortcutTests
         var edit = MainWindow.BuildAiResultEdit(document, start, "selected text".Length, result);
         Assert.Contains("|-----|-------------|", edit.Replacement, StringComparison.Ordinal);
         Assert.Equal(edit.Start + edit.Replacement.Length, edit.SelectionStart);
-    }
-
+}
     [Fact]
     public void BuildInlineMarkdownEdit_FormatsTableAndPreservesSelection()
     {
@@ -333,4 +333,5 @@ public sealed class MainWindowShortcutTests
 
         Assert.Equal(expected, result);
     }
+
 }
