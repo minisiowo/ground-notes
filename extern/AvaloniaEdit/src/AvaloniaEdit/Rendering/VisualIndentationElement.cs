@@ -1,5 +1,7 @@
 using System;
 using Avalonia.Media.TextFormatting;
+using AvaloniaEdit.Document;
+using LogicalDirection = AvaloniaEdit.Document.LogicalDirection;
 
 namespace AvaloniaEdit.Rendering;
 
@@ -33,6 +35,17 @@ internal sealed class VisualIndentationElement : VisualLineElement
         if (length > _indentationText.Length)
             length = _indentationText.Length;
         return _indentationText.AsMemory(0, length);
+    }
+
+    public override bool HandlesLineBorders => true;
+
+    public override int GetNextCaretPosition(int visualColumn, LogicalDirection direction, CaretPositioningMode mode)
+    {
+        var end = VisualColumn + VisualLength;
+        if (direction == LogicalDirection.Forward)
+            return visualColumn < end ? end : -1;
+
+        return visualColumn > end ? end : -1;
     }
 
     public override bool IsWhitespace(int visualColumn)

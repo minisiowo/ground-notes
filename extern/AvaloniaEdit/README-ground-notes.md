@@ -23,6 +23,10 @@ The fork exposes `IVisualLineWrappingProvider` and an independent `TextView.Defa
 setting so host applications can keep ordinary lines wrapped while rendering selected lines, such as
 Markdown table rows, without wrapping. This decouples line wrapping from horizontal scrolling.
 
+The fork also overrides the caret border behavior of `VisualIndentationElement`: its zero-document-length
+visual-only inset handles line borders and exposes only the real content-start caret stop. This prevents
+Backspace at the start of blank or nonblank fenced-code lines from stopping at a duplicate document offset.
+
 The fork additionally exposes `TextArea.CaretShape` (`Bar` or `Block`). Block shape reuses the
 existing glyph-aware overstrike caret geometry without enabling overstrike text input behavior; this
 allows GroundNotes Vim mode to render a block caret while preserving normal insertion semantics.
@@ -30,6 +34,6 @@ allows GroundNotes Vim mode to render a block caret while preserving normal inse
 ## Upgrade procedure
 
 1. Refresh `extern/AvaloniaEdit` from the desired upstream commit.
-2. Reapply the `IVisualLineIndentationProvider`, `IVisualLineWrappingProvider`, `TextView.DefaultTextWrapping`, `VisualIndentationElement`, wrapped continuation-alignment hook, wrapped-line positioning patches in `src/AvaloniaEdit/Rendering/`, and the independent `TextArea.CaretShape` hook in `src/AvaloniaEdit/Editing/`.
+2. Reapply the `IVisualLineIndentationProvider`, `IVisualLineWrappingProvider`, `TextView.DefaultTextWrapping`, `VisualIndentationElement` caret-border override, wrapped continuation-alignment hook, wrapped-line positioning patches in `src/AvaloniaEdit/Rendering/`, and the independent `TextArea.CaretShape` hook in `src/AvaloniaEdit/Editing/`.
 3. Build `extern/AvaloniaEdit/src/AvaloniaEdit/AvaloniaEdit.csproj`.
 4. Build and run the GroundNotes editor regression tests.
