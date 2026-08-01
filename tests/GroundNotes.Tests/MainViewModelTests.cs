@@ -134,6 +134,63 @@ public sealed class MainViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task AcceptNotePickerSelection_SelectsOnlyAcceptedActiveNote()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "alpha body", new DateTime(2026, 3, 9));
+        await WriteNoteAsync("beta.md", "beta", "beta body", new DateTime(2026, 3, 10));
+
+        using var vm = await CreateViewModelAsync(folderOverride: _tempRoot);
+        var alphaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var betaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        vm.SelectOnlySidebarNote(alphaRow);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(alphaRow.Note);
+
+        vm.OpenNotePickerCommand.Execute(null);
+        vm.NotePickerQuery = "beta";
+        await vm.AcceptNotePickerSelectionCommand.ExecuteAsync(null);
+
+        Assert.Equal(betaRow.Note!.FilePath, vm.CurrentNote?.FilePath);
+        Assert.True(betaRow.Note.IsActive);
+        Assert.False(alphaRow.Note!.IsActive);
+        Assert.False(alphaRow.Note.IsSelected);
+        Assert.Same(betaRow, vm.SelectedSidebarRow);
+        Assert.Equal(betaRow.Note.FilePath, Assert.Single(vm.SelectedSidebarNotes).FilePath);
+    }
+
+    [Fact]
+    public async Task AcceptNotePickerSelection_FailedOpenPreservesSidebarMultiSelection()
+    {
+        Directory.CreateDirectory(_tempRoot);
+        await WriteNoteAsync("alpha.md", "alpha", "alpha body", new DateTime(2026, 3, 9));
+        await WriteNoteAsync("beta.md", "beta", "beta body", new DateTime(2026, 3, 10));
+        await WriteNoteAsync("gamma.md", "gamma", "gamma body", new DateTime(2026, 3, 11));
+
+        using var vm = await CreateViewModelAsync(folderOverride: _tempRoot);
+        var alphaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "alpha");
+        var betaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "beta");
+        var gammaRow = vm.VisibleSidebarRows.Single(row => row.Note?.DisplayName == "gamma");
+        vm.SelectOnlySidebarNote(alphaRow);
+        await vm.OpenSidebarNoteCommand.ExecuteAsync(alphaRow.Note);
+        vm.ToggleSidebarNoteSelection(gammaRow);
+
+        vm.OpenNotePickerCommand.Execute(null);
+        vm.NotePickerQuery = "beta";
+        File.Delete(betaRow.Note!.FilePath);
+        await vm.AcceptNotePickerSelectionCommand.ExecuteAsync(null);
+
+        Assert.Equal(alphaRow.Note!.FilePath, vm.CurrentNote?.FilePath);
+        Assert.True(alphaRow.Note.IsActive);
+        Assert.Equal(
+            new[] { alphaRow.Note.FilePath, gammaRow.Note!.FilePath }.OrderBy(path => path),
+            vm.SelectedSidebarNotes.Select(note => note.FilePath).OrderBy(path => path));
+        Assert.True(alphaRow.Note.IsSelected);
+        Assert.True(gammaRow.Note!.IsSelected);
+        Assert.False(betaRow.Note!.IsSelected);
+        Assert.Same(gammaRow, vm.SelectedSidebarRow);
+    }
+
+    [Fact]
     public async Task ShowKeyboardShortcutsHelpCommand_UsesDialogService()
     {
         Directory.CreateDirectory(_tempRoot);

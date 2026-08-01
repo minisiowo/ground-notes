@@ -3165,7 +3165,7 @@ public partial class MainWindow : Window
         }
 
         var dialog = new RenameImageWindow(Path.GetFileName(hit.ResolvedPath));
-        var requestedFileName = await dialog.ShowDialog<string?>(this);
+        var requestedFileName = await ModalDialogRunner.ShowAsync<string?>(dialog, this);
         if (string.IsNullOrWhiteSpace(requestedFileName))
         {
             return;
@@ -3224,7 +3224,7 @@ public partial class MainWindow : Window
             "Delete image?",
             $"Delete '{fileName}' from disk and remove it from this note?",
             "Delete");
-        var shouldDelete = await dialog.ShowDialog<bool>(this);
+        var shouldDelete = await ModalDialogRunner.ShowAsync<bool>(dialog, this);
         if (!shouldDelete)
         {
             vm.StatusMessage = "Delete canceled.";

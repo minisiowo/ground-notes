@@ -84,6 +84,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ? AiModelCatalog.DefaultTitleGenerationModel
             : model.TitleGenerationModel.Trim();
         TitleGenerationReasoningEffort = AiReasoningEffortCatalog.Normalize(model.TitleGenerationReasoningEffort);
+        TitleStylePrompt = AiTitleGenerationSettings.NormalizeTitleStylePrompt(model.TitleStylePrompt);
         SetAiPrompts(model.AiPrompts);
         SetSlashCommands(model.SlashCommands ?? []);
         SetSlashCommandWarnings(model.SlashCommandWarnings ?? []);
@@ -197,6 +198,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private string _titleGenerationReasoningEffort = AiReasoningEffortCatalog.DefaultReasoningEffort;
 
     [ObservableProperty]
+    private string _titleStylePrompt = AiTitleGenerationSettings.DefaultTitleStylePrompt;
+
+    [ObservableProperty]
     private string _defaultReasoningEffort = AiReasoningEffortCatalog.DefaultReasoningEffort;
 
     [ObservableProperty]
@@ -299,7 +303,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
             BuildVimModeSettings(),
              SlashCommandsDirectory,
              SlashCommandItems.Select(item => item.Definition).ToList(),
-             SlashCommandWarnings.ToList());
+             SlashCommandWarnings.ToList(),
+             AiTitleGenerationSettings.NormalizeTitleStylePrompt(TitleStylePrompt));
     }
 
     partial void OnSelectedThemeNameChanged(string value) => RaisePreviewRequested();
@@ -364,6 +369,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         TitleGenerationReasoningEffort = AiReasoningEffortCatalog.Normalize(value);
         RaisePreviewRequested();
+    }
+
+    partial void OnTitleStylePromptChanged(string value) => RaisePreviewRequested();
+
+    [RelayCommand]
+    private void ResetTitleStylePrompt()
+    {
+        TitleStylePrompt = AiTitleGenerationSettings.DefaultTitleStylePrompt;
     }
 
     partial void OnDefaultReasoningEffortChanged(string value)

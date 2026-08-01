@@ -259,6 +259,9 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     private string _selectedTitleGenerationReasoningEffort = AiTitleGenerationSettings.Default.DefaultReasoningEffort;
 
     [ObservableProperty]
+    private string _selectedTitleStylePrompt = AiTitleGenerationSettings.DefaultTitleStylePrompt;
+
+    [ObservableProperty]
     private string _selectedAiReasoningEffort = AiSettings.Default.DefaultReasoningEffort;
 
     [ObservableProperty]
@@ -1191,7 +1194,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private void AcceptNotePickerSelection()
+    private async Task AcceptNotePickerSelection()
     {
         if (!IsNotePickerOpen)
         {
@@ -1205,7 +1208,11 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         }
 
         CloseNotePicker();
-        _ = OpenNoteInActivePaneAsync(note.FilePath, focusEditorWhenReady: true);
+        await OpenNoteInActivePaneAsync(note.FilePath, focusEditorWhenReady: true);
+        if (string.Equals(GetActiveSidebarFilePath(), note.FilePath, StringComparison.OrdinalIgnoreCase))
+        {
+            SelectOnlySidebarFilePath(note.FilePath);
+        }
     }
 
     [RelayCommand]

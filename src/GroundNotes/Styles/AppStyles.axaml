@@ -256,6 +256,34 @@
     <Setter Property="HorizontalContentAlignment" Value="Left" />
   </Style>
 
+  <Style Selector="ListBoxItem Border.tagSuggestionRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="1" />
+  </Style>
+
+  <Style Selector="ListBoxItem:pointerover Border.tagSuggestionRow">
+    <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected Border.tagSuggestionRow">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+  </Style>
+
+  <Style Selector="ListBoxItem:selected:pointerover Border.tagSuggestionRow">
+    <Setter Property="Background" Value="{DynamicResource SelectionBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SelectionBorderBrush}" />
+  </Style>
+
+  <Style Selector="Border.titleSuggestionStatusRow">
+    <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrushBase}" />
+    <Setter Property="BorderThickness" Value="1" />
+  </Style>
+
   <Style Selector="Button.calendarToggleButton">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />

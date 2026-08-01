@@ -33,4 +33,5 @@ public sealed record SettingsDialogModel(
     VimModeSettings? VimModeSettings = null,
     string SlashCommandsDirectory = "",
      IReadOnlyList<CustomSlashCommandDefinition>? SlashCommands = null,
-     IReadOnlyList<CustomSlashCommandCatalogWarning>? SlashCommandWarnings = null);
+     IReadOnlyList<CustomSlashCommandCatalogWarning>? SlashCommandWarnings = null,
+     string? TitleStylePrompt = null);

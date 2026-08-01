@@ -50,6 +50,16 @@ public partial class MainViewModel
         RestoreSidebarSelectionFlags();
     }
 
+    private void SelectOnlySidebarFilePath(string filePath)
+    {
+        _selectedSidebarFilePaths.Clear();
+        _selectedSidebarFilePaths.Add(filePath);
+        var row = FindPreferredNoteRow(filePath);
+        _sidebarSelectionAnchorOccurrencePath = row?.OccurrencePath;
+        SelectedSidebarRow = row;
+        RestoreSidebarSelectionFlags();
+    }
+
     public void ToggleSidebarNoteSelection(SidebarTreeRowViewModel row)
     {
         if (row.Note is null)

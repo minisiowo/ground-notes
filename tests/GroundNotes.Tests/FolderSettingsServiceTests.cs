@@ -139,6 +139,7 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Equal(AiTitleGenerationSettings.Default.DefaultModel, settings.AiSettings.TitleGeneration.DefaultModel);
         Assert.Equal(AiReasoningEffortCatalog.DefaultReasoningEffort, settings.AiSettings.TitleGeneration.DefaultReasoningEffort);
         Assert.Equal(string.Empty, settings.AiSettings.ApiKey);
+        Assert.Equal(AiTitleGenerationSettings.DefaultTitleStylePrompt, settings.AiSettings.TitleGeneration.TitleStylePrompt);
     }
 
     [Fact]
@@ -193,6 +194,25 @@ public sealed class FolderSettingsServiceTests : IDisposable
         Assert.Contains("custom-title-model", json, StringComparison.Ordinal);
         Assert.Contains("AiTitleGenerationEnabled", json, StringComparison.Ordinal);
         Assert.Contains("OpenAiTitleGenerationReasoningEffort", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SaveAndLoad_RoundTripsCustomTitleStylePrompt()
+    {
+        const string customPrompt = "Use short titles with a calm technical tone.";
+        await _service.UpdateSettingsAsync(settings => settings with
+        {
+            AiSettings = settings.AiSettings with
+            {
+                TitleGeneration = settings.AiSettings.TitleGeneration with { TitleStylePrompt = customPrompt }
+            }
+        });
+
+        var settings = await _service.GetSettingsAsync();
+
+        Assert.Equal(customPrompt, settings.AiSettings.TitleGeneration.TitleStylePrompt);
+        var json = await File.ReadAllTextAsync(_settingsFilePath);
+        Assert.Contains(customPrompt, json, StringComparison.Ordinal);
     }
 
     [Fact]

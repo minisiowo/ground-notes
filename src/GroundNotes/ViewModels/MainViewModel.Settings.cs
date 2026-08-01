@@ -82,7 +82,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             VimModeSettings,
             CurrentSlashCommandsDirectory,
              CustomSlashCommands,
-             CustomSlashCommandWarnings);
+             CustomSlashCommandWarnings,
+             SelectedTitleStylePrompt);
     }
 
 
@@ -162,7 +163,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             TitleGeneration = AiTitleGenerationSettings.Normalize(
                 model.TitleGenerationModel,
                 model.IsTitleGenerationEnabled,
-                model.TitleGenerationReasoningEffort)
+                model.TitleGenerationReasoningEffort,
+                model.TitleStylePrompt)
         });
 
         _ = PersistSettingsAsync(settings => settings with

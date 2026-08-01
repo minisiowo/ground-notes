@@ -372,6 +372,7 @@ public partial class MainViewModel : ViewModelBase, IDisposable
         SelectedAiModel = normalized.DefaultModel;
         SelectedTitleGenerationModel = normalized.TitleGeneration.DefaultModel;
         SelectedTitleGenerationReasoningEffort = normalized.TitleGeneration.DefaultReasoningEffort;
+        SelectedTitleStylePrompt = normalized.TitleGeneration.TitleStylePrompt;
         OpenAiProjectId = normalized.ProjectId;
         OpenAiOrganizationId = normalized.OrganizationId;
         SelectedAiReasoningEffort = normalized.DefaultReasoningEffort;
@@ -391,7 +392,8 @@ public partial class MainViewModel : ViewModelBase, IDisposable
             AiTitleGenerationSettings.Normalize(
                 SelectedTitleGenerationModel,
                 IsTitleGenerationEnabled,
-                SelectedTitleGenerationReasoningEffort));
+                SelectedTitleGenerationReasoningEffort,
+                SelectedTitleStylePrompt));
     }
 
     private static string BuildPromptLoadStatus(AiPromptCatalogLoadResult promptLoad, string defaultMessage = "No AI prompts were found.")

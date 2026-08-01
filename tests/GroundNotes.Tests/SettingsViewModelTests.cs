@@ -89,6 +89,19 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public void TitleStylePrompt_PreservesCustomValueAndResetRestoresDefault()
+    {
+        var vm = new SettingsViewModel(CreateModel() with { TitleStylePrompt = "Use calm, technical wording." });
+
+        Assert.Equal("Use calm, technical wording.", vm.BuildModel().TitleStylePrompt);
+
+        vm.ResetTitleStylePromptCommand.Execute(null);
+
+        Assert.Equal(AiTitleGenerationSettings.DefaultTitleStylePrompt, vm.TitleStylePrompt);
+        Assert.Equal(AiTitleGenerationSettings.DefaultTitleStylePrompt, vm.BuildModel().TitleStylePrompt);
+    }
+
+    [Fact]
     public void Constructor_ExposesReasoningEffortOptions()
     {
         var vm = new SettingsViewModel(CreateModel());

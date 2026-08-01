@@ -333,6 +333,19 @@
               </Border>
 
               <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
+                <Grid IsEnabled="{Binding IsTitleGenerationEnabled}" RowDefinitions="Auto,Auto" RowSpacing="8">
+                  <StackPanel Spacing="2">
+                    <TextBlock Classes="settingsLabel" Text="Title style prompt" />
+                    <TextBlock Classes="settingsDescription" Text="Persistent style guidance for generated titles; this is separate from the one-off popup hint." TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <TextBox Classes="editorFont" MinHeight="130" AcceptsReturn="True" TextWrapping="Wrap" Text="{Binding TitleStylePrompt}" />
+                    <Button Grid.Column="1" Classes="secondaryButton" VerticalAlignment="Bottom" Content="Reset to default" Command="{Binding ResetTitleStylePromptCommand}" />
+                  </Grid>
+                </Grid>
+              </Border>
+
+              <Border IsEnabled="{Binding IsAiEnabled}" Classes="settingsCard">
                 <Grid ColumnDefinitions="*, 330">
                   <StackPanel VerticalAlignment="Center" Spacing="2">
                     <TextBlock Classes="settingsLabel" Text="Project ID" />

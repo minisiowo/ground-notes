@@ -39,19 +39,19 @@ public sealed class WindowDialogService : IWorkspaceDialogService
     public async Task<bool> ConfirmDeleteAsync(string noteName)
     {
         var dialog = new ConfirmDeleteWindow(noteName);
-        return await dialog.ShowDialog<bool>(_owner);
+        return await ModalDialogRunner.ShowAsync<bool>(dialog, _owner);
     }
 
     public async Task<string?> PromptCreateTagFolderAsync()
     {
         var dialog = TagFolderDialogWindow.Create();
-        return await dialog.ShowDialog<string?>(_owner);
+        return await ModalDialogRunner.ShowAsync<string?>(dialog, _owner);
     }
 
     public async Task<string?> PromptRenameTagFolderAsync(string currentPath)
     {
         var dialog = TagFolderDialogWindow.Rename(currentPath);
-        return await dialog.ShowDialog<string?>(_owner);
+        return await ModalDialogRunner.ShowAsync<string?>(dialog, _owner);
     }
 
     public async Task<string?> ChooseTagFolderDestinationAsync(IReadOnlyList<string> folderPaths)
@@ -62,7 +62,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         }
 
         var dialog = TagFolderDialogWindow.ChooseDestination(folderPaths);
-        return await dialog.ShowDialog<string?>(_owner);
+        return await ModalDialogRunner.ShowAsync<string?>(dialog, _owner);
     }
 
     public async Task<bool> ConfirmDeleteTagFolderAsync(string folderPath)
@@ -72,7 +72,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
             "Delete tag folder?",
             $"Delete '{folderPath}'? Notes will remain, but tags in this folder will be removed from them.",
             "Delete");
-        return await dialog.ShowDialog<bool>(_owner);
+        return await ModalDialogRunner.ShowAsync<bool>(dialog, _owner);
     }
 
     public async Task<bool> ConfirmDeleteNotesAsync(IReadOnlyList<string> noteNames)
@@ -92,7 +92,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         {
             Height = 280
         };
-        return await dialog.ShowDialog<bool>(_owner);
+        return await ModalDialogRunner.ShowAsync<bool>(dialog, _owner);
     }
 
     public async Task<bool> ConfirmDiscardInvalidDraftAsync()
@@ -102,7 +102,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
             "Discard invalid draft?",
             "This YAML draft is invalid and has not been saved. Discard it and continue?",
             "Discard");
-        return await dialog.ShowDialog<bool>(_owner);
+        return await ModalDialogRunner.ShowAsync<bool>(dialog, _owner);
     }
 
     public Task ShowChatAsync(ChatViewModel model)
@@ -127,7 +127,7 @@ public sealed class WindowDialogService : IWorkspaceDialogService
         {
             DataContext = new KeyboardShortcutsHelpDisplayModel(_keyboardShortcutService.BuildHelpSections())
         };
-        await dialog.ShowDialog(owner ?? _owner);
+        await ModalDialogRunner.ShowAsync(dialog, owner ?? _owner);
     }
 
     public async Task ShowSettingsAsync(SettingsDialogModel model, Action<SettingsDialogModel> onChange, SettingsPromptActions promptActions, SettingsSlashCommandActions? slashCommandActions = null)
@@ -142,6 +142,6 @@ public sealed class WindowDialogService : IWorkspaceDialogService
 
         dialog.ShowKeyboardShortcutsHelpAsync = () => ShowKeyboardShortcutsHelpAsync(dialog);
 
-        await dialog.ShowDialog(_owner);
+        await ModalDialogRunner.ShowAsync(dialog, _owner);
     }
 }

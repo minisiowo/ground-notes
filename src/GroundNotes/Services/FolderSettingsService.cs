@@ -175,7 +175,8 @@ public sealed class FolderSettingsService : ISettingsService
                 TitleGeneration = AiTitleGenerationSettings.Normalize(
                     record.OpenAiTitleGenerationModel,
                     record.AiTitleGenerationEnabled ?? AiTitleGenerationSettings.Default.IsEnabled,
-                    record.OpenAiTitleGenerationReasoningEffort)
+                    record.OpenAiTitleGenerationReasoningEffort,
+                    record.OpenAiTitleStylePrompt)
             },
             MapKeyboardShortcutSettings(record.KeyboardShortcuts),
             record.SidebarFontSize,
@@ -243,6 +244,7 @@ public sealed class FolderSettingsService : ISettingsService
             AiTitleGenerationEnabled = settings.AiSettings.TitleGeneration.IsEnabled,
             OpenAiTitleGenerationModel = settings.AiSettings.TitleGeneration.DefaultModel,
             OpenAiTitleGenerationReasoningEffort = settings.AiSettings.TitleGeneration.DefaultReasoningEffort,
+            OpenAiTitleStylePrompt = settings.AiSettings.TitleGeneration.TitleStylePrompt,
             KeyboardShortcuts = MapKeyboardShortcutSettings(settings.KeyboardShortcuts),
             VimModeSettings = MapVimModeSettings(settings.VimModeSettings),
             StandardNoteWindowLayout = MapNoteWindowLayout(settings.StandardNoteWindowLayout),
@@ -518,6 +520,7 @@ public sealed class FolderSettingsService : ISettingsService
         public bool? AiTitleGenerationEnabled { get; set; }
         public string? OpenAiTitleGenerationModel { get; set; }
         public string? OpenAiTitleGenerationReasoningEffort { get; set; }
+        public string? OpenAiTitleStylePrompt { get; set; }
         public KeyboardShortcutSettingsRecord? KeyboardShortcuts { get; set; }
         public VimModeSettingsRecord? VimModeSettings { get; set; }
     }

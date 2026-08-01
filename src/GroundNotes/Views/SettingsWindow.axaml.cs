@@ -117,7 +117,7 @@ public partial class SettingsWindow : Window
     {
         if (_viewModel?.SelectedSlashCommand is not { } item || SlashCommandActions is null) return;
         var confirmation = new ConfirmDeleteWindow("Delete slash command", "Delete slash command?", $"Delete custom command '{item.Name}' permanently?", "Delete");
-        if (!await confirmation.ShowDialog<bool>(this)) return;
+        if (!await ModalDialogRunner.ShowAsync<bool>(confirmation, this)) return;
         var result = await SlashCommandActions.DeleteCommandAsync(item.Definition);
          _viewModel.SetSlashCommands(result.Commands);
          _viewModel.SetSlashCommandWarnings(result.Warnings);
@@ -138,7 +138,7 @@ public partial class SettingsWindow : Window
          var unavailable = _viewModel.SlashCommandItems.Where(item => command is null || !string.Equals(item.Id, command.Id, StringComparison.OrdinalIgnoreCase)).SelectMany(item => new[] { item.Id }.Concat(item.Definition.Aliases ?? []))
              .Concat(GroundNotes.Editors.MarkdownSlashCommandCatalog.ReservedTokens);
         var dialog = new CustomSlashCommandEditorWindow(new CustomSlashCommandEditorViewModel(command, duplicate, unavailable));
-        if (!await dialog.ShowDialog<bool>(this) || dialog.Command is null) return;
+        if (!await ModalDialogRunner.ShowAsync<bool>(dialog, this) || dialog.Command is null) return;
          var save = await SlashCommandActions.SaveCommandAsync(dialog.Command, command is not null && !duplicate ? command.Id : null);
          if (!save.Succeeded) { _viewModel.SetSlashCommands(save.Commands); _viewModel.SetSlashCommandWarnings(save.Warnings); return; }
          _viewModel.SetSlashCommands(save.Commands);
@@ -258,7 +258,7 @@ public partial class SettingsWindow : Window
             "Delete AI prompt?",
             $"Delete custom prompt '{selectedPrompt.Name}' permanently?",
             "Delete");
-        if (!await confirmation.ShowDialog<bool>(this))
+        if (!await ModalDialogRunner.ShowAsync<bool>(confirmation, this))
         {
             return;
         }
@@ -298,7 +298,7 @@ public partial class SettingsWindow : Window
             KeyboardShortcuts = KeyboardShortcuts
         };
 
-        var saved = await dialog.ShowDialog<bool>(this);
+        var saved = await ModalDialogRunner.ShowAsync<bool>(dialog, this);
         if (!saved || dialog.Prompt is null)
         {
             return;
@@ -316,7 +316,7 @@ public partial class SettingsWindow : Window
                 "Replace AI prompt?",
                 $"A prompt with ID '{dialog.Prompt.Id}' already exists. Replace it with '{dialog.Prompt.Name}'?",
                 "Replace");
-            if (!await confirmation.ShowDialog<bool>(this))
+            if (!await ModalDialogRunner.ShowAsync<bool>(confirmation, this))
             {
                 return;
             }
